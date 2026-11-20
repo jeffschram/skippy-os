@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.2 · 2026-11-20 · Status: in discussion, no code yet · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.3 · 2026-11-20 · Status: in discussion, no code yet · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -99,6 +99,7 @@
     <li><a href="#mcp">Skippy MCP</a></li>
     <li><a href="#pages">Pages</a></li>
     <li><a href="#dropped">Dropped vs v0.2 &amp; data import</a></li>
+    <li><a href="#phases">Build phases</a></li>
     <li><a href="#open">Open questions</a></li>
     <li><a href="#decisions">Decision log</a></li>
   </ol>
@@ -225,6 +226,7 @@
     <li><strong>skippy-morning:</strong> a scheduled pass. Read Gmail, Calendar and iMessage since the last cursor, ingest what clears the rubric, and write a briefing note.</li>
     <li><strong>skippy-weekly-review:</strong> flag stale projects, overdue tasks and goal check-ins</li>
     <li><strong>skippy-plan-project:</strong> turn a brief into phases and tasks in Skippy</li>
+    <li><strong>skippy-nightly-sweep:</strong> catch unreported activity in code projects (see below)</li>
   </ul>
 </details>
 
@@ -233,7 +235,9 @@
   <ul>
     <li>Every Claude Project gets a line in its instructions: <code>Skippy project: &lt;slug&gt;. Follow the skippy-status skill.</code> Every Code folder gets the same line in its <code>CLAUDE.md</code>.</li>
     <li>The skill says to call <code>record_project_status</code> when a milestone is reached, a decision is made, something gets blocked, or a working session ends. It also says to create or complete tasks as they come up.</li>
-    <li>Risk: Claude sometimes forgets. Mitigation (proposed): the dashboard shows "last update from Claude" on every project and flags active projects with no update in <strong>7 days</strong> (adjustable in settings). The weekly review then asks about them. <span class="tag new">decided</span> <span class="tag open">Open</span>: whether to add a nightly sweep later.</li>
+    <li>Risk: Claude sometimes forgets. Mitigation (proposed): the dashboard shows "last update from Claude" on every project and flags active projects with no update in <strong>7 days</strong> (adjustable in settings). The weekly review then asks about them. <span class="tag new">decided</span></li>
+    <li><strong>Nightly sweep</strong> <span class="tag new">decided</span>: a scheduled task in Claude desktop on the mini runs the <code>skippy-nightly-sweep</code> skill. For each active code project it reads git commits and branches since the last sweep, plus local Claude Code session transcripts for that folder. Wherever there's activity Claude didn't report, it records a status update with <code>actor: {kind: "claude", surface: "scheduled"}</code>. Each project keeps a <code>lastSweptAt</code> marker, so nothing is double-counted.</li>
+    <li>Limitation: Claude Projects (chat) conversations can't be read by a sweep, because there's no API for them. Life and general projects rely on the skill and the 7-day flag only.</li>
   </ul>
 </details>
 
@@ -326,8 +330,9 @@
 </details>
 
 <details>
-  <summary>Web chats vs Claude app chats <span class="tag open">Open</span></summary>
-  <p>Web app chats are Claude Code sessions on the mini. They don't appear in the Claude app's chat list, but they would show under Code sessions on the mini. Should "continue in Claude" export a summary into a Claude Project?</p>
+  <summary>Web chats vs Claude app chats <span class="tag new">decided</span></summary>
+  <p>Web app chats are Claude Code sessions on the mini, so they don't show up in the Claude app's chat list.</p>
+  <p>Any chat has a <strong>Continue in Claude</strong> button. It has Claude write a brief: the goal, decisions so far, open questions, and the linked Skippy records with their IDs, ending with the <code>Skippy project: &lt;slug&gt;</code> line. The brief is saved to the project's notes (or as a note, if there's no project) and copied to the clipboard, ready to paste into a new Claude Project or Code session. The chat then shows "continued in Claude" with the date.</p>
 </details>
 
 <!-- ============================================================ -->
@@ -357,6 +362,7 @@
     <tr><td>claudeHome</td><td>{ kind: "claude_project", name, url? } | { kind: "code_folder", path, repoUrl? } ?</td><td>where the work happens</td></tr>
     <tr><td>statusNote</td><td>string?</td><td>the latest one-paragraph status</td></tr>
     <tr><td>statusUpdatedAt / statusUpdatedBy</td><td>number / Actor</td><td>drives the staleness flag</td></tr>
+    <tr><td>lastSweptAt</td><td>number?</td><td>the nightly sweep's high-water mark (code projects)</td></tr>
     <tr><td>notesPad</td><td>string</td><td>seeded from the idea chat summary</td></tr>
     <tr><td>originChatId</td><td>Id&lt;chats&gt;?</td><td>the promoted idea chat</td></tr>
     <tr><td>goalId / areaId / targetDate</td><td>?</td><td></td></tr>
@@ -502,20 +508,117 @@
 </details>
 
 <!-- ============================================================ -->
-<h2 id="open">11. Open questions</h2>
+<h2 id="phases">11. Build phases</h2>
+<p>Order: prove OAuth, lay the foundation, bring in real data, then make the status loop usable first <span class="tag new">decided</span>. Idea chat and the morning briefing follow. Each phase has a "done when" check, written before building. <span class="tag avoid">avoid</span> the old habit of calling work done because a task was closed or a PR merged.</p>
+
+<div class="table-scroll"><table>
+  <tr><th>Phase</th><th>Delivers</th><th>Needs the Mac mini?</th></tr>
+  <tr><td>0. OAuth test</td><td>Proof that every target harness can sign in and call the MCP</td><td>No</td></tr>
+  <tr><td>1. Foundation</td><td>Schema, sign-in, gateway, core MCP tools</td><td>No</td></tr>
+  <tr><td>2. Import</td><td>Real data from the old project</td><td>No</td></tr>
+  <tr><td>3. Status loop</td><td>Claude reports; the dashboard shows and edits</td><td>No</td></tr>
+  <tr><td>4. Capture &amp; brain</td><td>Quick capture, knowledge, people, agenda, search</td><td>No</td></tr>
+  <tr><td>5. Idea chat</td><td>Chat runner, Home and item chats, promotion cards</td><td>Yes</td></tr>
+  <tr><td>6. Morning briefing</td><td>Ingestion, briefing note, push, PWA</td><td>Yes</td></tr>
+  <tr><td>7. Sweeps &amp; reviews</td><td>Nightly sweep, weekly review</td><td>Yes</td></tr>
+</table></div>
+
+<details open>
+  <summary>Phase 0: OAuth test</summary>
+  <ul>
+    <li>A new Clerk instance, a Vercel project and a Convex deployment</li>
+    <li><code>/api/mcp</code> with two tools, <code>whoami</code> and <code>capture</code>, plus protected-resource discovery and the signed gateway</li>
+    <li>Clerk configured for DCR, CIMD, the two scopes, and JWT access tokens bound to the MCP URL</li>
+  </ul>
+  <p><strong>Done when:</strong> the §3 acceptance run passes in Claude Code, claude.ai and iOS, and Claude desktop, and the negative checks fail as they should. ChatGPT and Codex either pass or are written down as unsupported, with the reason.</p>
+  <p><strong>If Clerk can't do it:</strong> stop and decide before Phase 1. The fallback candidates are a different authorization server in front of the MCP, or static tokens only. <span class="tag open">Open</span></p>
+</details>
+
+<details>
+  <summary>Phase 1: Foundation</summary>
+  <ul>
+    <li>pnpm monorepo: <code>convex/</code>, <code>apps/web</code>, <code>packages/shared</code>; <code>pnpm check</code>; CI deploys Convex</li>
+    <li>Schema for projects, phases, tasks, goals, areas, people, companies, knowledge, relationships, source refs and activity events, with <code>Actor</code> on every write</li>
+    <li>Web app shell with Clerk sign-in, limited to the owner</li>
+    <li>MCP tools: the status, records and read groups from §8</li>
+  </ul>
+  <p><strong>Done when:</strong> from a Claude chat I can create a project and a task, read them back, and see both in the activity log with Claude as the actor. <code>pnpm check</code> passes.</p>
+</details>
+
+<details>
+  <summary>Phase 2: Import</summary>
+  <ul>
+    <li>A snapshot export of the old deployment, and <code>scripts/import-v1/</code> with the §10 table mapping</li>
+    <li>A dry-run mode that prints the counts without writing</li>
+  </ul>
+  <p><strong>Done when:</strong> the per-table counts (exported, imported, skipped with reasons) add up, 10 records of each type pass a spot check, no code project or code task came across, and <code>importMap</code> has been dropped.</p>
+</details>
+
+<details>
+  <summary>Phase 3: Status loop <span class="hint">the first usable version</span></summary>
+  <ul>
+    <li>The Skippy plugin, with <code>skippy-status</code> and <code>skippy-capture</code></li>
+    <li>The <code>Skippy project: &lt;slug&gt;</code> line added to each Claude Project and each Code folder's <code>CLAUDE.md</code>, and <code>claudeHome</code> filled in</li>
+    <li>Dashboard: the projects board with health and the 7-day stale flag, Today, and Overnight</li>
+    <li>Project and task pages, the shared item details view, and full editing</li>
+    <li><code>get_changes_since</code>, so Claude sees my dashboard edits</li>
+  </ul>
+  <p><strong>Done when:</strong> after one week of normal work, every project I touched has a status update I didn't ask for, and a change I make in the dashboard is picked up by Claude in its next session on that project.</p>
+</details>
+
+<details>
+  <summary>Phase 4: Capture &amp; brain</summary>
+  <ul>
+    <li>The Home input in capture mode, including files and "hold" captures</li>
+    <li><code>/brain</code> sections, people and companies, and <code>/agenda</code> with Skippy events and recurrences</li>
+    <li>Embeddings and search, in the web app and through the MCP</li>
+  </ul>
+  <p><strong>Done when:</strong> a capture made on my phone is findable by search from a Claude chat, and completing a recurrence in either place advances it exactly once.</p>
+</details>
+
+<details>
+  <summary>Phase 5: Idea chat</summary>
+  <ul>
+    <li>The chat runner on the mini: host token, heartbeat, lease-based claiming, stall watchdog, explicit MCP injection</li>
+    <li>Chat mode on Home and chat on any item, with live streaming</li>
+    <li><code>propose_promotion</code> and promotion cards; promoting a chat to a project; "Continue in Claude"</li>
+    <li>"Waiting for Mac mini" when the host is offline. Code-project chats read-only.</li>
+  </ul>
+  <p><strong>Done when:</strong> an idea typed on my phone becomes a project with two tasks through cards alone; a message sent while the mini is off runs after it comes back; and killing the runner mid-turn leaves the chat in a clear failed or retry state, not stuck.</p>
+</details>
+
+<details>
+  <summary>Phase 6: Morning briefing</summary>
+  <ul>
+    <li>Source cursors and receipts; the <code>skippy-morning</code> skill as a scheduled task in Claude desktop on the mini</li>
+    <li>Sources, one at a time, each with its own acceptance evidence: Google Calendar (inbound), Gmail, then iMessage through a local connector</li>
+    <li>The briefing note, the ingestion health tile, PWA install, and web push with quiet hours and dedupe</li>
+  </ul>
+  <p><strong>Done when:</strong> for seven mornings in a row the briefing arrives by push at the set time, each source's cursor has advanced with no gaps, and re-running a pass creates no duplicates.</p>
+</details>
+
+<details>
+  <summary>Phase 7: Sweeps &amp; reviews</summary>
+  <ul>
+    <li><code>skippy-nightly-sweep</code> for code projects, and <code>skippy-weekly-review</code></li>
+    <li>Stale projects surfaced in the weekly review</li>
+  </ul>
+  <p><strong>Done when:</strong> commits made in a session where Claude didn't report show up as a status update the next morning, marked as coming from the sweep, and never twice.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="open">12. Open questions</h2>
 <details open>
   <summary>To discuss next</summary>
   <ol>
+    <li>The fallback if Clerk can't pass the Phase 0 OAuth test</li>
     <li>When to move to a custom domain. Moving changes the OAuth audience, so every harness has to reconnect.</li>
-    <li>Whether to add a nightly status sweep</li>
-    <li>Should web chats be exportable into a Claude Project?</li>
     <li>Deep links: can "Open in Claude" go straight to a Project on iOS?</li>
-    <li>Alternative: could the dashboard be a published Claude artifact reading live data?</li>
   </ol>
 </details>
 
 <!-- ============================================================ -->
-<h2 id="decisions">12. Decision log</h2>
+<h2 id="decisions">13. Decision log</h2>
 <details open>
   <summary>Decided</summary>
   <table>
@@ -540,6 +643,10 @@
     <tr><td>2026-11-20</td><td>Flag active projects as stale after 7 days without an update from Claude</td></tr>
     <tr><td>2026-11-20</td><td>Web chats can't edit code. Code-project chats read the Code folder only; edits happen in Claude Code.</td></tr>
     <tr><td>2026-11-20</td><td>The morning briefing appears on the dashboard and is announced by a web push (PWA)</td></tr>
+    <tr><td>2026-11-20</td><td>Nightly sweep of code projects (git plus local Code transcripts) to catch status Claude didn't report</td></tr>
+    <tr><td>2026-11-20</td><td>"Continue in Claude": a chat writes a brief into notes and copies it to paste into a Claude Project or Code session</td></tr>
+    <tr><td>2026-11-20</td><td>The Next.js app on Vercel is the only Skippy UI; no Claude artifact dashboard</td></tr>
+    <tr><td>2026-11-20</td><td>Build order: OAuth test, foundation, import, status loop, capture and brain, idea chat, morning briefing, sweeps and reviews</td></tr>
     <tr><td>2026-11-20</td><td>Finance is out of v1</td></tr>
     <tr><td>2026-11-20</td><td>One-time import from a read-only snapshot export of the old deployment, with a temporary <code>importMap</code></td></tr>
     <tr><td>2026-11-20</td><td>Import all non-code projects and tasks, with full history. Code projects and their tasks are not imported.</td></tr>
