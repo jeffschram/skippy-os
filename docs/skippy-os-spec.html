@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skippy OS Spec</title>
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --text: #1f2328;
+    --muted: #656d76;
+    --border: #e3e0d8;
+    --accent: #3b5bdb;
+    --accent-soft: #edf1ff;
+    --open: #b35c00;
+    --open-soft: #fff4e5;
+    --ok: #2b7a3d;
+    --ok-soft: #e8f5eb;
+    --bad: #b3261e;
+    --bad-soft: #fdecea;
+    --code-bg: #f3f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a; --surface: #1d2024; --text: #e6e6e6; --muted: #9aa1a9;
+      --border: #30353b; --accent: #8ea5ff; --accent-soft: #1f2640;
+      --open: #ffb86b; --open-soft: #33261a; --ok: #7fd18f; --ok-soft: #1b2e20;
+      --bad: #ff8a80; --bad-soft: #3a1d1b; --code-bg: #24282d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --surface: #1d2024; --text: #e6e6e6; --muted: #9aa1a9;
+    --border: #30353b; --accent: #8ea5ff; --accent-soft: #1f2640;
+    --open: #ffb86b; --open-soft: #33261a; --ok: #7fd18f; --ok-soft: #1b2e20;
+    --bad: #ff8a80; --bad-soft: #3a1d1b; --code-bg: #24282d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 32px 16px 80px; }
+  header h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); }
+  .meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  nav.toc { margin: 24px 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  h2 { margin: 40px 0 8px; font-size: 21px; padding-bottom: 6px; border-bottom: 1px solid var(--border); scroll-margin-top: 16px; }
+  h3 { margin: 20px 0 6px; font-size: 16px; }
+  p, li { max-width: 72ch; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  details {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    margin: 8px 0; padding: 0 14px;
+  }
+  details[open] { padding-bottom: 12px; }
+  summary {
+    cursor: pointer; padding: 10px 0; font-weight: 600; list-style: none;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; color: var(--muted); transition: transform .15s; display: inline-block; }
+  details[open] > summary::before { transform: rotate(90deg); }
+  summary .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+  details details { background: var(--bg); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 6px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  table.fields td:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  table.fields td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); font-size: 12.5px; }
+  .table-scroll { overflow-x: auto; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .tag.open { background: var(--open-soft); color: var(--open); }
+  .tag.borrow { background: var(--ok-soft); color: var(--ok); }
+  .tag.avoid { background: var(--bad-soft); color: var(--bad); }
+  .callout { border-left: 3px solid var(--open); background: var(--open-soft); padding: 8px 12px; border-radius: 0 6px 6px 0; margin: 10px 0; }
+  .callout strong { color: var(--open); }
+  .callout.lesson { border-color: var(--ok); background: var(--ok-soft); }
+  .callout.lesson strong { color: var(--ok); }
+  pre { background: var(--code-bg); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+  .controls { margin: 8px 0 0; display: flex; gap: 8px; flex-wrap: wrap; }
+  .controls button {
+    font: inherit; font-size: 13px; background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+  .legend { font-size: 13px; color: var(--muted); margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Skippy OS</h1>
+  <p>A second brain, project manager and life-task manager, run by Claude Code and Codex sessions on an always-on Mac mini.</p>
+  <div class="meta">Spec draft v0.2 · 2026-11-18 · Status: in discussion, no code yet</div>
+  <div class="legend">
+    <span><span class="tag borrow">borrowed</span> pattern taken from <code>skippy-mcp-and-app</code></span>
+    <span><span class="tag avoid">avoid</span> lesson from what went wrong there</span>
+    <span><span class="tag open">Open</span> undecided</span>
+  </div>
+  <div class="controls">
+    <button type="button" onclick="document.querySelectorAll('details').forEach(d=>d.open=true)">Expand all</button>
+    <button type="button" onclick="document.querySelectorAll('details').forEach(d=>d.open=false)">Collapse all</button>
+  </div>
+</header>
+
+<nav class="toc">
+  <ol>
+    <li><a href="#vision">Vision &amp; principles</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#functionality">Functionality</a></li>
+    <li><a href="#data">Data types</a></li>
+    <li><a href="#connectors">Connectors, MCP &amp; plugins</a></li>
+    <li><a href="#agents">Agent runner</a></li>
+    <li><a href="#pages">Pages</a></li>
+    <li><a href="#conventions">Engineering conventions</a></li>
+    <li><a href="#open">Open questions</a></li>
+    <li><a href="#borrowed">Borrowed vs avoided</a></li>
+    <li><a href="#decisions">Decision log</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="vision">1. Vision &amp; principles</h2>
+<p>Skippy OS is one place for everything I need to know, decide and do. AI agents running locally keep it current: they pull in email, calendar and messages, turn them into structured knowledge and tasks, and do delegated work. The web app is where I look, decide and steer.</p>
+<p>This is a fresh project. It borrows proven patterns from the older <code>~/src/skippy-mcp-and-app</code>, but it shares no code, Convex deployment or data with it. See <a href="#borrowed">§10</a>.</p>
+
+<details open>
+  <summary>Core principles</summary>
+  <ul>
+    <li><strong>Structured, not dumped.</strong> Ingest objects (tasks, people, notes, decisions), not raw text. Every object keeps provenance (source refs). <span class="tag borrow">borrowed</span></li>
+    <li><strong>An importance bar, then accept directly.</strong> A rubric decides what is worth saving. If it's unclear, skip it. Whatever clears the bar is accepted, with no approval queue for knowledge. <span class="tag avoid">avoid</span> the old triage and memory-review gates, which were all retired.</li>
+    <li><strong>Tasks are actions.</strong> A dated event is not a task, and <code>dueAt</code> is only an action deadline. Candidates carry <code>itemIntent</code> (action | event | reference) and <code>dateKind</code> (deadline | event). <span class="tag borrow">borrowed</span></li>
+    <li><strong>One place to look.</strong> Home is the single queue. Attention is derived at read time, not managed in parallel review queues. <span class="tag avoid">avoid</span> the competing Attention / Review / Resurfacing surfaces.</li>
+    <li><strong>Approvals are for side effects only.</strong> Agents read, write knowledge and draft freely. Sending, paying, pushing and deleting externally need my OK.</li>
+    <li><strong>Convex holds all state.</strong> The runner is restart-safe and keeps nothing that Convex can't rebuild. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Deterministic before AI.</strong> Summaries, the Today model, attention and closeouts are plain code. LLMs are used where judgment is needed. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Write the real scope down.</strong> The old PLAN said no recurrence, no chat and no file storage, and all three got built anyway. This spec includes them from the start. <span class="tag avoid">avoid</span></li>
+  </ul>
+</details>
+
+<details>
+  <summary>Non-goals (for v1) <span class="tag open">Open</span></summary>
+  <ul>
+    <li>Multi-user or team collaboration (single owner)</li>
+    <li>Native mobile app (PWA first)</li>
+    <li>Writing to Google Calendar. Skippy owns its own agenda and reads Google inbound-only. <span class="tag avoid">avoid</span> the duplicate bookings from 2026-09.</li>
+    <li>3D "Mind" graph browser (maybe later)</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="architecture">2. Architecture</h2>
+
+<pre>
+ ┌──────────────── Browser / phone (PWA) ───────────────┐
+ │   Next.js + React + shadcn/ui  (apps/web)            │
+ └───────────────▲──────────────────────────────────────┘
+                 │ realtime queries / mutations (Clerk / Convex Auth)
+ ┌───────────────┴──────────────────────────────────────┐
+ │                 Convex (DB + functions)              │
+ │  viewer fns · host fns · MCP gateway fns · crons     │
+ │  lease-claimed work queues · storage · vectors       │
+ └───────▲───────────────────────────────▲──────────────┘
+         │ host token, outbound only     │ signed gateway calls
+ ┌───────┴─────────── Mac mini (always on) ┴────────────┐
+ │  apps/runner  (launchd daemon)                       │
+ │   ├─ claim loops: runs · chat turns · agent passes   │
+ │   ├─ harness adapters: Claude Agent SDK · codex exec │
+ │   └─ git worktree per run                            │
+ │  apps/mcp-server  (Skippy MCP, role-scoped tokens)   │
+ └──────────────────────────────────────────────────────┘
+</pre>
+
+<details>
+  <summary>Repo layout <span class="tag borrow">borrowed</span></summary>
+  <p>A pnpm monorepo: <code>convex/</code>, <code>apps/web</code>, <code>apps/runner</code>, <code>apps/mcp-server</code>, <code>packages/shared</code> (validators, entity types, pure helpers), and <code>docs/</code>, where design docs are the source of truth.</p>
+</details>
+
+<details>
+  <summary>Three auth boundaries <span class="tag borrow">borrowed</span></summary>
+  <table>
+    <tr><th>Caller</th><th>Auth</th><th>Convex entrypoints</th></tr>
+    <tr><td>Web app (me)</td><td>Clerk or Convex Auth session</td><td><code>*ForViewer</code> queries and mutations</td></tr>
+    <tr><td>Runner (Mac mini)</td><td>Revocable host token (<code>skippyhost_…</code>), stored hashed</td><td><code>host*</code> functions: claim, heartbeat, events</td></tr>
+    <tr><td>MCP server</td><td>Role-scoped MCP token, then a signed one-use gateway call</td><td>Internal functions behind the gateway, which rechecks scope and ownership</td></tr>
+  </table>
+</details>
+
+<details>
+  <summary>Hosting &amp; access <span class="tag open">Open</span></summary>
+  <ul>
+    <li>Convex cloud (new deployment) vs self-hosted</li>
+    <li>Web app: Vercel, or the Mac mini behind Tailscale or a Cloudflare Tunnel</li>
+    <li>Auth: Clerk, which the old project used and which is OAuth-capable, vs Convex Auth (simpler)</li>
+    <li>Should the runner push work through Convex subscriptions instead of polling? Polling latency was known debt in the old project.</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="functionality">3. Functionality</h2>
+
+<details>
+  <summary>3.1 Capture <span class="hint">get things in, fast</span></summary>
+  <ul>
+    <li>Quick capture from the Home bar, <code>⌘K</code>, an iOS Shortcut or share sheet, email-to-Skippy, or voice. Text, URLs and files are all supported.</li>
+    <li><code>intent</code>: <strong>remember</strong> (the next agent pass ingests it) or <strong>hold</strong> (a private 7-day hand-off between devices). <span class="tag borrow">borrowed</span></li>
+    <li>Agents process captures into objects directly and record what they made. There is no accept/reject step. <span class="tag avoid">avoid</span> approval queues.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.2 Second brain (knowledge) <span class="hint">notes, links, memories, decisions, principles</span></summary>
+  <ul>
+    <li>One <code>knowledge</code> table with a <code>kind</code> field. <span class="tag borrow">borrowed</span>. The old project spent a migration consolidating separate tables into one; we start unified.</li>
+    <li>A typed relationship graph between any entities: person ↔ project ↔ note. <span class="tag borrow">borrowed</span></li>
+    <li>Semantic plus keyword search (vector index filtered by embedding model)</li>
+    <li>"Ask Skippy": an answer from the brain with citations. It runs as a chat turn on the runner.</li>
+    <li>People and companies as a light CRM, including a "reach out" cadence</li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.3 Projects <span class="hint">projects → phases → tasks</span></summary>
+  <ul>
+    <li>Projects have a <code>kind</code> (code | general), phases, a notes pad with snapshots, a file library and decisions. <span class="tag borrow">borrowed</span></li>
+    <li>Code projects keep their execution settings (local path, preferred harness, verify command) on the project itself. The old project used a separate mapping, and the owner asked to move it onto the project page.</li>
+    <li>The loop is plan → brief → ready → execute → review → closeout. <span class="tag borrow">borrowed</span></li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.4 Life tasks, recurrences &amp; waiting-on</summary>
+  <ul>
+    <li>Tasks outside any project, grouped by Area, with <code>commitment</code> (must | want) <span class="tag borrow">borrowed</span></li>
+    <li>Recurrences use an interval or an RRULE, anchored either to completion or to schedule, with lead time, idempotent complete/skip and capped history <span class="tag borrow">borrowed</span></li>
+    <li>Waiting-on: a task can wait on a person and gets nudged. A nudge only drafts an outbound action.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.5 Home (Today) <span class="hint">the single queue</span></summary>
+  <ul>
+    <li>Sections: Summary → Today (including 7 days of overdue) → Upcoming (the next 7 days) → All <span class="tag borrow">borrowed</span></li>
+    <li>Row kinds are <code>task | event | recurrence | review</code>, keyed by <code>{kind, id}</code>. Reads are bounded and paginated with seek cursors.</li>
+    <li>The Summary is deterministic count clauses ("3 due today, 1 overdue, 2 approvals"), with no LLM call</li>
+    <li>"Waiting on me": approvals, failed runs, and items whose review date has come up</li>
+    <li>One shared item-details modal with per-item chat <span class="tag borrow">borrowed</span></li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.6 Attention (derived)</summary>
+  <ul>
+    <li>Statuses: immediate | todo | in_progress | scheduled | ok | stale | unassessed. They are computed at read time from due dates, status and activity. <span class="tag borrow">borrowed</span></li>
+    <li>A manual override with a <code>reviewAt</code> date wins until that date. This replaces "memory review": nothing needs approving, but things can resurface.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.7 Agent delegation &amp; chat</summary>
+  <ul>
+    <li>Delegate any task. Its brief and acceptance criteria are copied onto the run when it is queued.</li>
+    <li>Chats exist per project, per item and per page. They are a first-class feature, not something added later. <span class="tag avoid">avoid</span> the old drift into "project chats" that also served pages.</li>
+    <li>Chat history stays with the chat when you switch harness, which fixes an owner complaint from the old app</li>
+    <li>Scheduled agent roles: agenda (ingestion), PM per project, task executor, weekly review, and maybe finance</li>
+  </ul>
+  <p>Details in <a href="#agents">§6</a>.</p>
+</details>
+
+<details>
+  <summary>3.8 Goals, areas &amp; check-ins</summary>
+  <ul>
+    <li>Areas are configurable data rather than enums, and goals roll up to them</li>
+    <li>Interviews / check-ins: guided Q&amp;A templates (project, goal, person, decision, weekly review) whose answers become knowledge <span class="tag borrow">borrowed</span></li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.9 Finance <span class="tag open">Open</span></summary>
+  <ul>
+    <li>If included: Plaid-fed accounts, transactions, daily balances, budgets and debts, with money in integer cents and a <code>monthKey</code> <span class="tag borrow">borrowed</span></li>
+    <li>Categories and account owners are configurable data. <span class="tag avoid">avoid</span> personal names hard-coded as schema literals.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>3.10 Notifications &amp; activity</summary>
+  <ul>
+    <li>Web push (PWA), with dedupe keys, quiet hours and a daily digest <span class="tag borrow">borrowed</span></li>
+    <li>An Activity log of everything agents and I did, including outbound actions that ran</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="data">4. Data types</h2>
+<p>Convex tables. Every table also has <code>_id</code>, <code>_creationTime</code> and <code>updatedAt</code>. Single owner: <span class="tag open">Open</span> whether to keep an <code>ownerId</code> on every row, which would be cheap insurance.</p>
+
+<h3>Shared validators <span class="hint">(packages/shared, defined once)</span></h3>
+
+<details>
+  <summary>EntityRef <span class="tag borrow">borrowed</span></summary>
+  <p><code>{ entityType, entityId: string }</code>. <code>entityType</code> is one of goal | project | task | knowledge | person | company | recurrence | event. It is defined once and imported everywhere. <span class="tag avoid">avoid</span> the three copies the old project had.</p>
+</details>
+
+<details>
+  <summary>RubricDecision</summary>
+  <p><code>{ reason: string, itemIntent: "action"|"event"|"reference", dateKind?: "deadline"|"event", rubricVersion: number }</code>. This is structured, where the old project stored a free-text string.</p>
+</details>
+
+<details>
+  <summary>AttentionMeta <span class="tag borrow">borrowed</span></summary>
+  <p><code>{ override?: AttentionStatus, reason?, reviewAt?, scheduledAt?, snoozedUntil? }</code>. <span class="tag open">Open</span>: embed it on each table, or keep one <code>attention</code> table keyed by EntityRef? The old project copied three indexes onto six tables.</p>
+</details>
+
+<details>
+  <summary>TokenUsage <span class="tag borrow">borrowed</span></summary>
+  <p><code>{ inputTokens, cachedInputTokens, outputTokens, totalTokens, costUsd? }</code>. The runner normalizes Claude and Codex usage into this shape.</p>
+</details>
+
+<details>
+  <summary>Lease <span class="tag borrow">borrowed</span></summary>
+  <p><code>{ hostId?, claimToken?, claimVersion: number, leaseExpiresAt?, cancelRequested? }</code>. This is spread into every queue table (runs, chat turns, agent configs, outbound actions).</p>
+</details>
+
+<h3>Work</h3>
+
+<details>
+  <summary>tasks</summary>
+  <div class="table-scroll"><table class="fields">
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td>title / description</td><td>string / string?</td><td>markdown</td></tr>
+    <tr><td>status</td><td>"todo" | "in_progress" | "waiting" | "done" | "cancelled"</td><td>the axis I see</td></tr>
+    <tr><td>executionState</td><td>"proposed" | "briefed" | "ready" | "running" | "in_review" | "blocked" | "done"?</td><td>a separate agent-pipeline axis <span class="tag borrow">borrowed</span></td></tr>
+    <tr><td>kind</td><td>"coding" | "research" | "planning" | "manual" | …</td><td>what kind of work it is, used to pick the runner</td></tr>
+    <tr><td>projectId / phaseId</td><td>Id?</td><td>no project means a life task</td></tr>
+    <tr><td>areaId</td><td>Id&lt;areas&gt;?</td><td></td></tr>
+    <tr><td>commitment</td><td>"must" | "want"?</td><td>missing means must</td></tr>
+    <tr><td>dueAt</td><td>number?</td><td>action deadline only</td></tr>
+    <tr><td>scheduledFor</td><td>number?</td><td>when I plan to do it</td></tr>
+    <tr><td>waitingOn / waitingSince / lastNudgedAt</td><td>EntityRef? / number?</td><td></td></tr>
+    <tr><td>brief / acceptanceCriteria</td><td>string? / string[]?</td><td>copied onto the run when queued</td></tr>
+    <tr><td>orderIndex</td><td>number?</td><td>order within a phase</td></tr>
+    <tr><td>recurrenceId / occurrenceVersion</td><td>Id? / number?</td><td></td></tr>
+    <tr><td>attention</td><td>AttentionMeta?</td><td></td></tr>
+    <tr><td>completedAt</td><td>number?</td><td></td></tr>
+  </table></div>
+  <div class="callout lesson"><strong>Lesson:</strong> the run is the only source of truth for agent work. PR URLs, result summaries and the requested harness live on <code>agentRuns</code>, not duplicated on the task.</div>
+</details>
+
+<details>
+  <summary>projects</summary>
+  <div class="table-scroll"><table class="fields">
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td>title / slug / summary</td><td>string</td><td></td></tr>
+    <tr><td>status</td><td>"idea" | "planned" | "active" | "paused" | "completed" | "archived"</td><td></td></tr>
+    <tr><td>kind</td><td>"code" | "general"</td><td></td></tr>
+    <tr><td>goalId / areaId</td><td>Id?</td><td></td></tr>
+    <tr><td>notesPad</td><td>string</td><td>with <code>projectNoteSnapshots</code></td></tr>
+    <tr><td>repoUrl / liveUrl</td><td>string?</td><td></td></tr>
+    <tr><td>execution</td><td>{ hostId, localPath, preferredHarness?, defaultModel?, baseBranch, verifyCommand?, requirePushApproval } ?</td><td>replaces the old projectExecutionConfigs table</td></tr>
+    <tr><td>targetDate</td><td>number?</td><td></td></tr>
+  </table></div>
+</details>
+
+<details>
+  <summary>phases · projectNoteSnapshots · projectFiles</summary>
+  <p><strong>phases:</strong> <code>projectId, orderNum, title, descriptionMd, status</code></p>
+  <p><strong>projectNoteSnapshots:</strong> <code>projectId, content, summary?, createdBy</code></p>
+  <p><strong>projectFiles:</strong> <code>projectId, taskId?, runId?, storageId, kind ("input" | "artifact"), status ("pending_upload" | "ready" | "deleted"), fileName, mimeType, sizeBytes, sha256, createdBy: Actor</code>. Storage URLs are never stored. <span class="tag borrow">borrowed</span> <span class="tag avoid">avoid</span> the overlapping origin fields.</p>
+</details>
+
+<details>
+  <summary>recurrences · occurrenceActions <span class="tag borrow">borrowed</span></summary>
+  <div class="table-scroll"><table class="fields">
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td>title / description / areaId</td><td></td><td></td></tr>
+    <tr><td>rule</td><td>{kind:"interval", everyDays} | {kind:"calendar", rrule}</td><td></td></tr>
+    <tr><td>anchor</td><td>"completion" | "schedule"</td><td>"every 3 months after the last haircut" vs "the 15th of every quarter"</td></tr>
+    <tr><td>timeZone</td><td>string</td><td>IANA</td></tr>
+    <tr><td>nextDueAt / leadTimeDays</td><td>number / number?</td><td></td></tr>
+    <tr><td>status</td><td>"active" | "paused" | "retired"</td><td></td></tr>
+    <tr><td>spawnTask / currentTaskId</td><td>boolean / Id?</td><td></td></tr>
+    <tr><td>history</td><td>{scheduledFor, occurredAt, outcome: "completed"|"skipped", note?}[]</td><td>capped</td></tr>
+    <tr><td>occurrenceVersion</td><td>number</td><td></td></tr>
+  </table></div>
+  <p><strong>occurrenceActions:</strong> <code>recurrenceId, requestId, version, action ("complete" | "skip"), result</code>. These are idempotency receipts. Completing the spawned task must advance the recurrence, which was a bug in the old project.</p>
+</details>
+
+<details>
+  <summary>goals · areas</summary>
+  <p><strong>areas:</strong> <code>name, icon, color, order</code>. Data, not an enum.</p>
+  <p><strong>goals:</strong> <code>title, description?, areaId?, horizon?, status ("active" | "paused" | "achieved" | "abandoned"), measures?: {label, target, current}[]</code></p>
+</details>
+
+<h3>Knowledge &amp; people</h3>
+
+<details>
+  <summary>quickCaptures <span class="tag borrow">borrowed</span></summary>
+  <p><code>text?, url?, storageId?, fileName?, mimeType?, intent ("remember" | "hold"), status ("pending" | "processed" | "discarded"), capturedBy: Actor, processedAt?, processingNote?, resultRefs?: EntityRef[], expiresAt?</code> (set for hold)</p>
+</details>
+
+<details>
+  <summary>knowledge <span class="tag borrow">borrowed</span></summary>
+  <div class="table-scroll"><table class="fields">
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td>kind</td><td>"note" | "link" | "memory" | "decision" | "principle" | "question"</td><td></td></tr>
+    <tr><td>title / body / summary</td><td>string?</td><td>markdown body</td></tr>
+    <tr><td>url / normalizedUrl</td><td>string?</td><td>links</td></tr>
+    <tr><td>readState</td><td>"saved" | "unread" | "read"?</td><td>links only, kept separate from lifecycle</td></tr>
+    <tr><td>lifecycle</td><td>"active" | "archived"</td><td>a single trust/lifecycle axis</td></tr>
+    <tr><td>properties</td><td>typed per kind</td><td>decision: {options, chosen, rationale, revisitAt}; memory: {category, confidence}</td></tr>
+    <tr><td>whyItMatters</td><td>string?</td><td></td></tr>
+    <tr><td>rubricDecision</td><td>RubricDecision?</td><td>required on agent writes</td></tr>
+    <tr><td>attention</td><td>AttentionMeta?</td><td></td></tr>
+  </table></div>
+  <div class="callout lesson"><strong>Lesson:</strong> the old <code>knowledge.status</code> mixed inbox, accept and read-queue states, and lived alongside <code>reviewState</code> and <code>processingState</code>. Here there is one lifecycle axis, plus <code>readState</code> for links only.</div>
+</details>
+
+<details>
+  <summary>relationships <span class="tag borrow">borrowed</span></summary>
+  <p><code>from: EntityRef, to: EntityRef, type, confidence?, reason?, createdBy: Actor</code></p>
+  <p><code>type</code>: belongs_to | supports | related_to | mentions | assigned_to | works_at | client_of | depends_on | blocked_by | waiting_on | follow_up_with | spawned_from. Indexed on <code>from.entityId</code> and <code>to.entityId</code>.</p>
+  <p>Watch out for Convex read limits: the old project dropped tasks with more than 64 links from attention.</p>
+</details>
+
+<details>
+  <summary>entityEmbeddings <span class="tag borrow">borrowed</span></summary>
+  <p><code>entityRef, canonicalText, textHash, embedding: float64[], provider, model</code>. The vector index is filtered by provider and model, and <code>textHash</code> skips re-embedding text that hasn't changed.</p>
+</details>
+
+<details>
+  <summary>people · companies</summary>
+  <p><strong>people:</strong> <code>name, emails[], phoneNumbers[], addresses?, roleTitle?, relationshipContext?, birthday?, notes?, favorite?, lastContactAt?, contactCadenceDays?, attention?</code></p>
+  <p><strong>companies:</strong> <code>name, domain?, website?, relationshipLabel ("client" | "vendor" | "employer" | "partner" | "prospect" | "other"), notes?</code></p>
+</details>
+
+<details>
+  <summary>calendarEvents <span class="tag borrow">borrowed</span></summary>
+  <p>Identity: <code>origin ("google" | "skippy"), calendarId?, externalId, iCalUID?, etag?, sourceUpdatedAt?</code></p>
+  <p>Content: <code>title, description?, location?, startAt, endAt, isAllDay, timeZone?, status ("confirmed" | "tentative" | "cancelled"), attendees?, conferenceUrl?, htmlLink?</code></p>
+  <p>Recurrence: <code>recurringEventId?, originalStartAt?</code></p>
+  <p>Events are matched on identity, never by similarity, and kept off the rubric/triage path. Google events are inbound-only. Skippy-origin events stay local.</p>
+</details>
+
+<details>
+  <summary>interviews · interviewResponses <span class="tag borrow">borrowed</span></summary>
+  <p><strong>interviews:</strong> <code>templateKind ("project" | "goal" | "person" | "decision" | "weekly_review"), title, status ("active" | "completed" | "archived"), currentQuestionIndex, questionCount, subject?: EntityRef, summary?</code></p>
+  <p><strong>interviewResponses:</strong> <code>interviewId, questionId, questionIndex, prompt, answerText, resultRef?</code></p>
+</details>
+
+<h3>Provenance &amp; ingestion</h3>
+
+<details>
+  <summary>sourceRefs · entitySourceRefs <span class="tag borrow">borrowed</span></summary>
+  <p><strong>sourceRefs:</strong> <code>sourceSystem, externalId?, threadId?, messageId?, eventId?, sourceTimestamp?, participants?, url?, deepLink?, excerpt?, summary?</code>. Indexed by external, message and event ID for dedupe.</p>
+  <p><strong>entitySourceRefs:</strong> <code>entityRef, sourceRefId, relationship ("created_from" | "updated_from" | "mentioned_in" | "evidence_for")</code></p>
+</details>
+
+<details>
+  <summary>sourceCursors <span class="hint">one typed table, replacing four</span></summary>
+  <p><code>source, account, coveredThrough, windowStart?, windowEnd?, syncToken?, status ("idle" | "running" | "failed"), lease, lastError?</code></p>
+  <p>The windowing is borrowed: a 48h baseline, oldest-first windows of up to 48h with a 15-minute overlap, and <code>coveredThrough</code> advancing only after exhaustive reads. <span class="tag avoid">avoid</span> the untyped <code>metadata.syncToken</code> and the four overlapping bookkeeping tables.</p>
+</details>
+
+<details>
+  <summary>ingestionRuns · ingestionReceipts <span class="tag borrow">borrowed</span></summary>
+  <p><strong>ingestionRuns:</strong> <code>runKey, harness, expectedSources[], startedAt, completedAt?, status, perSource: {source, windowStart, windowEnd, scanned, created, updated, skipped, errors[]}[]</code></p>
+  <p><strong>ingestionReceipts:</strong> <code>key (source identity), entityRef, createdAt</code>. Written atomically with the object, so a replay reuses the same entity.</p>
+</details>
+
+<h3>Agents &amp; chat</h3>
+
+<details>
+  <summary>agentHosts <span class="tag borrow">borrowed</span></summary>
+  <p><code>hostKey, displayName, capabilities {harnesses: ("claude"|"codex")[], maxConcurrency, connectors[]}, tokenHash, tokenPrefix, revokedAt?, draining?, lastHeartbeatAt?</code>. Online status is derived from the heartbeat, not stored.</p>
+</details>
+
+<details>
+  <summary>agentConfigs (roles &amp; schedules) · skills <span class="tag borrow">borrowed</span></summary>
+  <p><strong>agentConfigs:</strong> <code>roleKey ("agenda" | "pm:{projectId}" | "task-executor" | "weekly-review" | …), displayName, skillSlugs[], connectorSlugs[], mcpRole, preferredHarness?, model?, schedule ({kind:"interval", everyMinutes, window?} | {kind:"daily", timesOfDay[]}), timeZone, enabled, nextDueAt, retryCount, lastRun?: {startedAt, status, summary}, lease</code>. Claiming one advances <code>nextDueAt</code> atomically, so a schedule can't fire twice.</p>
+  <p><strong>skills:</strong> <code>slug, title, description, body, version, isCurrent</code>. A role's behavior lives in versioned skills fetched with <code>get_skill</code>, and the runner prompt is one line.</p>
+</details>
+
+<details>
+  <summary>agentRuns · agentRunEvents</summary>
+  <div class="table-scroll"><table class="fields">
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td>kind</td><td>"task" | "pass" | "closeout"</td><td>a closeout is deterministic and uses no LLM</td></tr>
+    <tr><td>taskId / projectId / agentConfigId / chatId</td><td>Id?</td><td></td></tr>
+    <tr><td>status</td><td>"queued" | "claimed" | "preparing" | "running" | "waiting_for_approval" | "verifying" | "publishing" | "in_review" | "succeeded" | "interrupted" | "failed" | "cancelled"</td><td><span class="tag borrow">borrowed</span></td></tr>
+    <tr><td>harness / model</td><td>"claude" | "codex" / string?</td><td></td></tr>
+    <tr><td>attempt</td><td>number</td><td></td></tr>
+    <tr><td>snapshot</td><td>{ brief, acceptanceCriteria, inputFileIds, approvalPolicy }</td><td>frozen when queued</td></tr>
+    <tr><td>baseBranch / workingBranch / worktreePath</td><td>string?</td><td>code runs</td></tr>
+    <tr><td>externalSessionId</td><td>string?</td><td>for resume</td></tr>
+    <tr><td>lease</td><td>Lease</td><td></td></tr>
+    <tr><td>queuedAt / startedAt / completedAt</td><td>number</td><td></td></tr>
+    <tr><td>result</td><td>{ summary, url?, prUrl?, prNumber?, artifactFileIds[], verification? }?</td><td>the only source of truth for results</td></tr>
+    <tr><td>error</td><td>{ category, message }?</td><td></td></tr>
+    <tr><td>usage</td><td>TokenUsage?</td><td></td></tr>
+    <tr><td>lastEventSeq</td><td>number</td><td>high-water mark for idempotent event writes</td></tr>
+  </table></div>
+  <p><strong>agentRunEvents:</strong> <code>runId, seq, type, payload</code>, indexed by <code>(runId, seq)</code>.</p>
+</details>
+
+<details>
+  <summary>chats · chatMessages · chatTurns</summary>
+  <p><strong>chats:</strong> <code>scope ({kind:"project", projectId} | {kind:"item", entityRef} | {kind:"page", pageKey} | {kind:"global"}), title, harness?, externalThreadId?, historySummary?, state</code>. It has a single generic scope. <span class="tag avoid">avoid</span> "projectChats" being reused for pages.</p>
+  <p><strong>chatMessages:</strong> <code>chatId, role, content, attachments?: {fileId}[], status</code>. One attachment shape.</p>
+  <p><strong>chatTurns:</strong> <code>chatId, userMessageId, assistantMessageId, harness, status, lease, usage?</code>, plus ephemeral <code>chatTurnEvents</code>.</p>
+</details>
+
+<details>
+  <summary>agentApprovals <span class="hint">harness permission requests</span> <span class="tag borrow">borrowed</span></summary>
+  <p><code>runId? | chatTurnId?, harnessRequestId, kind ("command" | "file_change" | "network" | "push" | "pr" | "user_input"), title, explanation?, details?, status ("pending" | "accepted" | "declined" | "expired"), scope?, decidedAt?</code>. <code>harnessRequestId</code> stops a retried decision from approving a different command. These expire after 24h.</p>
+</details>
+
+<details>
+  <summary>outboundActions <span class="hint">side effects outside Skippy</span></summary>
+  <p><code>kind ("send_email" | "reply_email" | "slack_message" | …), payload (typed per kind), preview, status ("draft" | "awaiting_approval" | "ready" | "executing" | "done" | "failed" | "rejected"), requestedBy: EntityRef, related?: EntityRef[], decidedAt?, executedAt?, externalId?, error?, lease</code></p>
+  <div class="callout lesson"><strong>Lesson:</strong> the status names say what they mean. The old <code>approved</code> secretly meant "ready", and <code>body</code> doubled as a JSON payload. This table has a typed payload and honest names, and it is called <code>outboundActions</code> rather than <code>pendingActions</code>.</div>
+</details>
+
+<h3>System</h3>
+
+<details>
+  <summary>settings · rubric · preferences</summary>
+  <p><strong>settings</strong> (one row): <code>assistantName, timeZone, notificationPreferences {quietHours, digest, minPriority}, autonomyPolicy {actionApproval: "always" | "allow_drafts"}</code></p>
+  <p><strong>rubrics:</strong> <code>version, criteria[], examples[]</code></p>
+  <p><strong>preferences:</strong> <code>text, scope, source ("explicit" | "learned"), confidence?, enabled</code>. This merges the old <code>operatingRules</code> and <code>userProfileMemories</code>, which overlapped; the latter was never used.</p>
+</details>
+
+<details>
+  <summary>mcpTokens · pushSubscriptions · notificationDeliveries · activityEvents <span class="tag borrow">borrowed</span></summary>
+  <p><strong>mcpTokens:</strong> <code>label, role, tokenHash, tokenPrefix, revokedAt?, lastUsedAt?</code>. <code>role</code> is required. <span class="tag avoid">avoid</span> the old rule where a token with no role got full access.</p>
+  <p><strong>pushSubscriptions / notificationDeliveries:</strong> <code>dedupeKey</code> per delivery</p>
+  <p><strong>activityEvents:</strong> <code>entityRef?, activityType, actor: Actor, timestamp, summary, metadata?, sourceRefIds?</code></p>
+</details>
+
+<details>
+  <summary>Finance tables <span class="tag open">Open</span></summary>
+  <p><code>financialAccounts, financialTransactions, financialDailyBalances, financialBudgets, financialDebts, financeCategories</code>. These follow the old shapes (integer cents, <code>monthKey</code>, <code>externalId</code> upserts, balances stored as independent snapshots), with categories as data. They are deferred until §3.9 is decided.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="connectors">5. Connectors, MCP &amp; plugins</h2>
+
+<details open>
+  <summary>Skippy MCP server</summary>
+  <p>A new server with the old tool names where they made sense. Planned groups:</p>
+  <ul>
+    <li><strong>Ingest:</strong> <code>get_importance_rubric</code>, <code>ingest_object</code>, <code>ingest_calendar_event</code>, <code>add_source_ref</code>, <code>record_ingestion_run</code>, <code>get_source_cursor</code> / <code>advance_source_cursor</code></li>
+    <li><strong>Entities:</strong> <code>upsert_task|project|person|company|goal|recurrence|knowledge</code>, <code>link_entities</code>, <code>complete_recurrence</code></li>
+    <li><strong>Read:</strong> <code>search</code>, <code>get_context_bundle</code>, <code>get_current_context</code> (what I have open in the app), <code>list_agenda</code>, <code>list_quick_captures</code></li>
+    <li><strong>Projects:</strong> <code>plan_project</code>, <code>create_phase</code>, <code>brief_task</code>, <code>get_task_brief</code>, <code>record_task_result</code>, <code>get_project_notes</code> / <code>update_project_notes</code></li>
+    <li><strong>Files:</strong> <code>begin_ / finalize_ / abort_project_file_upload</code>, <code>get_project_file</code></li>
+    <li><strong>Agent loop:</strong> <code>get_skill</code>, <code>request_outbound_action</code></li>
+    <li><strong>Interviews:</strong> <code>start_interview</code>, <code>answer_interview_question</code>, <code>complete_interview</code></li>
+  </ul>
+  <div class="callout lesson"><strong>Lesson:</strong> the old server had 83 tools plus compatibility names (<code>submit_candidate_object</code> accepted directly; <code>propose_calendar_event</code> only created local events). Here the count stays small, every name is honest, and nothing is aliased.</div>
+</details>
+
+<details>
+  <summary>MCP auth <span class="tag borrow">borrowed</span></summary>
+  <ul>
+    <li>Static bearer tokens, stored hashed and shown once. Each carries a required role.</li>
+    <li>Deny-by-default role allowlists: tools outside the role are never registered on that connection, so they don't appear in tools/list.</li>
+    <li>The MCP server calls a Convex gateway with a signed, one-use, short-lived operation. Convex rechecks scope, revocation and ownership.</li>
+    <li>OAuth (for claude.ai and ChatGPT connectors) comes later <span class="tag open">Open</span>. It shipped disabled in the old project because Clerk couldn't yet issue resource-bound tokens.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>Inbound sources <span class="tag open">Open</span></summary>
+  <table>
+    <tr><th>Source</th><th>Options</th><th>Notes from the old project</th></tr>
+    <tr><td>Gmail</td><td>Native harness connector, or a local MCP</td><td>Native connectors were intermittently "not available to the model", and the cutover never qualified</td></tr>
+    <tr><td>Google Calendar</td><td>Native, or a read-only importer</td><td>Inbound only. Identity-matched, with a sync token in a typed cursor</td></tr>
+    <tr><td>iMessage</td><td>Local MCP reading chat.db (needs Full Disk Access)</td><td>No provider IDs, so it needs a fingerprint: SHA-256 of chat GUID, sender, timestamp and body</td></tr>
+    <tr><td>Slack / Drive / GitHub</td><td>Native connectors, or <code>gh</code></td><td>not in the old project</td></tr>
+    <tr><td>Plaid</td><td>Runner job</td><td>only if finance is in</td></tr>
+  </table>
+  <div class="callout lesson"><strong>Lesson:</strong> define each source's <em>acceptance evidence</em> before building it: what proves a window was read completely. In the old project, tasks were marked done and PRs merged while acceptance was still unmet. One schedule owner per source.</div>
+</details>
+
+<details>
+  <summary>Outbound actions</summary>
+  <ul>
+    <li>v1: email draft or send, Slack messages, GitHub PRs (from code runs, gated by <code>requirePushApproval</code>)</li>
+    <li>No Google Calendar writes. Skippy events are local.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>Claude Code plugin &amp; skills</summary>
+  <ul>
+    <li>Skills are stored in Convex (versioned) and fetched with <code>get_skill</code>, so changing behavior doesn't need a redeploy <span class="tag borrow">borrowed</span></li>
+    <li>A <code>skippy</code> Claude Code plugin for interactive use on the mini or a laptop, with commands such as <code>/capture</code>, <code>/today</code> and <code>/brief</code>, plus MCP config</li>
+    <li>Codex gets the same MCP through <code>-c mcp_servers.skippy.*</code> and the same skills</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="agents">6. Agent runner</h2>
+
+<details open>
+  <summary>How it runs work <span class="tag borrow">borrowed</span></summary>
+  <ol>
+    <li>A launchd daemon on the mini. Connections are outbound only, it authenticates with a host token, and it heartbeats to renew leases.</li>
+    <li>Separate claim loops for runs, chat turns and agent passes. Each claim is atomic and lease-based.</li>
+    <li><strong>Task runs:</strong> make a worktree (one per run, under an allowlisted root), run the harness turn, verify, publish (commit, push, PR, with approval), then <code>in_review</code>. Each step writes durable status and events.</li>
+    <li><strong>Agent passes:</strong> a one-line prompt ("load your skills via <code>get_skill</code> and follow them"), a role-scoped MCP token, a hard 15-minute timeout, and retries at 1, 5 and 15 minutes that respect quiet hours.</li>
+    <li><strong>Chat turns:</strong> no worktree. Run in the project checkout, with approval cards for gated actions.</li>
+    <li><strong>Closeout:</strong> a deterministic post-merge ritual. Verify the merge, pull, remove the worktree and branch, then mark the task done.</li>
+  </ol>
+</details>
+
+<details>
+  <summary>Harness adapters <span class="tag borrow">borrowed</span></summary>
+  <ul>
+    <li>A shared <code>HarnessAdapter</code> interface: start/resume, an event stream, approval requests, usage</li>
+    <li>Claude: the Agent SDK. Codex: <code>codex exec --json</code> in a workspace-write sandbox.</li>
+    <li>The Skippy MCP is injected explicitly per session. A host-level <code>claude mcp add</code> silently vanished on 2026-08-18.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>Reliability rules <span class="tag borrow">borrowed</span></summary>
+  <ul>
+    <li>A stall watchdog aborts silent sessions. Sessions were stranded in 2026-08.</li>
+    <li>On restart, active runs are marked <code>interrupted</code>, never auto-resumed</li>
+    <li>Process-level backstops for SDK teardown errors</li>
+    <li>Concurrency limits from <code>agentHosts.capabilities</code>, a daily cost cap <span class="tag open">Open</span>, and a kill switch</li>
+  </ul>
+</details>
+
+<details>
+  <summary>Runner policy <span class="tag open">Open</span></summary>
+  <ul>
+    <li>A default harness per task <code>kind</code> or role?</li>
+    <li>Should the runner run as a dedicated macOS user rather than the owner? The old one ran as the owner.</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="pages">7. Pages</h2>
+<div class="callout lesson"><strong>Lesson:</strong> the old app has about 17 redirect-only routes left over from renames. Decide the route map here and keep it stable.</div>
+
+<details>
+  <summary><code>/</code> Home</summary>
+  <p>A capture bar, then Summary (count clauses), Today (with overdue), Upcoming (7 days) and All. A "waiting on me" strip shows approvals, failed runs and items due for review. Rows open the shared item-details modal, which has chat.</p>
+</details>
+
+<details>
+  <summary><code>/projects</code> · <code>/projects/[slug]</code></summary>
+  <p>The list groups projects by status or area. The detail page has tabs: Board (phases and tasks), Notes (notes pad and snapshots), Files, Chats, Runs, Decisions, and Settings (including execution settings).</p>
+</details>
+
+<details>
+  <summary><code>/brain/[section]</code></summary>
+  <p>One route with sections: library (notes, links, memories, decisions, principles), people, companies, goals, check-ins. It has unified search and Ask Skippy. The search input must keep focus while typing, which was an owner complaint about the old app.</p>
+</details>
+
+<details>
+  <summary><code>/agents</code> · <code>/agents/[role]</code> · <code>/skills/[slug]</code> · <code>/runs/[id]</code></summary>
+  <p>The hub shows roles, the queue, running sessions, hosts and usage. Agents, skills and runs each get real detail pages rather than modals, per owner feedback. A run page has a live event stream, the transcript, artifacts and approvals.</p>
+</details>
+
+<details>
+  <summary><code>/activity</code></summary>
+  <p>A chronological log of activity events, outbound actions, ingestion runs and agent results, filterable by actor and source.</p>
+</details>
+
+<details>
+  <summary><code>/calendar</code> <span class="tag open">Open</span></summary>
+  <p>A week view of Google and Skippy events. Is it needed, given that Home already shows events?</p>
+</details>
+
+<details>
+  <summary><code>/finances</code> <span class="tag open">Open</span></summary>
+  <p>Only if finance is in v1.</p>
+</details>
+
+<details>
+  <summary><code>/settings</code></summary>
+  <p>Kept small: connectors and source cursors, hosts and tokens, notifications and quiet hours, rubric, preferences, and areas. No LLM-provider settings and no About page, which the owner asked to remove from the old app.</p>
+</details>
+
+<details>
+  <summary>Global UI</summary>
+  <ul>
+    <li>Sidebar nav: Home, Projects, Brain, Agents, Activity, Settings</li>
+    <li>A <code>⌘K</code> palette (search, capture, jump, delegate) and a runner online indicator</li>
+    <li>Dark and light themes, a PWA, and a responsive layout</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="conventions">8. Engineering conventions <span class="tag borrow">borrowed</span></h2>
+<details>
+  <summary>Carried over from the old CLAUDE.md</summary>
+  <ul>
+    <li>pnpm workspaces, ESM, node ≥ 20. <code>pnpm check</code> (typecheck and test) is the single gate.</li>
+    <li>Colocated tests (<code>foo.test.ts</code>). Pure logic goes in <code>*-helpers.ts</code> so it's testable without React or Convex.</li>
+    <li>Comments explain why, including incident dates</li>
+    <li>Bounded, indexed reads from day one, with no <code>.collect()</code> then slice. The old project hit Convex's 32k document-read limit.</li>
+    <li>Derive at read time instead of storing or backfilling (online status, default paths, attention)</li>
+    <li>Agents work on <code>agent/&lt;topic&gt;</code> branches, and only the owner merges</li>
+    <li>Never <code>convex deploy</code> by hand. CI deploys.</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="open">9. Open questions</h2>
+<details open>
+  <summary>To discuss next</summary>
+  <ol>
+    <li>v1 scope: which of §3.1–3.10 ship first?</li>
+    <li>Hosting and auth: new Convex cloud deployment? Clerk or Convex Auth? Vercel or the mini?</li>
+    <li>Source strategy: native harness connectors, local MCPs, or a mix? Acceptance evidence for each.</li>
+    <li>Data: start empty, or run a one-time import from the old deployment (people, projects, knowledge)?</li>
+    <li>Finance: in or out?</li>
+    <li>Attention: an embedded field, or one table?</li>
+    <li>The default harness policy and the runner's macOS user</li>
+    <li>Do we need a <code>/calendar</code> page?</li>
+  </ol>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="borrowed">10. Borrowed vs avoided <span class="hint">from skippy-mcp-and-app</span></h2>
+<p>A digest of the old project (515 commits, 60 tables, 83 MCP tools), read on 2026-11-18.</p>
+
+<details>
+  <summary><span class="tag borrow">borrowed</span> Patterns that worked</summary>
+  <ul>
+    <li>Lease-based claiming (<code>claimToken</code>, <code>claimVersion</code>, <code>leaseExpiresAt</code>) with cooperative <code>cancelRequested</code></li>
+    <li>Idempotency everywhere: sequence numbers and high-water marks on events, request IDs on occurrence actions, receipts on ingestion, dedupe keys on notifications, <code>harnessRequestId</code> on approvals</li>
+    <li>Convex holds all state; the runner is restart-safe, and interrupted runs are never auto-resumed</li>
+    <li>Settings are frozen onto the run when it is queued</li>
+    <li>Deny-by-default role allowlists, and hashed tokens shown once</li>
+    <li>Skills as versioned behavior; the runner only schedules and supervises</li>
+    <li>Deterministic Summary, Today model, attention and closeout</li>
+    <li>Canonical <code>{kind, id}</code> identity, seek pagination, and a shared item modal with chat</li>
+    <li>A unified knowledge table, a typed relationship graph, and source refs with a join table</li>
+    <li>Calendar events matched by identity, inbound only</li>
+    <li>Ingestion windows with <code>coveredThrough</code> and atomic receipts</li>
+    <li>Money in integer cents</li>
+    <li>Coding conventions (§8)</li>
+  </ul>
+</details>
+
+<details>
+  <summary><span class="tag avoid">avoid</span> What went wrong, and why</summary>
+  <table>
+    <tr><th>Problem</th><th>What happened</th><th>Skippy OS rule</th></tr>
+    <tr><td>Approval gates for knowledge</td><td>Triage, the memory inbox and the review pages were built, then retired wholesale with a migration</td><td>Accept directly; use attention and review dates</td></tr>
+    <tr><td>Parallel review queues</td><td>Attention, Needs Review, Mind and LiveReview all competed with Home</td><td>Home is the only queue</td></tr>
+    <tr><td>Three trust/state axes on knowledge</td><td><code>processingState</code>, <code>reviewState</code> and <code>status</code> all at once</td><td>One lifecycle axis, plus <code>readState</code> for links</td></tr>
+    <tr><td>Split then merged knowledge tables</td><td>The consolidation found 462 unmigrated records</td><td>Start unified</td></tr>
+    <tr><td>Outbound calendar writes</td><td>Duplicate bookings, plus outbox, lease and mirror machinery</td><td>Inbound only</td></tr>
+    <tr><td>Dishonest names</td><td><code>approved</code> meant ready; <code>submit_candidate_object</code> accepted directly; <code>/review/history</code> was the Activity page</td><td>Names say what they do, with no compatibility aliases</td></tr>
+    <tr><td>Duplicated agent state on tasks</td><td><code>agentRequestStatus</code>, <code>requestedHarness</code> and <code>prUrl</code> lived on tasks as well as runs</td><td>Runs are the only source of truth</td></tr>
+    <tr><td>Untyped <code>any</code> fields</td><td>The sync token was hidden in <code>metadata</code>, and payloads were JSON in <code>body</code></td><td>Typed payloads per kind</td></tr>
+    <tr><td>Hard-coded personal enums</td><td>Finance account and category literals used family names</td><td>Configurable data</td></tr>
+    <tr><td>Ingestion cutover never qualified</td><td>Agenda v8–v12, flaky native connectors, tasks marked done without evidence</td><td>Define acceptance evidence per source first</td></tr>
+    <tr><td>Scope drift from the plan</td><td>Recurrence, chat and file storage were each "not planned", then built</td><td>All three are in scope from the start</td></tr>
+    <tr><td>Route churn</td><td>About 17 redirect tombstones</td><td>A stable route map (§7)</td></tr>
+    <tr><td>Convex limits</td><td>The 32k read limit, a capped dedupe scan, and tasks with more than 64 links dropped</td><td>Bounded, indexed reads</td></tr>
+    <tr><td>Token with no role meant full access</td><td>Kept for backward compatibility</td><td>Role is required</td></tr>
+  </table>
+</details>
+
+<details>
+  <summary>Left behind entirely</summary>
+  <ul>
+    <li>All migration residue: <code>legacyId</code>, <code>reviewQueueMigrations</code>, <code>triageItems</code>, the legacy calendar importer</li>
+    <li><code>focusSummaries</code> as a stored AI artifact, since Home no longer depended on it</li>
+    <li>The <code>maintenanceJobs</code> table (a closeout becomes a run <code>kind</code>)</li>
+    <li>A separate <code>projectExecutionConfigs</code> table (moved onto the project)</li>
+    <li>The 3D Mind browser, for v1</li>
+    <li>The multi-tenant <code>brainInstances</code> key, unless we decide to keep an owner ID</li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="decisions">11. Decision log</h2>
+<details open>
+  <summary>Decided</summary>
+  <table>
+    <tr><th>Date</th><th>Decision</th><th>Notes</th></tr>
+    <tr><td>2026-11-18</td><td>Stack: Next.js, React, shadcn/ui, Convex</td><td>From the kickoff</td></tr>
+    <tr><td>2026-11-18</td><td>Agents run on an always-on Mac mini (Claude Code and/or Codex)</td><td>From the kickoff</td></tr>
+    <tr><td>2026-11-18</td><td>Spec lives in this HTML file; no code until the spec settles</td><td></td></tr>
+    <tr><td>2026-11-18</td><td>Fresh project. Borrow from <code>skippy-mcp-and-app</code>; don't build on it</td><td>No shared code, deployment or data</td></tr>
+    <tr><td>2026-11-18</td><td>Knowledge is accepted directly, with no approval queue</td><td>Lesson from the old project; to be confirmed</td></tr>
+    <tr><td>2026-11-18</td><td>Google Calendar is inbound-only</td><td>Carries over the owner decision of 2026-11-15</td></tr>
+  </table>
+</details>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skippy OS Alt Spec</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --surface: #ffffff; --text: #1f2328; --muted: #656d76; --border: #e3e0d8;
+    --accent: #3b5bdb; --accent-soft: #edf1ff; --open: #b35c00; --open-soft: #fff4e5;
+    --ok: #2b7a3d; --ok-soft: #e8f5eb; --bad: #b3261e; --bad-soft: #fdecea;
+    --new: #7b3fb8; --new-soft: #f3ebfb; --code-bg: #f3f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a; --surface: #1d2024; --text: #e6e6e6; --muted: #9aa1a9; --border: #30353b;
+      --accent: #8ea5ff; --accent-soft: #1f2640; --open: #ffb86b; --open-soft: #33261a;
+      --ok: #7fd18f; --ok-soft: #1b2e20; --bad: #ff8a80; --bad-soft: #3a1d1b;
+      --new: #c9a2f2; --new-soft: #2a1f38; --code-bg: #24282d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --surface: #1d2024; --text: #e6e6e6; --muted: #9aa1a9; --border: #30353b;
+    --accent: #8ea5ff; --accent-soft: #1f2640; --open: #ffb86b; --open-soft: #33261a;
+    --ok: #7fd18f; --ok-soft: #1b2e20; --bad: #ff8a80; --bad-soft: #3a1d1b;
+    --new: #c9a2f2; --new-soft: #2a1f38; --code-bg: #24282d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 32px 16px 80px; }
+  header h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); }
+  .meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  nav.toc { margin: 24px 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  h2 { margin: 40px 0 8px; font-size: 21px; padding-bottom: 6px; border-bottom: 1px solid var(--border); scroll-margin-top: 16px; }
+  h3 { margin: 20px 0 6px; font-size: 16px; }
+  p, li { max-width: 72ch; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  details { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin: 8px 0; padding: 0 14px; }
+  details[open] { padding-bottom: 12px; }
+  summary { cursor: pointer; padding: 10px 0; font-weight: 600; list-style: none; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; color: var(--muted); transition: transform .15s; display: inline-block; }
+  details[open] > summary::before { transform: rotate(90deg); }
+  summary .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+  details details { background: var(--bg); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 6px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  table.fields td:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  table.fields td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); font-size: 12.5px; }
+  .table-scroll { overflow-x: auto; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .tag.open { background: var(--open-soft); color: var(--open); }
+  .tag.borrow { background: var(--ok-soft); color: var(--ok); }
+  .tag.avoid { background: var(--bad-soft); color: var(--bad); }
+  .tag.new { background: var(--new-soft); color: var(--new); }
+  .callout { border-left: 3px solid var(--open); background: var(--open-soft); padding: 8px 12px; border-radius: 0 6px 6px 0; margin: 10px 0; }
+  .callout strong { color: var(--open); }
+  .callout.lesson { border-color: var(--ok); background: var(--ok-soft); }
+  .callout.lesson strong { color: var(--ok); }
+  pre { background: var(--code-bg); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+  .controls { margin: 8px 0 0; display: flex; gap: 8px; flex-wrap: wrap; }
+  .controls button { font: inherit; font-size: 13px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .legend { font-size: 13px; color: var(--muted); margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Skippy OS: alternate concept</h1>
+  <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
+  <div class="meta">Alt spec v0.2 · 2026-11-20 · Status: in discussion, no code yet · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="legend">
+    <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
+    <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
+    <span><span class="tag avoid">avoid</span> lesson from the old project</span>
+    <span><span class="tag open">Open</span> undecided</span>
+  </div>
+  <div class="controls">
+    <button type="button" onclick="document.querySelectorAll('details').forEach(d=>d.open=true)">Expand all</button>
+    <button type="button" onclick="document.querySelectorAll('details').forEach(d=>d.open=false)">Collapse all</button>
+  </div>
+</header>
+
+<nav class="toc">
+  <ol>
+    <li><a href="#concept">Concept</a></li>
+    <li><a href="#split">Claude vs Skippy: who does what</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#claude-side">Claude-side setup</a></li>
+    <li><a href="#webapp">Web app functionality</a></li>
+    <li><a href="#chat">Chat engine</a></li>
+    <li><a href="#data">Data types</a></li>
+    <li><a href="#mcp">Skippy MCP</a></li>
+    <li><a href="#pages">Pages</a></li>
+    <li><a href="#dropped">Dropped vs v0.2 &amp; data import</a></li>
+    <li><a href="#open">Open questions</a></li>
+    <li><a href="#decisions">Decision log</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="concept">1. Concept</h2>
+<p>The old Skippy spent most of its effort rebuilding things the Claude app already does: chat history, the agent runner, approval cards, a skills store, session tracking. In this version, Claude is the workspace. My projects live there, and that's where deep work happens, on the Mac or from my phone.</p>
+<p>Skippy OS keeps two things Claude doesn't have:</p>
+<ul>
+  <li><strong>A durable knowledge system</strong> (Convex): projects, tasks, people, notes, events and their status, outside any single chat.</li>
+  <li><strong>A web app</strong> that shows all of it in one place. I can fully edit it, capture into it, and chat with it to turn ideas into real things.</li>
+</ul>
+
+<details open>
+  <summary>Principles</summary>
+  <ul>
+    <li><strong>Don't rebuild the Claude app.</strong> Before adding a feature, ask: does Claude desktop or iOS already do this? If yes, link to it instead.</li>
+    <li><strong>Convex is the one shared record.</strong> Claude and I both write to it: Claude through the Skippy MCP, me through the web app. Every write records who made it.</li>
+    <li><strong>Claude reports as it works.</strong> A Skippy skill and each project's instructions tell Claude to record status. The dashboard is only as fresh as those reports, so staleness is shown, not hidden. <span class="tag new">decided</span></li>
+    <li><strong>Structured, not dumped.</strong> An importance bar, accept directly, provenance on everything. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Tasks are actions.</strong> <code>dueAt</code> is only an action deadline. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Built for Claude, open to any harness.</strong> Skills and workflows target Claude. The Skippy MCP is a public OAuth endpoint (Clerk), so Claude, ChatGPT, Codex and anything else that speaks MCP can connect. <span class="tag new">decided</span></li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="split">2. Claude vs Skippy: who does what</h2>
+<div class="table-scroll"><table>
+  <tr><th>Need</th><th>Claude app (desktop / iOS)</th><th>Skippy OS</th></tr>
+  <tr><td>Deep work on a project</td><td>Claude Projects (life/general) and Claude Code folders (code) <span class="tag new">decided</span></td><td>Links to them, and shows their status</td></tr>
+  <tr><td>Running agents</td><td>Code sessions, worktrees, permission prompts, Remote Control, scheduled tasks</td><td>Nothing. No task runner, no run tracking.</td></tr>
+  <tr><td>Reading Gmail / Calendar / Drive</td><td>Claude's own connectors, in scheduled tasks</td><td>Stores what's worth keeping (via MCP)</td></tr>
+  <tr><td>Approvals for side effects</td><td>Claude's permission prompts and drafts</td><td>Nothing</td></tr>
+  <tr><td>Skills / behavior</td><td>The Skippy plugin (skills plus MCP config)</td><td>Nothing (no skills table)</td></tr>
+  <tr><td>Quick capture</td><td>Can capture through the Skippy MCP from any chat</td><td>The Home input <span class="tag new">decided</span></td></tr>
+  <tr><td>Thinking through a new idea</td><td>Possible anywhere</td><td>The Home idea chat, which promotes ideas to tasks, events or projects <span class="tag new">decided</span></td></tr>
+  <tr><td>Seeing everything at once</td><td>Nothing</td><td>The dashboard</td></tr>
+  <tr><td>Editing records</td><td>Through MCP while chatting</td><td>Full editing in the web app <span class="tag new">decided</span></td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="architecture">3. Architecture</h2>
+<pre>
+ ┌──── Any MCP harness ─────────────────────┐     ┌──── Browser / phone ────┐
+ │ Claude desktop / iOS / claude.ai / Code  │     │ (Clerk sign-in)         │
+ │ ChatGPT · Codex · …                      │     └───────────┬─────────────┘
+ │ + Skippy plugin (skills) for Claude      │                 │
+ └──────────────┬───────────────────────────┘                 │
+                │ OAuth (Clerk) · Streamable HTTP             │
+ ┌──────────────┴──────────────── Vercel ─────────────────────┴─────────────┐
+ │  Next.js web app (dashboard, editing, idea chat UI)                      │
+ │  /api/mcp  Skippy MCP  ·  /.well-known/oauth-protected-resource          │
+ └──────────────┬───────────────────────────────────────────────────────────┘
+                │ signed one-use gateway calls / viewer queries
+ ┌──────────────┴───────────────────────────────────────────────────────────┐
+ │                         Convex  (single record)                          │
+ │   knowledge · projects · tasks · events · chats · activity · cursors     │
+ └──────────────▲───────────────────────────────────────────────────────────┘
+                │ host token: claim chat turns, heartbeat
+ ┌──────────────┴────────────────── Mac mini (always on) ───────────────────┐
+ │  chat runner (Claude Code sessions) · local connectors (iMessage, files) │
+ │  Claude desktop 24/7 (scheduled tasks, Remote Control)                   │
+ └──────────────────────────────────────────────────────────────────────────┘
+</pre>
+
+<details open>
+  <summary>Where things run <span class="tag new">decided</span> <span class="hint">revised 2026-11-20</span></summary>
+  <table>
+    <tr><th>Host</th><th>Runs</th><th>Why</th></tr>
+    <tr><td>Vercel</td><td>Next.js web app and the Skippy MCP at <code>/api/mcp</code></td><td>Always reachable with a public HTTPS address, which OAuth needs. Keeps working when the mini is down.</td></tr>
+    <tr><td>Convex cloud</td><td>Data, functions, gateway, file storage, vectors</td><td></td></tr>
+    <tr><td>Mac mini</td><td>Chat runner, local connectors (iMessage chat.db, local files), always-on Claude desktop (scheduled tasks, Remote Control)</td><td>Only for what needs the local machine. Local connectors write through the MCP with a static role token.</td></tr>
+  </table>
+  <p>This replaces the 2026-11-19 plan to host the web app and MCP on the mini.</p>
+</details>
+
+<details open>
+  <summary>MCP access via OAuth (Clerk) <span class="tag new">decided</span></summary>
+  <p>Any MCP harness can connect: Claude (desktop, iOS, claude.ai, Code), ChatGPT, Codex and others. Requirements:</p>
+  <ul>
+    <li><strong>Transport:</strong> Streamable HTTP at <code>https://&lt;project&gt;.vercel.app/api/mcp</code>. That exact URL is the OAuth resource. Use the stable production alias, never a per-deploy preview URL.</li>
+    <li><strong>Discovery:</strong> protected-resource metadata at <code>/.well-known/oauth-protected-resource</code>, advertised in <code>WWW-Authenticate</code> challenges <span class="tag borrow">borrowed</span></li>
+    <li><strong>Authorization server:</strong> a new Clerk instance just for Skippy OS (not the old project's), which also signs me into the web app</li>
+    <li><strong>Client registration:</strong>
+      <ul>
+        <li>Dynamic client registration (DCR). Claude Code needs it: a connector in this session failed with "does not support dynamic client registration".</li>
+        <li>Client ID metadata documents (CIMD) for ChatGPT</li>
+        <li>Pre-registered clients as the fallback</li>
+      </ul>
+    </li>
+    <li><strong>Flow:</strong> authorization code with PKCE S256, consent on, refresh through <code>offline_access</code></li>
+    <li><strong>Scopes:</strong> <code>skippy:read</code> and <code>skippy:write</code>. Each tool declares which it needs.</li>
+    <li><strong>Tokens:</strong> JWT access tokens whose <code>aud</code> is exactly the MCP resource URL. Verified by RS256 signature against Clerk's JWKS, plus issuer, expiry and token type. Never loosen audience checks to make a client work. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Identity:</strong> the Clerk subject maps to the single owner. Unknown accounts are rejected, never auto-created.</li>
+    <li><strong>Gateway:</strong> the MCP route signs each operation into a one-use, short-lived Convex gateway call. Convex rechecks scopes and ownership. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Static tokens:</strong> for unattended callers only (the chat runner and local connectors). Each is hashed and has a required role.</li>
+  </ul>
+  <div class="callout lesson"><strong>Lesson:</strong> the old project built all of this, but it never went live. The Clerk setup was never finished: automatic client registration wasn't advertised, the Skippy scopes didn't exist, and tokens tied to the MCP's URL were never confirmed. So here, OAuth is <strong>Phase 0</strong>: prove it end to end before building any other tools.</div>
+</details>
+
+<details>
+  <summary>Phase 0 acceptance: an OAuth spike <span class="hint">before building any other tools</span></summary>
+  <p>Deploy <code>/api/mcp</code> with just two tools: <code>whoami</code> (read) and <code>capture</code> (write). Then for each client below, run discovery → sign-in and consent → one read → one write → read it back → refresh → reconnect:</p>
+  <ol>
+    <li>Claude Code (DCR)</li>
+    <li>claude.ai custom connector, then use it from Claude iOS</li>
+    <li>Claude desktop</li>
+    <li>ChatGPT (CIMD or pre-registered)</li>
+    <li>Codex</li>
+  </ol>
+  <p>Negative checks: an expired token, a wrong audience, a read-only consent attempting a write, and an unknown Clerk account. Record which registration mode each client used. A client that fails is listed as unsupported; it is not worked around by loosening validation.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="claude-side">4. Claude-side setup</h2>
+
+<details open>
+  <summary>Skippy plugin <span class="hint">the behavior lives here</span></summary>
+  <p>A Claude plugin, versioned in this repo, bundling the Skippy MCP config and these skills:</p>
+  <ul>
+    <li><strong>skippy-status:</strong> when and how to record project status (see below)</li>
+    <li><strong>skippy-capture:</strong> how to file a thought, link or person from any chat</li>
+    <li><strong>skippy-morning:</strong> a scheduled pass. Read Gmail, Calendar and iMessage since the last cursor, ingest what clears the rubric, and write a briefing note.</li>
+    <li><strong>skippy-weekly-review:</strong> flag stale projects, overdue tasks and goal check-ins</li>
+    <li><strong>skippy-plan-project:</strong> turn a brief into phases and tasks in Skippy</li>
+  </ul>
+</details>
+
+<details open>
+  <summary>How status gets recorded <span class="tag new">decided</span></summary>
+  <ul>
+    <li>Every Claude Project gets a line in its instructions: <code>Skippy project: &lt;slug&gt;. Follow the skippy-status skill.</code> Every Code folder gets the same line in its <code>CLAUDE.md</code>.</li>
+    <li>The skill says to call <code>record_project_status</code> when a milestone is reached, a decision is made, something gets blocked, or a working session ends. It also says to create or complete tasks as they come up.</li>
+    <li>Risk: Claude sometimes forgets. Mitigation (proposed): the dashboard shows "last update from Claude" on every project and flags active projects with no update in <strong>7 days</strong> (adjustable in settings). The weekly review then asks about them. <span class="tag new">decided</span> <span class="tag open">Open</span>: whether to add a nightly sweep later.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>Linking a Skippy project to its Claude home</summary>
+  <p>Each project stores where it lives in Claude: a Claude Project name or URL for life/general projects, or a Code folder path on the mini for code projects. The dashboard shows an "Open in Claude" link. <span class="tag open">Open</span>: whether Claude supports deep links that open a Project directly on iOS.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="webapp">5. Web app functionality</h2>
+
+<details open>
+  <summary>5.1 Home input: one box, two modes <span class="tag new">decided</span></summary>
+  <ul>
+    <li><strong>Enter:</strong> a quick capture. It's saved immediately with no reply and needs no Mac mini. Text, URLs and files are all supported. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Chat mode</strong> (a toggle, or starting the message with <code>/chat</code>): starts or continues an idea chat with Claude</li>
+    <li>Captures are processed later by the morning pass, or by Claude if a chat picks them up</li>
+    <li>"Hold" captures, a private 7-day hand-off between devices, are kept <span class="tag borrow">borrowed</span></li>
+  </ul>
+</details>
+
+<details open>
+  <summary>5.2 Idea chat &amp; promotion <span class="tag new">decided</span></summary>
+  <ul>
+    <li>While chatting, Claude spots things that could become real records and shows <strong>inline promotion cards</strong>, such as "Create task: renew passport · due Mar 1" or "New project: Garden redesign".</li>
+    <li>Cards have editable fields (title, due date, project, area). One click creates the record.</li>
+    <li>Card types: task, event (a Skippy-local event), project, note, person, recurrence</li>
+    <li><strong>Promoting to a project:</strong> the chat moves to the new project as its origin history. Claude writes a summary of the idea that seeds the project's notes. The new project page then offers to set up its Claude home: a Claude Project or a Code folder.</li>
+    <li>Ignored cards simply expire. <span class="tag avoid">avoid</span> letting this turn into a triage queue: cards exist only inside the chat they came from, and nothing piles up anywhere.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>5.3 Chat on any item <span class="tag new">decided</span></summary>
+  <p>Every item's details view (task, project, person, note, event) has a chat scoped to that item. Claude gets the item, its links and recent activity as context. The project chat includes the history promoted from the idea chat.</p>
+</details>
+
+<details>
+  <summary>5.4 Dashboard</summary>
+  <ul>
+    <li><strong>Projects board:</strong> status, health, last update from Claude (with a staleness flag), next tasks, and a link to its Claude home</li>
+    <li><strong>Today:</strong> tasks due or scheduled, events, recurrences coming up, and waiting-on items. Deterministic, with no LLM call. <span class="tag borrow">borrowed</span></li>
+    <li><strong>Overnight:</strong> what Claude recorded since I last looked, from the activity feed</li>
+    <li><strong>Ingestion health:</strong> when each source was last covered and any errors</li>
+    <li><strong>Briefing:</strong> the latest morning note. When the morning pass finishes it also sends a web push ("Your briefing is ready: 3 due today, 1 overdue"), and tapping it opens the dashboard. <span class="tag new">decided</span> On iPhone, web push only works when the web app is added to the Home Screen, so the app ships as a PWA. Quiet hours and deduping are <span class="tag borrow">borrowed</span>.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>5.5 Full editing <span class="tag new">decided</span></summary>
+  <ul>
+    <li>Create and edit everything: projects, phases, tasks, notes, people, companies, events, recurrences, goals</li>
+    <li>Every write records an <code>actor</code>: me, or Claude plus where it ran. Claude can call <code>get_changes_since</code> to see what I changed in the dashboard.</li>
+    <li>Conflicts: last write wins per field, and the activity log shows both writes. Since Convex is the only store, there's nothing to sync.</li>
+  </ul>
+</details>
+
+<details>
+  <summary>5.6 Knowledge, people, agenda</summary>
+  <ul>
+    <li>Brain: notes, links, memories, decisions, principles, all in one <code>knowledge</code> table, with search <span class="tag borrow">borrowed</span></li>
+    <li>People and companies as a light CRM</li>
+    <li>Agenda: Skippy events plus Google events (inbound-only), and recurrences <span class="tag borrow">borrowed</span></li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="chat">6. Chat engine <span class="tag new">decided</span></h2>
+
+<details open>
+  <summary>Claude Code sessions on the Mac mini</summary>
+  <ol>
+    <li>I send a message. Convex saves it and queues a <code>chatTurn</code>.</li>
+    <li>The chat runner on the mini claims the turn (lease-based <span class="tag borrow">borrowed</span>) and resumes that chat's Claude Code session, or starts a new one.</li>
+    <li>The session gets the Skippy MCP (with a <code>propose_promotion</code> tool), local connectors, and Claude's own connectors. It has the chat's scope as context.</li>
+    <li>Streamed events write to <code>chatTurnEvents</code>, which the UI shows live. Promotion cards are tool results rendered as UI.</li>
+    <li>Working folder: for a code project's chat, the project's Code folder, <strong>read-only</strong> <span class="tag new">decided</span>. The chat can read code to answer questions or plan, but it can't edit files or run shell commands. Code changes happen in a real Claude Code session. For everything else, a neutral scratch workspace.</li>
+  </ol>
+</details>
+
+<details>
+  <summary>When the mini is offline or busy <span class="tag new">decided</span></summary>
+  <p>The message is saved and shows "waiting for Mac mini", based on the host heartbeat. It runs when the mini comes back. Quick capture and all editing keep working.</p>
+</details>
+
+<details>
+  <summary>Runner scope: chat only</summary>
+  <p>The runner only runs chat turns. No task runs, worktrees, publish steps, closeouts or scheduled agent passes; those are Claude desktop's job now. It reuses the old patterns for host token, heartbeat, lease, stall watchdog and explicit MCP injection. <span class="tag borrow">borrowed</span></p>
+  <div class="callout lesson"><strong>Lesson:</strong> the old runner grew four claim loops and most of the reliability incidents. Keeping it to one loop is the point of this concept.</div>
+</details>
+
+<details>
+  <summary>Web chats vs Claude app chats <span class="tag open">Open</span></summary>
+  <p>Web app chats are Claude Code sessions on the mini. They don't appear in the Claude app's chat list, but they would show under Code sessions on the mini. Should "continue in Claude" export a summary into a Claude Project?</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="data">7. Data types</h2>
+<p>A slimmed version of v0.2. Shared validators are defined once in <code>packages/shared</code>.</p>
+
+<details>
+  <summary>Actor <span class="hint">who made a write</span></summary>
+  <p><code>{ kind: "user" } | { kind: "claude", surface: "web_chat" | "claude_project" | "claude_code" | "scheduled", ref?: string }</code>. Every record carries <code>createdBy</code> and <code>updatedBy</code>, and every activity event has an actor.</p>
+</details>
+
+<details>
+  <summary>EntityRef · SourceRef · RubricDecision <span class="tag borrow">borrowed</span></summary>
+  <p><strong>EntityRef:</strong> <code>{ entityType, entityId }</code></p>
+  <p><strong>sourceRefs</strong> plus <strong>entitySourceRefs</strong>, as in v0.2</p>
+  <p><strong>RubricDecision:</strong> <code>{ reason, itemIntent, dateKind?, rubricVersion }</code></p>
+</details>
+
+<details open>
+  <summary>projects</summary>
+  <div class="table-scroll"><table class="fields">
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td>title / slug / summary</td><td>string</td><td>the slug is what Claude Projects and CLAUDE.md files reference</td></tr>
+    <tr><td>kind</td><td>"code" | "general"</td><td></td></tr>
+    <tr><td>status</td><td>"idea" | "active" | "paused" | "completed" | "archived"</td><td></td></tr>
+    <tr><td>health</td><td>"on_track" | "at_risk" | "blocked"?</td><td>set by Claude or me</td></tr>
+    <tr><td>claudeHome</td><td>{ kind: "claude_project", name, url? } | { kind: "code_folder", path, repoUrl? } ?</td><td>where the work happens</td></tr>
+    <tr><td>statusNote</td><td>string?</td><td>the latest one-paragraph status</td></tr>
+    <tr><td>statusUpdatedAt / statusUpdatedBy</td><td>number / Actor</td><td>drives the staleness flag</td></tr>
+    <tr><td>notesPad</td><td>string</td><td>seeded from the idea chat summary</td></tr>
+    <tr><td>originChatId</td><td>Id&lt;chats&gt;?</td><td>the promoted idea chat</td></tr>
+    <tr><td>goalId / areaId / targetDate</td><td>?</td><td></td></tr>
+  </table></div>
+</details>
+
+<details>
+  <summary>projectUpdates</summary>
+  <p><code>projectId, note, health?, milestone?, actor, at</code>. This is a history of status reports, written by <code>record_project_status</code>; the latest one is copied onto the project.</p>
+</details>
+
+<details>
+  <summary>tasks</summary>
+  <p><code>title, description?, status ("todo" | "in_progress" | "waiting" | "done" | "cancelled"), projectId?, phaseId?, areaId?, commitment?, dueAt?, scheduledFor?, waitingOn?, recurrenceId?, originChatId?, completedAt?, createdBy, updatedBy</code></p>
+  <p>Compared with v0.2, the <code>executionState</code>, brief and acceptance-criteria fields are gone. Claude Code tracks execution now.</p>
+</details>
+
+<details>
+  <summary>phases · goals · areas · recurrences <span class="tag borrow">borrowed</span></summary>
+  <p>Same as v0.2: phases ordered within a project; areas as data; recurrences with interval or RRULE rules, an anchor, a lead time, and idempotent complete/skip.</p>
+</details>
+
+<details>
+  <summary>captures</summary>
+  <p><code>text?, url?, storageId?, intent ("remember" | "hold"), status ("pending" | "processed" | "discarded"), createdBy, processedBy?, resultRefs?: EntityRef[], expiresAt?</code></p>
+</details>
+
+<details>
+  <summary>knowledge · relationships · people · companies · calendarEvents <span class="tag borrow">borrowed</span></summary>
+  <p>Same as v0.2: unified <code>knowledge</code> with <code>kind</code>; a typed relationships graph; light-CRM people and companies; calendar events matched by identity, with Google inbound-only.</p>
+</details>
+
+<details open>
+  <summary>chats · chatMessages · chatTurns · chatTurnEvents</summary>
+  <div class="table-scroll"><table class="fields">
+    <tr><th>Table</th><th>Key fields</th><th>Notes</th></tr>
+    <tr><td>chats</td><td>scope: {kind:"home"} | {kind:"item", entityRef}; title; sessionId?; state ("open" | "promoted" | "archived"); promotedTo?: EntityRef</td><td>A promoted idea chat changes its scope to the new project</td></tr>
+    <tr><td>chatMessages</td><td>chatId, role, content, attachments?: Id&lt;_storage&gt;[], cards?: PromotionCard[], status</td><td></td></tr>
+    <tr><td>chatTurns</td><td>chatId, userMessageId, assistantMessageId, status ("queued" | "claimed" | "running" | "done" | "failed" | "cancelled"), lease, usage?</td><td><span class="tag borrow">borrowed</span></td></tr>
+    <tr><td>chatTurnEvents</td><td>chatTurnId, seq, type, payload</td><td>ephemeral</td></tr>
+  </table></div>
+</details>
+
+<details open>
+  <summary>PromotionCard <span class="hint">embedded in chatMessages</span></summary>
+  <p><code>{ cardId, kind: "task" | "event" | "project" | "note" | "person" | "recurrence", draft: (typed per kind), state: "offered" | "accepted" | "dismissed", resultRef?: EntityRef }</code></p>
+  <p>Accepting a card runs a mutation that creates the record from the edited draft, sets <code>resultRef</code>, and links it back to the chat (<code>spawned_from</code>).</p>
+</details>
+
+<details>
+  <summary>activityEvents</summary>
+  <p><code>entityRef?, activityType, actor, at, summary, diff?</code>. This powers the "Overnight" panel and <code>get_changes_since</code>.</p>
+</details>
+
+<details>
+  <summary>sourceCursors · ingestionRuns · ingestionReceipts <span class="tag borrow">borrowed</span></summary>
+  <p>Kept but slimmed. The morning pass in Claude desktop reads and advances cursors through MCP, and receipts make replays idempotent. This powers the ingestion health tile.</p>
+</details>
+
+<details>
+  <summary>agentHosts · mcpTokens · settings</summary>
+  <p><strong>agentHosts:</strong> the mini's heartbeat, which drives "waiting for Mac mini"</p>
+  <p><strong>mcpTokens:</strong> hashed, each with a required role</p>
+  <p><strong>settings:</strong> time zone, quiet hours, staleness threshold (default 7 days), rubric</p>
+  <p><strong>pushSubscriptions:</strong> <code>endpoint, p256dh, auth, userAgent?, enabled, lastSeenAt?</code> <span class="tag borrow">borrowed</span></p>
+  <p><strong>notificationDeliveries:</strong> <code>dedupeKey, type ("briefing" | …), title, body, url, status ("sent" | "failed" | "skipped"), sentAt?</code>. The dedupe key, e.g. <code>briefing:2026-11-21</code>, stops a retried morning pass from pushing twice.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="mcp">8. Skippy MCP</h2>
+<details open>
+  <summary>Tools (kept small)</summary>
+  <ul>
+    <li><strong>Status:</strong> <code>record_project_status</code>, <code>get_project</code>, <code>list_projects</code></li>
+    <li><strong>Records:</strong> <code>upsert_task</code>, <code>complete_task</code>, <code>upsert_project</code>, <code>create_phase</code>, <code>upsert_person</code>, <code>upsert_knowledge</code>, <code>create_event</code>, <code>upsert_recurrence</code>, <code>complete_recurrence</code>, <code>link_entities</code></li>
+    <li><strong>Capture &amp; ingest:</strong> <code>capture</code>, <code>list_captures</code>, <code>ingest_object</code>, <code>get_importance_rubric</code>, <code>get_source_cursor</code>, <code>advance_source_cursor</code></li>
+    <li><strong>Read:</strong> <code>search</code>, <code>get_context_bundle</code>, <code>get_today</code>, <code>get_changes_since</code></li>
+    <li><strong>Web chat only:</strong> <code>propose_promotion</code></li>
+  </ul>
+  <p><strong>Who can use which tools:</strong></p>
+  <ul>
+    <li>Harnesses signed in through OAuth get tools by scope: <code>skippy:read</code> for reads, <code>skippy:write</code> for writes.</li>
+    <li>Unattended callers use static tokens with a role: <code>chat</code> (the chat runner, which also gets <code>propose_promotion</code>) and <code>ingest</code> (local connectors).</li>
+    <li>Tools outside your scope or role are never even listed. <span class="tag borrow">borrowed</span></li>
+  </ul>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="pages">9. Pages</h2>
+<details open>
+  <summary>Route map</summary>
+  <table>
+    <tr><th>Route</th><th>Purpose</th></tr>
+    <tr><td><code>/</code></td><td>Home: the input (capture or chat), idea chat, Today, Projects summary, Overnight, Briefing</td></tr>
+    <tr><td><code>/projects</code></td><td>Board of all projects: health, staleness, Claude home link</td></tr>
+    <tr><td><code>/projects/[slug]</code></td><td>Status history, phases and tasks, notes pad, chat (including origin history), links</td></tr>
+    <tr><td><code>/tasks</code></td><td>All tasks: list and board views, filters, editing</td></tr>
+    <tr><td><code>/agenda</code></td><td>Events and recurrences</td></tr>
+    <tr><td><code>/brain/[section]</code></td><td>Notes, links, memories, decisions, people, companies, goals; search</td></tr>
+    <tr><td><code>/activity</code></td><td>Who changed what (me vs Claude), ingestion runs</td></tr>
+    <tr><td><code>/settings</code></td><td>Connections, Mac mini status, tokens, rubric, staleness threshold, areas</td></tr>
+  </table>
+  <p>Every item opens a shared details view that has its own chat. Sidebar: Home, Projects, Tasks, Agenda, Brain, Activity, Settings.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="dropped">10. Dropped vs v0.2 &amp; data import</h2>
+<details open>
+  <summary>Gone, because the Claude app does it</summary>
+  <table>
+    <tr><th>v0.2 piece</th><th>Replaced by</th></tr>
+    <tr><td><code>agentRuns</code>, task runner, worktrees, publish, closeout</td><td>Claude Code sessions</td></tr>
+    <tr><td><code>agentConfigs</code>, schedules, retries</td><td>Claude desktop scheduled tasks</td></tr>
+    <tr><td><code>skills</code> table, <code>get_skill</code></td><td>The Skippy plugin's skills</td></tr>
+    <tr><td><code>agentApprovals</code>, <code>outboundActions</code></td><td>Claude's permission prompts and Gmail drafts</td></tr>
+    <tr><td>Task <code>executionState</code>, briefs, <code>/agents</code>, <code>/runs</code></td><td>Status reports through <code>record_project_status</code></td></tr>
+    <tr><td>Interviews</td><td>A skill run inside a Claude chat, which writes its results through MCP</td></tr>
+    <tr><td>Codex harness adapter</td><td>Claude-first; any harness can connect over OAuth MCP</td></tr>
+    <tr><td>Finance (Plaid accounts, transactions, balances, budgets, debts)</td><td>Out of v1. If it comes back later, reuse the old shapes (integer cents, <code>monthKey</code>, categories as data).</td></tr>
+  </table>
+</details>
+
+<details open>
+  <summary>One-time import from the old project <span class="tag new">decided</span></summary>
+  <ul>
+    <li><strong>Read-only source.</strong> Take a snapshot export of the old Convex deployment (<code>npx convex export</code>). Nothing ever writes to the old deployment, and Skippy OS never connects to it at runtime.</li>
+    <li><strong>A script, not a feature.</strong> <code>scripts/import-v1/</code> transforms the snapshot into the new schema and loads it through internal mutations. It can be re-run against a fresh deployment, and every imported record gets <code>createdBy: {kind: "import"}</code>.</li>
+    <li><strong>Traceability without residue.</strong> A temporary <code>importMap</code> table (<code>oldTable, oldId, newRef</code>) records where each record came from. Once the import is verified, the table is dropped. <span class="tag avoid">avoid</span> the old project's permanent <code>legacyId</code> fields.</li>
+  </ul>
+  <table>
+    <tr><th>Old table</th><th>Import?</th><th>Notes</th></tr>
+    <tr><td>people, companies</td><td>Yes</td><td></td></tr>
+    <tr><td>projects, phases, projectNoteSnapshots</td><td>Non-code only <span class="tag new">decided</span></td><td>Projects with <code>kind: "code"</code> are skipped entirely, and get recreated fresh from their Code folders. Projects with <code>kind: "general"</code> or no kind are imported. <code>status</code> mapped: planned → idea, in_progress → active, cancelled → archived. <code>notesPad</code> kept. <code>claudeHome</code> filled in by hand afterwards.</td></tr>
+    <tr><td>tasks</td><td>All non-code, full history <span class="tag new">decided</span></td><td>Life tasks (no project) and tasks in imported projects, open and completed. Tasks in code projects are skipped. Agent and PR fields are dropped.</td></tr>
+    <tr><td>projectFiles</td><td>Non-code only</td><td>Blobs are copied from the snapshot into new storage</td></tr>
+    <tr><td>goals, recurrences</td><td>Yes</td><td>Recurrence history is kept</td></tr>
+    <tr><td>knowledge</td><td>Yes, minus rejected</td><td>Old <code>memoryType</code> mapped to <code>kind</code> (decision, principle, question); the rest become memory</td></tr>
+    <tr><td>relationships, sourceRefs, entitySourceRefs</td><td>Yes</td><td>Only for records that were imported. Links pointing at skipped code projects or tasks are dropped and counted.</td></tr>
+    <tr><td>calendarEvents</td><td>No</td><td>Re-synced from Google. Skippy-origin events are imported.</td></tr>
+    <tr><td>chats, runs, ingestion, triage, finance, focus</td><td>No</td><td>Runtime state, retired features, or out of scope</td></tr>
+  </table>
+  <p><strong>Acceptance:</strong> per-table counts (exported vs imported vs skipped, with reasons) and spot checks on 10 records of each type, done before <code>importMap</code> is dropped.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="open">11. Open questions</h2>
+<details open>
+  <summary>To discuss next</summary>
+  <ol>
+    <li>When to move to a custom domain. Moving changes the OAuth audience, so every harness has to reconnect.</li>
+    <li>Whether to add a nightly status sweep</li>
+    <li>Should web chats be exportable into a Claude Project?</li>
+    <li>Deep links: can "Open in Claude" go straight to a Project on iOS?</li>
+    <li>Alternative: could the dashboard be a published Claude artifact reading live data?</li>
+  </ol>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="decisions">12. Decision log</h2>
+<details open>
+  <summary>Decided</summary>
+  <table>
+    <tr><th>Date</th><th>Decision</th></tr>
+    <tr><td>2026-11-18</td><td>Stack: Next.js, React, shadcn/ui, Convex. Fresh project, borrowing from <code>skippy-mcp-and-app</code>.</td></tr>
+    <tr><td>2026-11-19</td><td>The Claude desktop and iOS apps are the main workspace. Skippy is the knowledge system plus the dashboard.</td></tr>
+    <tr><td>2026-11-19</td><td>Projects live in Claude Projects (life/general) and Claude Code folders (code)</td></tr>
+    <tr><td>2026-11-19</td><td>Status is recorded automatically by a Skippy skill and each project's instructions</td></tr>
+    <tr><td>2026-11-19</td><td>The web app has full editing</td></tr>
+    <tr><td>2026-11-19</td><td>Mac mini: always-on Claude desktop, local connectors and MCP, web app host, chat runner</td></tr>
+    <tr><td>2026-11-19</td><td>Claude-only (Codex only through standard MCP)</td></tr>
+    <tr><td>2026-11-19</td><td>Home input: one box, two modes (capture or chat)</td></tr>
+    <tr><td>2026-11-19</td><td>Promotion: Claude suggests inline cards, and I click to create</td></tr>
+    <tr><td>2026-11-19</td><td>A promoted project takes over the chat as its origin history, and the chat's summary seeds its notes</td></tr>
+    <tr><td>2026-11-19</td><td>Chat engine: Claude Code sessions on the Mac mini</td></tr>
+    <tr><td>2026-11-19</td><td>Chat on Home and on any item</td></tr>
+    <tr><td>2026-11-19</td><td>If the mini is offline, chat is queued with a visible status</td></tr>
+    <tr><td>2026-11-20</td><td>The Skippy MCP is open to any harness through OAuth, with Clerk as the authorization server</td></tr>
+    <tr><td>2026-11-20</td><td>The web app and MCP run on Vercel. The Mac mini keeps the chat runner, local connectors and Claude desktop.</td></tr>
+    <tr><td>2026-11-20</td><td>A new Clerk instance for Skippy OS, not shared with <code>skippy-mcp-and-app</code></td></tr>
+    <tr><td>2026-11-20</td><td>Use the production <code>vercel.app</code> address for now; a custom domain comes later</td></tr>
+    <tr><td>2026-11-20</td><td>Flag active projects as stale after 7 days without an update from Claude</td></tr>
+    <tr><td>2026-11-20</td><td>Web chats can't edit code. Code-project chats read the Code folder only; edits happen in Claude Code.</td></tr>
+    <tr><td>2026-11-20</td><td>The morning briefing appears on the dashboard and is announced by a web push (PWA)</td></tr>
+    <tr><td>2026-11-20</td><td>Finance is out of v1</td></tr>
+    <tr><td>2026-11-20</td><td>One-time import from a read-only snapshot export of the old deployment, with a temporary <code>importMap</code></td></tr>
+    <tr><td>2026-11-20</td><td>Import all non-code projects and tasks, with full history. Code projects and their tasks are not imported.</td></tr>
+    <tr><td>2026-11-20</td><td>Phase 0 is an end-to-end OAuth spike across all target clients, before building any other tools</td></tr>
+  </table>
+</details>
+
+</div>
+</body>
+</html>
