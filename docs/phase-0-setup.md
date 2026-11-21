@@ -4,15 +4,27 @@ Phase 0 proves that an MCP client can sign in to the Skippy MCP with OAuth and m
 
 ## Where the accounts stand (2026-11-21)
 
-All three accounts now exist.
+All three accounts exist and are configured. Two secret values still have to be pasted into Vercel by the owner.
 
 | Service | What exists | State |
 | --- | --- | --- |
-| Convex | Project `skippy-os` in team `schram-industries`; dev deployment `tame-toad-217` | Functions pushed to the dev deployment. Gateway secret and local resource URL set. Owner ID not set. No production deployment yet. |
-| Vercel | Project `skippy-os`, connected to the `main` branch on GitHub | Production address is `skippy-os-two.vercel.app` (`skippy-os.vercel.app` belongs to someone else). It still serves the first commit. Root directory and variables not set. |
-| Clerk | One application with a development instance | Nothing configured yet: no MCP server, no scopes, no users. |
+| Convex | Project `skippy-os` in team `schram-industries`. Dev deployment `tame-toad-217`, production deployment `elated-meerkat-158`. | Functions pushed to both. Gateway secret and MCP address set on both. Owner ID not set on either. |
+| Vercel | Project `skippy-os`, building from `main` on GitHub. Root directory `apps/web`. | Live at `skippy-os-two.vercel.app` (`skippy-os.vercel.app` belongs to someone else). Production variables set: `SKIPPY_MCP_RESOURCE_URL`, `CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_TELEMETRY_DISABLED`. Missing: `CLERK_SECRET_KEY`, `SKIPPY_GATEWAY_SECRET`. |
+| Clerk | Application "Skippy OS", development instance. | MCP server `https://skippy-os-two.vercel.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. No users yet. |
 
-The hosted MCP address will be `https://skippy-os-two.vercel.app/api/mcp`. Renaming the Vercel address later means registering the new address in Clerk and reconnecting every client.
+The hosted MCP address is `https://skippy-os-two.vercel.app/api/mcp`. Renaming the Vercel address later means registering the new address in Clerk and reconnecting every client.
+
+### What is left before the first test
+
+1. In Vercel, add `CLERK_SECRET_KEY` (from Clerk, API keys) and `SKIPPY_GATEWAY_SECRET` (copy the value from the Convex production deployment's environment variables) as Production variables, then redeploy.
+2. Connect one client. Signing in creates the owner's Clerk user.
+3. Set that user's ID as `SKIPPY_OWNER_CLERK_USER_ID` on both Convex deployments. Until then every call is refused with `account_not_authorized`.
+
+### Decisions still open
+
+- **DCR** is off. Clerk marks it deprecated and it opens a public registration endpoint. Turn it on only if a client in the acceptance run cannot connect without it, and record which client.
+- **Sign-ups** are open on the Clerk instance. Convex refuses every account but the owner, but closing sign-ups after the owner exists (Clerk, Access mode) is tidier.
+- **Clerk production instance** needs a domain the owner controls, so it cannot use a `vercel.app` address. The development instance is enough for Phase 0.
 
 ## What already works without any account
 

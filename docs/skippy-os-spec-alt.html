@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.6 · 2026-11-21 · Status: Phase 0 code written, waiting on accounts · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.7 · 2026-11-21 · Status: Phase 0 deployed, waiting on two secret values and the first sign-in · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -566,6 +566,10 @@
     <li>A Clerk development instance accepts <code>http://localhost:3000/api/mcp</code> as the MCP endpoint. So the first pass, from Claude Code on the mini, needs only a Clerk account. Vercel and a Convex cloud deployment are needed for claude.ai, iOS, Claude desktop and ChatGPT.</li>
     <li>Clerk recommends CIMD over DCR, and Vercel's documentation says the 2026-07-28 MCP spec deprecates DCR in favor of CIMD. The acceptance run records which mode each client actually uses. <span class="tag open">Open</span></li>
     <li>The owner is one Clerk user ID stored as a Convex setting, <code>SKIPPY_OWNER_CLERK_USER_ID</code>. There is no users table in Phase 0.</li>
+    <li>Clerk's dashboard has a setting for which scopes self-registering clients may request and which they get by default. Both custom scopes are now on both lists, so the main risk is settled in configuration. A real client still has to prove it.</li>
+    <li>The hosted address is <code>https://skippy-os-two.vercel.app/api/mcp</code>, because <code>skippy-os.vercel.app</code> belongs to someone else. It runs against a Clerk development instance, since a Clerk production instance needs a domain the owner controls.</li>
+    <li>Clerk's dashboard marks DCR as deprecated and leaves it off by default. It stays off unless a client in the acceptance run needs it.</li>
+    <li>Clerk checks a registered MCP server's public metadata and expects the 401 challenge to name the scopes. The endpoint now does.</li>
   </ul>
   <p><strong>If Clerk can't do it:</strong> stop and decide before Phase 1. The fallback candidates are a different authorization server in front of the MCP, or static tokens only. <span class="tag open">Open</span></p>
 </details>
