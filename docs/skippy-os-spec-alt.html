@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.9 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS, other clients not run; ingestion plan added · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.10 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 first slice built, not deployed · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -586,6 +586,18 @@
     <li>MCP tools: the status, records and read groups from §8</li>
   </ul>
   <p><strong>Done when:</strong> from a Claude chat I can create a project and a task, read them back, and see both in the activity log with Claude as the actor. <code>pnpm check</code> passes.</p>
+  <p><strong>Progress (2026-11-21):</strong> the first slice is built and passes its checks, and runs against the Convex dev deployment. It is not deployed to production yet.</p>
+  <ul>
+    <li><strong>Built:</strong> tables for areas, goals, projects, project updates, phases, tasks, activity events and settings; the tools <code>list_projects</code>, <code>get_project</code>, <code>upsert_project</code>, <code>record_project_status</code>, <code>create_phase</code>, <code>upsert_task</code>, <code>complete_task</code>, <code>get_today</code> and <code>get_changes_since</code>; and tool listing by scope, so a read-only sign-in never sees a write tool.</li>
+    <li><strong>Still to build in Phase 1:</strong> people, companies, knowledge, relationships and source refs, with <code>upsert_person</code>, <code>upsert_knowledge</code>, <code>link_entities</code>, <code>search</code> and <code>get_context_bundle</code>; the web app shell with Clerk sign-in limited to the owner; and Convex deploys from CI. <code>create_event</code> and the recurrence tools wait for Phase 4, where events and recurrences arrive.</li>
+  </ul>
+  <p><strong>Found while building:</strong></p>
+  <ul>
+    <li>The Actor's second kind is <code>agent</code>, not <code>claude</code>, because the MCP is open to any harness. It records the harness (<code>claude</code>, <code>chatgpt</code>, <code>codex</code> or <code>other</code>), worked out from the OAuth client that made the call, plus the client ID. The surface (<code>claude_project</code>, <code>claude_code</code> and so on) is optional and self-reported, since a token does not say where in Claude a call came from.</li>
+    <li>Tools name projects by slug and tasks by ID. Dates go in as text and are read in the owner's time zone: a date-only deadline means the end of that day. The zone is a setting, defaulting to <code>America/New_York</code>.</li>
+    <li>A repeated update changes nothing and logs nothing, so a retried call is safe. Creating a project from a title that already exists is refused, so a forgetful agent cannot make duplicates.</li>
+    <li>The Phase 0 test tools <code>whoami</code> and <code>capture</code> stay until the remaining clients have been checked. Phase 4 replaces <code>capture</code> with the real one.</li>
+  </ul>
 </details>
 
 <details>

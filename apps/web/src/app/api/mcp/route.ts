@@ -1,6 +1,7 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { authenticate, bearerToken } from "@/lib/mcp/auth";
 import { mcpConfig, NotConfiguredError, notConfiguredResponse, publicMcpConfig } from "@/lib/mcp/config";
+import { callGateway } from "@/lib/mcp/gateway";
 import { buildServer } from "@/lib/mcp/server";
 import { SCOPES } from "@skippy/shared";
 
@@ -26,7 +27,9 @@ async function handler(request: Request): Promise<Response> {
     const caller = await authenticate(request, config);
     if (!caller) return challenge(config.resourceMetadataUrl, "invalid_token");
 
-    const mcp = createMcpHandler(() => buildServer(config, caller));
+    const mcp = createMcpHandler(() =>
+      buildServer(caller.principal, (operation, args) => callGateway(config, caller.principal, operation, args)),
+    );
     return await mcp.fetch(request, { authInfo: caller.authInfo });
   } catch (error) {
     if (error instanceof NotConfiguredError) return notConfiguredResponse(error);

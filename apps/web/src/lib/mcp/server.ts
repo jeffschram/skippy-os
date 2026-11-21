@@ -1,22 +1,29 @@
-import { requireAdditionalScopes } from "@clerk/mcp-tools/server";
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
-import { OPERATIONS, type OperationName } from "@skippy/shared";
-import { z } from "zod";
-import type { Caller } from "./auth";
-import type { McpConfig } from "./config";
-import { callGateway, GatewayRefusal } from "./gateway";
+import { OPERATIONS, type OperationName, type OAuthPrincipal } from "@skippy/shared";
+import { GatewayRefusal } from "./gateway";
+import { TOOLS } from "./tools";
 
-const INSTRUCTIONS =
-  "Skippy OS is the owner's personal knowledge system. This is the Phase 0 test server: " +
-  "`whoami` reports who is connected and the latest captures, and `capture` saves a short note.";
+const INSTRUCTIONS = [
+  "Skippy OS is the owner's personal system for projects, tasks and what is worth remembering.",
+  "Projects are named by slug. Read with list_projects, get_project, get_today and get_changes_since.",
+  "Write with upsert_project, create_phase, upsert_task and complete_task.",
+  "When you work on a Skippy project, call record_project_status when a milestone is reached, a decision is made, something gets blocked, or the session ends.",
+  "Every write is logged with you as its author.",
+].join(" ");
 
-/** Builds the MCP server for one request from one verified caller. */
-export function buildServer(config: McpConfig, caller: Caller): McpServer {
-  const server = new McpServer({ name: "skippy-os", version: "0.0.0" }, { instructions: INSTRUCTIONS });
+/** Runs one operation for the caller and returns what Convex answered. */
+export type RunOperation = (operation: OperationName, args: Record<string, unknown>) => Promise<unknown>;
 
-  async function run(operation: OperationName, args: Record<string, unknown>): Promise<CallToolResult> {
+/**
+ * Builds the MCP server for one request from one verified caller. A tool whose
+ * scope the caller was not granted is not registered, so it is never listed.
+ */
+export function buildServer(principal: Pick<OAuthPrincipal, "scopes">, run: RunOperation): McpServer {
+  const server = new McpServer({ name: "skippy-os", version: "0.1.0" }, { instructions: INSTRUCTIONS });
+
+  async function answer(operation: OperationName, args: Record<string, unknown>): Promise<CallToolResult> {
     try {
-      const result = await callGateway(config, caller.principal, operation, args);
+      const result = await run(operation, args);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (error) {
       if (error instanceof GatewayRefusal) {
@@ -26,30 +33,23 @@ export function buildServer(config: McpConfig, caller: Caller): McpServer {
     }
   }
 
-  server.registerTool(
-    "whoami",
-    {
-      title: "Who am I",
-      description:
-        "Shows which Skippy owner and client this connection acts as, the scopes it was granted, and the five most recent captures.",
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-      scopeChallenge: requireAdditionalScopes(OPERATIONS.whoami.scope),
-    },
-    () => run("whoami", {}),
-  );
-
-  server.registerTool(
-    "capture",
-    {
-      title: "Capture",
-      description: "Saves a short note to Skippy. Use it for a thought, a link or a reminder worth keeping.",
-      inputSchema: { text: z.string().trim().min(1).max(4000).describe("The note to save, in plain text.") },
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-      scopeChallenge: requireAdditionalScopes(OPERATIONS.capture.scope),
-    },
-    ({ text }) => run("capture", { text }),
-  );
+  for (const name of Object.keys(TOOLS) as OperationName[]) {
+    if (!principal.scopes.includes(OPERATIONS[name].scope)) continue;
+    const tool = TOOLS[name];
+    server.registerTool(
+      name,
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema: tool.input,
+        annotations:
+          tool.kind === "read"
+            ? { readOnlyHint: true }
+            : { readOnlyHint: false, destructiveHint: false, idempotentHint: tool.idempotent ?? false },
+      },
+      (args: Record<string, unknown>) => answer(name, args ?? {}),
+    );
+  }
 
   return server;
 }

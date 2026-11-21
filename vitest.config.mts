@@ -18,6 +18,14 @@ export default defineConfig({
           server: { deps: { inline: ["convex-test"] } },
         },
       },
+      {
+        resolve: { alias: { "@": new URL("./apps/web/src", import.meta.url).pathname } },
+        test: {
+          name: "web",
+          include: ["apps/web/src/**/*.test.ts"],
+          environment: "node",
+        },
+      },
     ],
   },
 });

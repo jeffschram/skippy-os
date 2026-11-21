@@ -1,7 +1,55 @@
 import { ConvexError, v } from "convex/values";
-import { EnvelopeError, scopesAllow, verifyEnvelope, type Envelope } from "@skippy/shared";
+import {
+  EnvelopeError,
+  harnessForClient,
+  scopesAllow,
+  verifyEnvelope,
+  type AgentActor,
+  type Envelope,
+  type OperationName,
+} from "@skippy/shared";
+import type { FunctionReference } from "convex/server";
 import { internal } from "./_generated/api";
 import { action, internalMutation } from "./_generated/server";
+
+type Phase1Operation = Exclude<OperationName, "whoami" | "capture">;
+type AnyArgs = Record<string, unknown>;
+
+/** Operations that only read. Each gets the caller's arguments and nothing else. */
+const READS: Partial<Record<Phase1Operation, FunctionReference<"query", "internal", AnyArgs, unknown>>> = {
+  get_project: internal.projects.get as never,
+  list_projects: internal.projects.list as never,
+  get_today: internal.read.today as never,
+  get_changes_since: internal.read.changesSince as never,
+};
+
+/** Operations that write. Each gets the caller's arguments plus the actor, which the caller cannot set. */
+const WRITES: Partial<Record<Phase1Operation, FunctionReference<"mutation", "internal", AnyArgs, unknown>>> = {
+  upsert_project: internal.projects.upsert as never,
+  record_project_status: internal.projects.recordStatus as never,
+  create_phase: internal.projects.createPhase as never,
+  upsert_task: internal.tasks.upsert as never,
+  complete_task: internal.tasks.complete as never,
+};
+
+/**
+ * Convex reports arguments that do not fit a function's validators with an
+ * ordinary error. Turn that into a refusal the caller can read and fix.
+ */
+function asRefusal(error: unknown): never {
+  if (error instanceof ConvexError) throw error;
+  const message = error instanceof Error ? error.message : String(error);
+  if (/ArgumentValidationError|Validator error/i.test(message)) {
+    const lines = message.split("\n").map((line) => line.trim());
+    const path = lines.find((line) => line.startsWith("Path:"));
+    const value = lines.find((line) => line.startsWith("Value:"));
+    const detail = path
+      ? `${path}${value ? `, ${value}` : ""} does not fit what this operation accepts.`
+      : "An argument does not fit what this operation accepts.";
+    throw new ConvexError({ code: "invalid_arguments", message: detail.slice(0, 300) });
+  }
+  throw error;
+}
 
 const signed = { payload: v.string(), signature: v.string() };
 
@@ -50,6 +98,21 @@ export const call = action({
         return await ctx.runMutation(internal.operations.capture, { actor, text });
       }
     }
+
+    const read = READS[envelope.operation];
+    if (read) return await ctx.runQuery(read, envelope.args).catch(asRefusal);
+
+    const write = WRITES[envelope.operation];
+    if (write) {
+      const agent: AgentActor = {
+        kind: "agent",
+        harness: harnessForClient(envelope.principal.clientId),
+        clientId: envelope.principal.clientId,
+      };
+      // The actor goes last, so nothing in the caller's arguments can replace it.
+      return await ctx.runMutation(write, { ...envelope.args, actor: agent }).catch(asRefusal);
+    }
+    throw new ConvexError({ code: "unknown_operation" });
   },
 });
 

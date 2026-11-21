@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
-import { actor } from "./schema";
+import { phase0Actor as actor } from "./schema";
 
 /** Longest capture accepted, in characters. */
 const MAX_CAPTURE_LENGTH = 4000;

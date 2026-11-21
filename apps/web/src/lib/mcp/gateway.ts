@@ -8,8 +8,11 @@ const gatewayCall = makeFunctionReference<"action", { payload: string; signature
 
 /** A refusal from the Convex gateway, with the short code it gave. */
 export class GatewayRefusal extends Error {
-  constructor(public readonly code: string) {
-    super(`Skippy refused the request: ${code}`);
+  constructor(
+    public readonly code: string,
+    detail?: string,
+  ) {
+    super(detail ? `Skippy refused the request (${code}): ${detail}` : `Skippy refused the request: ${code}`);
     this.name = "GatewayRefusal";
   }
 }
@@ -30,8 +33,11 @@ export async function callGateway(
     return await new ConvexHttpClient(config.convexUrl).action(gatewayCall, signed);
   } catch (error) {
     if (error instanceof ConvexError) {
-      const code = (error.data as { code?: unknown } | undefined)?.code;
-      throw new GatewayRefusal(typeof code === "string" ? code : "refused");
+      const data = error.data as { code?: unknown; message?: unknown } | undefined;
+      throw new GatewayRefusal(
+        typeof data?.code === "string" ? data.code : "refused",
+        typeof data?.message === "string" ? data.message : undefined,
+      );
     }
     throw error;
   }

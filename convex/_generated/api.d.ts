@@ -9,7 +9,11 @@
  */
 
 import type * as gateway from "../gateway.js";
+import type * as lib_common from "../lib/common.js";
 import type * as operations from "../operations.js";
+import type * as projects from "../projects.js";
+import type * as read from "../read.js";
+import type * as tasks from "../tasks.js";
 
 import type {
   ApiFromModules,
@@ -19,7 +23,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   gateway: typeof gateway;
+  "lib/common": typeof lib_common;
   operations: typeof operations;
+  projects: typeof projects;
+  read: typeof read;
+  tasks: typeof tasks;
 }>;
 
 /**
