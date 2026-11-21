@@ -83,7 +83,7 @@ For each client: discovery → sign-in and consent → `whoami` → `capture` �
 | Client | Needs | Result |
 | --- | --- | --- |
 | Claude Code | Step 1 | not run |
-| claude.ai connector, then Claude iOS | Step 2 | claude.ai passed discovery, sign-in and consent, `capture`, and `whoami` reading it back (2026-11-21). It registered itself by CIMD and was granted `offline_access`, `skippy:read` and `skippy:write`. The capture is stored in Convex production with the owner and Claude's client ID recorded. Token refresh and reconnect not checked yet (access tokens last a day). Claude iOS not run. |
+| claude.ai connector, then Claude iOS | Step 2 | claude.ai passed discovery, sign-in and consent, `capture`, and `whoami` reading it back (2026-11-21). It registered itself by CIMD and was granted `offline_access`, `skippy:read` and `skippy:write`. The capture is stored in Convex production with the owner and Claude's client ID recorded. Token refresh and reconnect not checked yet (access tokens last a day). Claude iOS used the same connector with no extra setup and `whoami` worked, as reported by the owner (2026-11-21). |
 | Claude desktop | Step 2 | not run |
 | ChatGPT | Step 2 | not run |
 | Codex | Step 1 | not run |
