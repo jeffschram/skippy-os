@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skippy OS · Briefing-first screens</title>
+<style>
+/* Layout B ("Briefing first") carried across four screens. Neutral shadcn-style skin; visual style is a later round. */
+:root{
+  --bg:#ffffff; --fg:#09090b; --card:#ffffff; --muted:#f4f4f5; --muted-fg:#71717a; --border:#e4e4e7;
+  --primary:#18181b; --primary-fg:#fafafa;
+  --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --quiet:#64748b; --link:#2563eb;
+  --radius:10px; --sw:49px; --col:720px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#09090b; --fg:#fafafa; --card:#0f0f12; --muted:#1c1c20; --muted-fg:#a1a1aa; --border:#27272a;
+    --primary:#fafafa; --primary-fg:#18181b;
+    --ok:#22c55e; --warn:#f59e0b; --bad:#f87171; --quiet:#94a3b8; --link:#60a5fa;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none;cursor:pointer}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.muted{color:var(--muted-fg)} .small{font-size:12px}
+.row{display:flex;align-items:center;gap:8px}
+.wrap{flex-wrap:wrap}
+.spread{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.grow{flex:1;min-width:0}
+[hidden]{display:none!important}
+
+/* ---------- mockup controls (not part of the app) ---------- */
+.switch{position:sticky;top:0;z-index:20;height:var(--sw);background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:8px 16px;overflow-x:auto}
+.seg{display:inline-flex;background:var(--muted);border-radius:8px;padding:3px;gap:2px;flex:none}
+.seg button{padding:4px 10px;border-radius:6px;font-size:13px;color:var(--muted-fg);white-space:nowrap}
+.seg button.on{background:var(--card);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.note{padding:10px 16px;background:var(--muted);border-bottom:1px solid var(--border);font-size:13px}
+
+/* ---------- shared pieces ---------- */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+.count{font-size:12px;color:var(--muted-fg);font-weight:400}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;line-height:1;padding:4px 7px;border-radius:999px;border:1px solid var(--border);color:var(--muted-fg);white-space:nowrap}
+.badge.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent);background:color-mix(in srgb,var(--ok) 9%,transparent)}
+.badge.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent);background:color-mix(in srgb,var(--warn) 9%,transparent)}
+.badge.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent);background:color-mix(in srgb,var(--bad) 9%,transparent)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted-fg);flex:none}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.dot.quiet{background:transparent;border:1.5px dashed var(--quiet)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;white-space:nowrap;background:var(--card)}
+.btn.primary{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted-fg)}
+.btn svg.i{width:13px;height:13px}
+kbd{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--border);border-radius:4px;padding:1px 4px;background:var(--muted)}
+.list{list-style:none;margin:0;padding:0}
+.list>li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--border)}
+.list>li:first-child{border-top:0}
+.check{width:16px;height:16px;border:1.5px solid var(--muted-fg);border-radius:50%;flex:none;margin-top:2px}
+.check.done{background:var(--muted-fg);border-color:var(--muted-fg)}
+.time{width:44px;flex:none;font-variant-numeric:tabular-nums;color:var(--muted-fg);font-size:12.5px;padding-top:1px}
+.t-title{font-weight:500}
+.t-meta{font-size:12px;color:var(--muted-fg)}
+.due{color:var(--bad)}
+.ext{color:var(--link)}
+
+/* ---------- shell: top bar, reading column, docked composer ---------- */
+.topnav{position:sticky;top:var(--sw);z-index:9;background:var(--bg);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;gap:20px;padding:0 20px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700}
+.logo i{width:22px;height:22px;border-radius:6px;background:var(--primary);display:inline-block}
+.topnav nav{display:flex;gap:4px}
+.topnav nav a{padding:5px 10px;border-radius:7px;color:var(--muted-fg)}
+.topnav nav a.on{background:var(--muted);color:var(--fg);font-weight:500}
+.mini{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted-fg);white-space:nowrap}
+.menu{display:none}
+.sheet{position:sticky;top:calc(var(--sw) + 52px);z-index:8;background:var(--bg);border-bottom:1px solid var(--border);padding:8px 14px 12px;display:grid}
+.sheet a{padding:10px 4px;border-top:1px solid var(--border);font-size:15px}
+.sheet a:first-child{border-top:0}
+body.offline .when-on, body:not(.offline) .when-off{display:none}
+
+.read{max-width:calc(var(--col) + 40px);margin:0 auto;padding:36px 20px 28px;display:grid;gap:28px}
+.read.wide{max-width:1000px}
+.eyebrow{font-size:12.5px;color:var(--muted-fg);text-transform:uppercase;letter-spacing:.06em}
+.read h1{font-size:30px;line-height:1.15;letter-spacing:-.025em;margin-top:6px}
+.lede{font-size:16.5px;line-height:1.6;margin-top:12px}
+.ref{border-bottom:1.5px solid var(--border);font-weight:500}
+.read h2,.modal h2{font-size:13px;font-weight:600;color:var(--muted-fg);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.crumb{font-size:13px;color:var(--muted-fg);margin-bottom:-14px}
+.need{display:flex;gap:12px;align-items:center;padding:12px 14px}
+.need + .need{border-top:1px solid var(--border)}
+.prow{display:flex;gap:10px;align-items:baseline;padding:10px 0;border-top:1px solid var(--border)}
+.prow:first-of-type{border-top:0}
+.prow .name{font-weight:600;white-space:nowrap}
+.prow .st{color:var(--muted-fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow .ago{font-size:12px;color:var(--muted-fg);white-space:nowrap;margin-left:auto}
+.read details{border-top:1px solid var(--border);padding-top:12px}
+.read summary{cursor:pointer;font-weight:500}
+
+.dock{position:sticky;bottom:0;z-index:9;padding:10px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 70%,transparent)}
+.composer{max-width:var(--col);margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.composer .ph{padding:12px 16px 2px;color:var(--muted-fg);font-size:15px}
+.composer .bar{display:flex;align-items:center;gap:10px;padding:8px 10px 10px}
+.composer .hint{font-size:12px;color:var(--muted-fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.composer .send{width:30px;height:30px;border-radius:8px;background:var(--primary);color:var(--primary-fg);display:grid;place-items:center;flex:none;margin-left:auto}
+.scope{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--border);border-radius:999px;padding:3px 9px;white-space:nowrap}
+
+/* ---------- idea chat ---------- */
+.msgs{display:grid;gap:18px}
+.me{justify-self:end;max-width:85%;background:var(--muted);border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:15px}
+.ai{font-size:15px;line-height:1.6;display:grid;gap:10px}
+.pcard{border:1px solid var(--border);border-radius:var(--radius);background:var(--card);padding:12px 14px;display:grid;gap:10px;font-size:14px;line-height:1.5}
+.pcard .kindl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-fg)}
+.fields{display:flex;flex-wrap:wrap;gap:8px}
+.field{display:grid;gap:2px;min-width:120px}
+.field.grow{flex:1 1 220px}
+.field label{font-size:11px;color:var(--muted-fg)}
+.in{border:1px solid var(--border);border-radius:7px;padding:5px 9px;background:var(--bg);min-height:32px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pcard.accepted{grid-auto-flow:column;justify-content:space-between;align-items:center;background:var(--muted);border-color:transparent;padding:9px 14px}
+.pending{justify-self:end;font-size:12px;color:var(--muted-fg);display:flex;align-items:center;gap:6px;margin-top:-10px}
+.spin{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--border);border-top-color:var(--fg);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+
+/* ---------- project page ---------- */
+.statusbox{padding:14px 16px;display:grid;gap:6px}
+.statusbox p{font-size:16px;line-height:1.55}
+.phase{padding:10px 0 2px;display:flex;align-items:center;gap:10px;font-weight:600}
+.bar-sm{flex:none;width:64px;height:4px;border-radius:2px;background:var(--muted);overflow:hidden}
+.bar-sm i{display:block;height:100%;background:var(--fg)}
+.tl{list-style:none;margin:0;padding:0 0 0 14px;border-left:1.5px solid var(--border);display:grid;gap:14px}
+.tl li{position:relative}
+.tl li::before{content:"";position:absolute;left:-19.5px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:1.5px solid var(--muted-fg)}
+.tl li.bad::before{border-color:var(--bad);background:var(--bad)} .tl li.ok::before{border-color:var(--ok);background:var(--ok)}
+.notes{padding:14px 16px;font-size:14.5px;line-height:1.6;display:grid;gap:8px}
+
+/* ---------- agenda (tasks and events together) ---------- */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 10px;border:1px dashed var(--border);border-radius:7px;font-size:13px;color:var(--muted-fg);white-space:nowrap}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.day{display:grid;justify-items:center;gap:2px;padding:8px 4px;border:1px solid var(--border);border-radius:9px;font-size:12px;color:var(--muted-fg)}
+.day b{font-size:16px;color:var(--fg)}
+.day i{font-style:normal}
+.day.on{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.day.on b{color:var(--primary-fg)}
+.group-h{display:flex;align-items:baseline;gap:8px;font-weight:600;padding:6px 0;border-bottom:1px solid var(--border)}
+.arow{display:grid;grid-template-columns:48px minmax(0,1fr) 170px 96px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+.arow .check{margin:0}
+.arow .time{width:auto;padding:0}
+.arow .p{font-size:12.5px;color:var(--muted-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arow .s{justify-self:end}
+.klabel{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-fg)}
+
+/* ---------- brain ---------- */
+.search{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--muted-fg);font-size:15px}
+.scrollx{overflow-x:auto}
+.kitem{display:grid;grid-template-columns:96px minmax(0,1fr) auto;grid-template-areas:"k body d";gap:4px 14px;padding:14px 0;border-bottom:1px solid var(--border)}
+.kitem .klabel{grid-area:k;padding-top:3px}
+.kitem .body{grid-area:body;display:grid;gap:3px}
+.kitem .body p{font-size:14px}
+.kitem .ago{grid-area:d;font-size:12px;color:var(--muted-fg);white-space:nowrap}
+.person .p{font-size:12.5px;color:var(--muted-fg)}
+.person{display:grid;grid-template-columns:36px minmax(0,1fr) 190px 150px;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font-size:12.5px;font-weight:600;color:var(--muted-fg)}
+
+/* ---------- activity ---------- */
+.health{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.hcell{padding:12px 14px;display:grid;gap:3px;align-content:start}
+.act{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.act .time{width:auto}
+.actor{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;padding:4px 7px;border-radius:999px;background:var(--muted);color:var(--muted-fg);white-space:nowrap}
+.actor.me{background:none;border:1px solid var(--border);color:var(--fg)}
+.diff{font-size:12.5px;color:var(--muted-fg);margin-top:3px}
+.act details{border:0;padding:0;margin-top:6px}
+.act summary{font-size:12.5px;color:var(--link);font-weight:400}
+
+/* ---------- settings ---------- */
+.srow{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.srow + .srow{border-top:1px solid var(--border)}
+.toggle{width:34px;height:20px;border-radius:999px;background:var(--primary);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:var(--primary-fg)}
+.toggle.off{background:var(--border)}
+.toggle.off::after{right:auto;left:2px}
+.rubric{padding:14px 16px;font-size:14px;line-height:1.6;display:grid;gap:8px}
+.only-m{display:none}
+[data-go]{cursor:pointer}
+.kind{font-size:11px;color:var(--muted-fg);border:1px solid var(--border);border-radius:4px;padding:0 5px;line-height:16px}
+
+/* ---------- projects list ---------- */
+.prj{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;padding:14px 16px}
+.prj + .prj{border-top:1px solid var(--border)}
+.prj .name{font-weight:600;font-size:15px}
+.prj .st{grid-column:1;font-size:14px}
+.prj .meta{grid-column:1;font-size:12px;color:var(--muted-fg);display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:4px}
+.prj .side{grid-row:1 / span 3;grid-column:2;display:grid;gap:8px;justify-items:end;align-content:start}
+
+/* ---------- item details: a large modal over whatever page you were on ---------- */
+.overlay{position:fixed;inset:var(--sw) 0 0 0;z-index:15;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:24px}
+.modal{width:min(1000px,100%);height:min(860px,100%);background:var(--bg);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.35);
+  display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden}
+.m-head{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 20px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted-fg)}
+.m-head .kindl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.iconbtn{width:32px;height:32px;display:grid;place-items:center;border-radius:7px;color:var(--muted-fg)}
+.iconbtn:hover{background:var(--muted)}
+.m-body{overflow:auto;overflow-x:hidden;display:grid;grid-template-columns:minmax(0,1fr) 290px;grid-template-rows:auto 1fr;grid-template-areas:"title side" "main side"}
+.m-title{grid-area:title;padding:24px 28px 0}
+.m-title h1{font-size:26px;line-height:1.2;letter-spacing:-.02em}
+.m-main{grid-area:main;padding:24px 28px 28px;display:grid;gap:26px;align-content:start}
+.m-side{grid-area:side;border-left:1px solid var(--border);padding:22px 20px;display:grid;gap:12px;align-content:start}
+.m-side .field{min-width:0}
+.m-foot{border-top:1px solid var(--border);padding:12px 20px 14px}
+.m-foot .composer{max-width:none;box-shadow:none}
+.titlecheck{display:flex;gap:12px;align-items:flex-start}
+.titlecheck .check{width:22px;height:22px;margin-top:5px}
+body.modal-open{overflow:hidden}
+
+@media (max-width:760px){
+  .long{display:none}
+  .switch{padding:8px;gap:6px}.switch .seg button{padding:4px 7px}
+  .topnav nav,.topnav .mini{display:none}.menu{display:grid;margin-left:auto}
+  .topnav{padding:0 14px}
+  .read{padding:22px 16px 20px;gap:22px}.read h1{font-size:25px}.lede{font-size:15.5px}
+  .prow{flex-wrap:wrap}.prow .st{flex-basis:100%;order:3;white-space:normal}
+  .composer .hint{display:none}
+  .me{max-width:92%}
+  .arow{grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:start}
+  .arow .check{margin-top:3px}
+  .arow .p{display:none}
+  .day{padding:6px 2px}.day i{display:none}
+  .kitem{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"k d" "body body"}
+  .person{grid-template-columns:36px minmax(0,1fr)}
+  .person .p{display:none}
+  .health{grid-template-columns:1fr 1fr}
+  .topnav .gear{display:none}
+  .srow{flex-wrap:wrap}
+  .only-m{display:block}
+  .head-actions{width:100%}
+  .prj{grid-template-columns:1fr}
+  .prj .side{grid-row:auto;grid-column:1;grid-auto-flow:column;justify-content:start;align-items:center;margin-top:6px}
+  .overlay{padding:0}
+  .modal{width:100%;height:100%;border-radius:0;border:0}
+  .m-body{grid-template-columns:1fr;grid-template-rows:auto;grid-template-areas:"title" "side" "main"}
+  .m-title{padding:18px 16px 0}.m-title h1{font-size:22px}
+  .m-side{border-left:0;border-bottom:1px solid var(--border);grid-template-columns:1fr 1fr;padding:16px}
+  .m-main{padding:18px 16px 22px;gap:22px}
+  .m-head{padding-left:16px}
+  .m-foot{padding:10px 12px calc(12px + env(safe-area-inset-bottom))}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="ok" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+</svg>
+
+<!-- ============ mockup controls ============ -->
+<div class="switch">
+  <div class="seg" id="screenseg">
+    <button data-go="home">Home</button>
+    <button data-go="chat">Idea chat</button>
+    <button data-go="projects">Projects</button>
+    <button data-go="project">Project</button>
+    <button data-go="agenda">Agenda</button>
+    <button data-go="task">Task</button>
+    <button data-go="brain">Brain</button>
+    <button data-go="activity">Activity</button>
+    <button data-go="settings">Settings</button>
+  </div>
+  <div class="seg" id="miniseg" title="Mockup control: Mac mini state">
+    <button class="on" data-mini="on"><span class="long">Mini </span>online</button>
+    <button data-mini="off"><span class="long">Mini </span>offline</button>
+  </div>
+</div>
+<div class="note" id="note"></div>
+
+<!-- ============ app shell ============ -->
+<header class="topnav">
+  <a class="logo" data-go="home"><i></i> Skippy OS</a>
+  <nav id="nav">
+    <a data-go="home" data-nav="home">Home</a><a data-go="projects" data-nav="projects">Projects</a><a data-go="agenda" data-nav="agenda">Agenda</a><a data-go="brain" data-nav="brain">Brain</a><a data-go="activity" data-nav="activity">Activity</a>
+  </nav>
+  <span class="grow"></span>
+  <span class="mini"><span class="when-on row"><i class="dot ok"></i> Mac mini online</span><span class="when-off row"><i class="dot bad"></i> Mac mini offline · seen 14 min ago</span></span>
+  <button class="iconbtn gear" data-go="settings" title="Settings" aria-label="Settings"><svg class="i"><use href="#sliders"/></svg></button>
+  <button class="menu" id="menubtn" aria-label="Menu"><svg class="i" style="width:20px;height:20px"><use href="#menu"/></svg></button>
+</header>
+<div class="sheet" id="sheet" hidden>
+  <a data-go="home">Home</a><a data-go="projects">Projects</a><a data-go="agenda">Agenda</a><a data-go="brain">Brain</a><a data-go="activity">Activity</a><a data-go="settings">Settings</a>
+  <span class="mini" style="padding-top:10px;border-top:1px solid var(--border)"><span class="when-on row"><i class="dot ok"></i> Mac mini online</span><span class="when-off row"><i class="dot bad"></i> Mac mini offline · seen 14 min ago</span></span>
+</div>
+
+<!-- =====================================================================  HOME  -->
+<main class="read screen" id="s-home">
+  <div>
+    <p class="eyebrow">Friday, November 20 · briefing from 6:30 am</p>
+    <h1>Three things need you today.</h1>
+    <p class="lede"><a class="ref" data-go="project">Kitchen remodel</a> is blocked on Marco's countertop quote. The <a class="ref" data-go="agenda">Q4 tax estimate</a> is due today, and two 1099s are still missing. <a class="ref">Skippy OS</a> had 4 commits overnight, and the OAuth test now passes in 3 of 5 clients.</p>
+  </div>
+
+  <div>
+    <h2>Needs you</h2>
+    <div class="card">
+      <div class="need"><i class="dot bad"></i><div class="grow" data-go="task"><div class="t-title">Call Marco about the countertop quote</div><div class="t-meta">Kitchen remodel is blocked · asked 4 days ago</div></div><a class="btn">Done</a></div>
+      <div class="need"><i class="dot warn"></i><div class="grow"><div class="t-title">Send Q4 estimated tax payment</div><div class="t-meta">Taxes 2026 · <span class="due">due today</span></div></div><a class="btn">Done</a></div>
+      <div class="need"><i class="dot quiet"></i><div class="grow"><div class="t-title">Portfolio site has gone quiet</div><div class="t-meta">No update from Claude in 9 days</div></div><a class="btn">Pause</a></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="spread"><h2>Today</h2><a class="btn ghost" data-go="agenda">Agenda</a></div>
+    <ul class="list">
+      <li><span class="time">9:30</span><div><div class="t-title">Design standup</div><div class="t-meta">30 min</div></div></li>
+      <li><span class="check"></span><div><div class="t-title">Review OAuth test results in ChatGPT</div><div class="t-meta">Skippy OS</div></div></li>
+      <li><span class="time">2:30</span><div><div class="t-title">Dentist</div><div class="t-meta">1 hr</div></div></li>
+      <li><span class="check"></span><div><div class="t-title">Book flights to Lisbon</div><div class="t-meta">Trip to Lisbon</div></div></li>
+      <li><span class="check"></span><div><div class="t-title">Water the plants</div><div class="t-meta">Repeats every Friday</div></div></li>
+      <li><span class="time">6:00</span><div><div class="t-title">Dinner with Sam</div><div class="t-meta">Skippy event</div></div></li>
+    </ul>
+  </div>
+
+  <div>
+    <h2>Projects</h2>
+    <div>
+      <a class="prow" data-go="project"><i class="dot bad"></i><span class="name">Kitchen remodel</span><span class="st">Waiting on the countertop quote from Marco</span><span class="ago">yesterday</span></a>
+      <a class="prow"><i class="dot warn"></i><span class="name">Taxes 2026</span><span class="st">Q4 estimate due today, two 1099s missing</span><span class="ago">3 days ago</span></a>
+      <a class="prow"><i class="dot ok"></i><span class="name">Skippy OS</span><span class="st">OAuth test passes in 3 of 5 clients</span><span class="ago">2 hours ago</span></a>
+      <a class="prow"><i class="dot ok"></i><span class="name">Trip to Lisbon</span><span class="st">Dates set for March 12 to 20, flights not booked</span><span class="ago">yesterday</span></a>
+      <a class="prow"><i class="dot quiet"></i><span class="name">Portfolio site</span><span class="st">Case study drafts in progress</span><span class="ago">9 days ago</span></a>
+    </div>
+  </div>
+
+  <div>
+    <h2>Recent chats</h2>
+    <div>
+      <a class="prow" data-go="chat"><span class="name">Garage gym</span><span class="st">2 suggestions waiting: an event and a new project</span><span class="ago">today</span></a>
+      <a class="prow"><span class="name">Weekly review format</span><span class="st">Became a note in Brain</span><span class="ago">Monday</span></a>
+    </div>
+  </div>
+
+  <details>
+    <summary>Overnight <span class="count">· 4 updates from Claude</span></summary>
+    <ul class="list" style="margin-top:8px">
+      <li><span class="time">6:30</span><div><div class="t-title">Morning pass finished</div><div class="t-meta">3 emails and 1 calendar change filed. New task: reply to Dana about the invoice.</div></div></li>
+      <li><span class="time">2:10</span><div><div class="t-title">Skippy OS: 4 commits on oauth-spike</div><div class="t-meta">Status recorded by the nightly sweep</div></div></li>
+      <li><span class="time">9:14p</span><div><div class="t-title">Kitchen remodel marked blocked</div><div class="t-meta">From the Claude Project chat</div></div></li>
+      <li><span class="time">8:02p</span><div><div class="t-title">Trip to Lisbon: dates decided</div><div class="t-meta">From the Claude Project chat</div></div></li>
+    </ul>
+  </details>
+  <details>
+    <summary>Captures <span class="count">· 3 waiting for the morning pass</span></summary>
+    <ul class="list" style="margin-top:8px">
+      <li><div><div class="t-title">Weekly review as a walk-and-talk voice chat?</div><div class="t-meta">Yesterday, from iPhone</div></div></li>
+      <li><div><div class="t-title">convex.dev: vector search guide</div><div class="t-meta">Link · yesterday</div></div></li>
+      <li><div><div class="t-title">Gift idea for Sam: pottery class</div><div class="t-meta">2 days ago</div></div></li>
+    </ul>
+  </details>
+</main>
+
+<!-- =====================================================================  IDEA CHAT  -->
+<main class="read screen" id="s-chat" hidden>
+  <a class="crumb" data-go="home">← Home</a>
+  <div class="spread wrap">
+    <div><h1 style="margin:0">Garage gym</h1><p class="muted small" style="margin-top:4px">Idea chat · started today at 8:41 am</p></div>
+    <a class="btn" title="Writes a brief into notes and copies it, to paste into a Claude Project or Code session">Continue in Claude <svg class="i"><use href="#ext"/></svg></a>
+  </div>
+
+  <div class="msgs">
+    <div class="me">I keep thinking about turning half the garage into a gym. A rack, a bench, rubber flooring. Not sure it fits with the car in there.</div>
+
+    <div class="ai">
+      <p>A half rack needs about 8 by 6 feet, plus room on each side to load the bar. So the first thing to find out is the clear width of the bay with the car parked. Check the ceiling height for overhead presses too, and whether the floor slopes toward the door.</p>
+      <div class="pcard accepted">
+        <span class="row"><svg class="i"><use href="#ok"/></svg> <span><b>Task created:</b> Measure the garage bay · due Sat, Nov 21</span></span>
+        <a class="ext small" data-go="agenda">Open</a>
+      </div>
+    </div>
+
+    <div class="me">Budget is around $2,500. Sam said the Rogue showroom is worth a visit before buying anything.</div>
+
+    <div class="ai">
+      <p>That budget covers a rack, bar, plates and a bench if the flooring is stall mats instead of gym tiles. Seeing the racks in person first is a good idea, because depth is hard to judge from photos.</p>
+
+      <div class="pcard">
+        <div class="spread"><span class="kindl">Event</span><button class="muted" aria-label="Dismiss"><svg class="i"><use href="#x"/></svg></button></div>
+        <div class="fields">
+          <div class="field grow"><label>Title</label><div class="in">Visit the Rogue showroom</div></div>
+          <div class="field"><label>When</label><div class="in">Sat, Nov 28 · 11:00 <svg class="i muted"><use href="#down"/></svg></div></div>
+          <div class="field"><label>With</label><div class="in">Sam <svg class="i muted"><use href="#down"/></svg></div></div>
+        </div>
+        <div class="row"><a class="btn primary">Create event</a><span class="muted small">Saved in Skippy only, not sent to Google Calendar</span></div>
+      </div>
+
+      <div class="pcard">
+        <div class="spread"><span class="kindl">New project</span><button class="muted" aria-label="Dismiss"><svg class="i"><use href="#x"/></svg></button></div>
+        <div class="fields">
+          <div class="field grow"><label>Title</label><div class="in">Garage gym</div></div>
+          <div class="field"><label>Kind</label><div class="in">General <svg class="i muted"><use href="#down"/></svg></div></div>
+          <div class="field"><label>Area</label><div class="in">Home <svg class="i muted"><use href="#down"/></svg></div></div>
+        </div>
+        <div class="row wrap"><a class="btn primary" data-go="project">Create project</a><span class="muted small">This chat becomes the project's history, and a summary starts its notes.</span></div>
+      </div>
+    </div>
+
+    <div class="me">What would stall mats cost for about 100 square feet?</div>
+    <div class="pending when-on"><i class="spin"></i> Claude is replying…</div>
+    <div class="pending when-off"><i class="dot bad"></i> <span>Queued until the Mac mini is back (seen 14 min ago)</span> <a class="ext">Cancel</a></div>
+  </div>
+</main>
+
+<!-- =====================================================================  PROJECT  -->
+<main class="read screen" id="s-project" hidden>
+  <a class="crumb" data-go="projects">← Projects</a>
+  <div>
+    <div class="spread wrap">
+      <h1 style="margin:0">Kitchen remodel</h1>
+      <div class="row head-actions"><a class="btn primary">Open in Claude <svg class="i"><use href="#ext"/></svg></a><a class="btn">Edit</a></div>
+    </div>
+    <div class="row wrap" style="margin-top:10px">
+      <span class="badge bad"><i class="dot bad"></i>Blocked</span><span class="badge">Active</span><span class="badge">General</span><span class="badge">Area: Home</span><span class="badge">Target Feb 28</span><span class="badge">Claude Project</span>
+    </div>
+  </div>
+
+  <div class="card statusbox">
+    <p>Waiting on the countertop quote from Marco. Cabinets are ordered and arrive December 9.</p>
+    <div class="t-meta">Yesterday at 9:14 pm · recorded by Claude, from the Claude Project</div>
+  </div>
+
+  <div>
+    <div class="spread"><h2>Phases and tasks</h2><a class="btn ghost">+ Task</a></div>
+    <div class="phase"><span class="grow">2 · Order materials</span><span class="count">3 of 5</span><span class="bar-sm"><i style="width:60%"></i></span></div>
+    <ul class="list">
+      <li><span class="check"></span><div class="grow" data-go="task"><div class="t-title">Call Marco about the countertop quote</div><div class="t-meta"><span class="due">due today</span></div></div></li>
+      <li><span class="check"></span><div class="grow"><div class="t-title">Choose backsplash tile</div><div class="t-meta">due Nov 27</div></div></li>
+      <li><span class="check"></span><div class="grow"><div class="t-title">Countertop quote</div><div class="t-meta">Waiting on Marco since Nov 16</div></div><span class="badge">Waiting</span></li>
+    </ul>
+    <div class="phase"><span class="grow">3 · Install</span><span class="count">0 of 4</span><span class="bar-sm"><i style="width:0"></i></span></div>
+    <ul class="list">
+      <li><span class="check"></span><div class="grow"><div class="t-title">Schedule the plumber for rough-in</div><div class="t-meta">due Dec 12</div></div></li>
+      <li><span class="muted small">3 more</span></li>
+    </ul>
+    <div class="phase muted"><span class="grow">1 · Design</span><span class="count">Done Nov 2</span></div>
+  </div>
+
+  <div>
+    <div class="spread"><h2>Status history</h2><a class="btn ghost">All 11</a></div>
+    <ul class="tl">
+      <li class="bad"><div class="t-title">Blocked: waiting on the countertop quote</div><div class="t-meta">Nov 19 · Claude, from the Claude Project</div></li>
+      <li class="ok"><div class="t-title">Cabinets ordered <span class="badge" style="margin-left:4px">Milestone</span></div><div class="t-meta">Nov 14 · Claude, from the Claude Project</div></li>
+      <li><div class="t-title">Target date moved to Feb 28</div><div class="t-meta">Nov 9 · you, in the dashboard</div></li>
+    </ul>
+  </div>
+
+  <div>
+    <div class="spread"><h2>Notes</h2><a class="btn ghost">Edit</a></div>
+    <div class="card notes">
+      <p>Galley layout stays. New cabinets, quartz counters, tile backsplash, under-cabinet lighting. No walls move, so no permit is needed.</p>
+      <p>Budget is $28k all in. Marco is the general contractor and Stoneworks is doing the counters.</p>
+      <a class="ext small">Show all</a>
+    </div>
+  </div>
+
+  <details>
+    <summary>Origin chat <span class="count">· started as an idea chat on Sep 30, 22 messages</span></summary>
+    <p class="muted" style="margin-top:8px">The conversation this project was promoted from, kept read-only as its first history.</p>
+  </details>
+  <details>
+    <summary>Linked <span class="count">· 2 people, 1 company, 4 files</span></summary>
+    <ul class="list" style="margin-top:8px">
+      <li><div><div class="t-title">Marco Diaz</div><div class="t-meta">Person · general contractor</div></div></li>
+      <li><div><div class="t-title">Stoneworks</div><div class="t-meta">Company · countertops</div></div></li>
+    </ul>
+  </details>
+</main>
+
+<!-- =====================================================================  AGENDA (tasks + events)  -->
+<main class="read wide screen" id="s-agenda" hidden>
+  <div class="spread wrap">
+    <h1 style="margin:0">Agenda <span class="count" style="font-size:14px">12 open tasks · 6 events this week</span></h1>
+    <div class="row"><div class="seg"><button class="on">Schedule</button><button>Tasks only</button><button>Board</button></div><a class="btn primary">+ New</a></div>
+  </div>
+  <div class="week">
+    <a class="day on"><span>Fri</span><b>20</b><i>8 items</i></a>
+    <a class="day"><span>Sat</span><b>21</b><i>1 item</i></a>
+    <a class="day"><span>Sun</span><b>22</b><i>Free</i></a>
+    <a class="day"><span>Mon</span><b>23</b><i>2 items</i></a>
+    <a class="day"><span>Tue</span><b>24</b><i>Free</i></a>
+    <a class="day"><span>Wed</span><b>25</b><i>1 item</i></a>
+    <a class="day"><span>Thu</span><b>26</b><i>Free</i></a>
+  </div>
+  <div class="toolbar">
+    <span class="chip">Show: tasks and events <svg class="i"><use href="#down"/></svg></span>
+    <span class="chip">Project: all <svg class="i"><use href="#down"/></svg></span>
+    <span class="chip">Area: all <svg class="i"><use href="#down"/></svg></span>
+  </div>
+
+  <div>
+    <div class="group-h"><span class="due">Overdue</span><span class="count">1</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Reply to Dana about the invoice</div><div class="t-meta only-m">Taxes 2026 · <span class="due">Nov 18</span></div></div><span class="p">Taxes 2026</span><span class="s badge">To do</span></div>
+  </div>
+  <div>
+    <div class="group-h"><span>Today</span><span class="count">Fri, Nov 20 · 5 tasks, 3 events</span></div>
+    <div class="arow"><span class="time">9:30</span><div><div class="t-title">Design standup</div><div class="t-meta only-m">Google Calendar · 30 min</div></div><span class="p">Google Calendar · 30 min</span><span class="s badge" style="border-style:dashed">Event</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Send Q4 estimated tax payment</div><div class="t-meta only-m">Taxes 2026</div></div><span class="p">Taxes 2026</span><span class="s badge">To do</span></div>
+    <div class="arow" data-go="task"><span class="check"></span><div><div class="t-title">Call Marco about the countertop quote</div><div class="t-meta only-m">Kitchen remodel</div></div><span class="p">Kitchen remodel</span><span class="s badge">To do</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Review OAuth test results in ChatGPT</div><div class="t-meta only-m">Skippy OS</div></div><span class="p">Skippy OS</span><span class="s badge warn">In progress</span></div>
+    <div class="arow"><span class="time">2:30</span><div><div class="t-title">Dentist</div><div class="t-meta only-m">Google Calendar · 1 hr</div></div><span class="p">Google Calendar · 1 hr</span><span class="s badge" style="border-style:dashed">Event</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Book flights to Lisbon</div><div class="t-meta only-m">Trip to Lisbon</div></div><span class="p">Trip to Lisbon</span><span class="s badge">To do</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Water the plants</div><div class="t-meta only-m">Repeats every Friday</div></div><span class="p">Repeats every Friday</span><span class="s badge">Repeats</span></div>
+    <div class="arow"><span class="time">6:00</span><div><div class="t-title">Dinner with Sam</div><div class="t-meta only-m">Skippy event</div></div><span class="p">Skippy event</span><span class="s badge" style="border-style:dashed">Event</span></div>
+  </div>
+  <div>
+    <div class="group-h"><span>Tomorrow</span><span class="count">Sat, Nov 21</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Measure the garage bay</div><div class="t-meta only-m">Garage gym chat</div></div><span class="p">Garage gym chat</span><span class="s badge">To do</span></div>
+  </div>
+  <div>
+    <div class="group-h"><span>Next 7 days</span><span class="count">3 tasks, 3 events</span></div>
+    <div class="arow"><span class="time">Mon 10:00</span><div><div class="t-title">Sprint planning</div><div class="t-meta only-m">Google Calendar · 1 hr</div></div><span class="p">Google Calendar · 1 hr</span><span class="s badge" style="border-style:dashed">Event</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Run the OAuth test in Codex</div><div class="t-meta only-m">Skippy OS · Mon</div></div><span class="p">Skippy OS</span><span class="s badge">To do</span></div>
+    <div class="arow"><span class="time">Wed 4:00</span><div><div class="t-title">Call with Dana</div><div class="t-meta only-m">Google Calendar · 30 min</div></div><span class="p">Google Calendar · 30 min</span><span class="s badge" style="border-style:dashed">Event</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Choose backsplash tile</div><div class="t-meta only-m">Kitchen remodel · Fri, Nov 27</div></div><span class="p">Kitchen remodel</span><span class="s badge">To do</span></div>
+    <div class="arow"><span class="time">Sat 11:00</span><div><div class="t-title">Visit the Rogue showroom</div><div class="t-meta only-m">Skippy event · Nov 28</div></div><span class="p">Skippy event · Nov 28</span><span class="s badge" style="border-style:dashed">Event</span></div>
+  </div>
+  <div>
+    <div class="group-h"><span>Waiting on someone</span><span class="count">2</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Countertop quote</div><div class="t-meta only-m">Kitchen remodel · Marco, 4 days</div></div><span class="p">Kitchen remodel</span><span class="s badge">Waiting</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">1099 from Brightline</div><div class="t-meta only-m">Taxes 2026 · Dana, 2 days</div></div><span class="p">Taxes 2026</span><span class="s badge">Waiting</span></div>
+  </div>
+  <div>
+    <div class="group-h"><span>No date</span><span class="count">2</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Draft the case study intro</div><div class="t-meta only-m">Portfolio site</div></div><span class="p">Portfolio site</span><span class="s badge">To do</span></div>
+    <div class="arow"><span class="check"></span><div><div class="t-title">Renew passport</div><div class="t-meta only-m">No project</div></div><span class="p">No project</span><span class="s badge">To do</span></div>
+  </div>
+</main>
+
+<!-- =====================================================================  PROJECTS  -->
+<main class="read wide screen" id="s-projects" hidden>
+  <div class="spread wrap">
+    <h1 style="margin:0">Projects <span class="count" style="font-size:14px">5 active</span></h1>
+    <div class="row"><div class="seg"><button class="on">Active</button><button>Ideas</button><button>Paused</button><button>Done</button></div><a class="btn primary">+ Project</a></div>
+  </div>
+
+  <div>
+    <h2>Needs attention</h2>
+    <div class="card">
+      <div class="prj" data-go="project">
+        <div class="row"><i class="dot bad"></i><span class="name">Kitchen remodel</span><span class="kind">General</span></div>
+        <p class="st">Waiting on the countertop quote from Marco. Cabinets are ordered and arrive December 9.</p>
+        <div class="meta"><span>Next: Call Marco about the countertop quote · <span class="due">due today</span></span><span>4 open</span><span>Updated yesterday by Claude</span></div>
+        <div class="side"><span class="badge bad">Blocked</span><a class="ext small">Open in Claude ↗</a></div>
+      </div>
+      <div class="prj">
+        <div class="row"><i class="dot warn"></i><span class="name">Taxes 2026</span><span class="kind">General</span></div>
+        <p class="st">Q4 estimate due today. Two 1099s are still missing.</p>
+        <div class="meta"><span>Next: Send Q4 estimated tax payment · <span class="due">due today</span></span><span>3 open</span><span>Updated 3 days ago by Claude</span></div>
+        <div class="side"><span class="badge warn">At risk</span><a class="ext small">Open in Claude ↗</a></div>
+      </div>
+      <div class="prj">
+        <div class="row"><i class="dot quiet"></i><span class="name">Portfolio site</span><span class="kind">Code</span></div>
+        <p class="st muted">Last note: case study drafts in progress.</p>
+        <div class="meta"><span>No open tasks</span><span>Updated Nov 11 by Claude</span><span>Last swept 2:10 am, no activity</span></div>
+        <div class="side"><span class="badge" style="border-style:dashed">Quiet 9 days</span><a class="ext small">Open in Claude ↗</a></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h2>On track</h2>
+    <div class="card">
+      <div class="prj">
+        <div class="row"><i class="dot ok"></i><span class="name">Skippy OS</span><span class="kind">Code</span></div>
+        <p class="st">Phase 0 OAuth test passes in 3 of 5 clients. ChatGPT and Codex are left.</p>
+        <div class="meta"><span>Next: Review OAuth test results in ChatGPT · today</span><span>3 open</span><span>Updated 2 hours ago by the nightly sweep</span></div>
+        <div class="side"><span class="badge ok">On track</span><a class="ext small">Open in Claude ↗</a></div>
+      </div>
+      <div class="prj">
+        <div class="row"><i class="dot ok"></i><span class="name">Trip to Lisbon</span><span class="kind">General</span></div>
+        <p class="st">Dates set for March 12 to 20. Flights not booked yet.</p>
+        <div class="meta"><span>Next: Book flights to Lisbon · today</span><span>2 open</span><span>Updated yesterday by Claude</span></div>
+        <div class="side"><span class="badge ok">On track</span><a class="ext small">Open in Claude ↗</a></div>
+      </div>
+    </div>
+  </div>
+
+  <details>
+    <summary>Ideas <span class="count">· 1</span></summary>
+    <div class="prow" style="margin-top:6px" data-go="chat"><span class="name">Garage gym</span><span class="st">Still an idea chat. Claude has suggested making it a project.</span><span class="ago">today</span></div>
+  </details>
+</main>
+
+<!-- =====================================================================  BRAIN  -->
+<main class="read wide screen" id="s-brain" hidden>
+  <div class="spread wrap">
+    <h1 style="margin:0">Brain <span class="count" style="font-size:14px">214 items</span></h1>
+    <a class="btn primary">+ New</a>
+  </div>
+  <div class="search"><svg class="i"><use href="#search"/></svg><span class="grow">Search notes, links, decisions, people…</span><kbd class="long">/</kbd></div>
+  <div class="scrollx"><div class="seg">
+    <button class="on" data-brain="all">All</button><button>Notes 86</button><button>Links 41</button><button>Decisions 23</button><button>Principles 9</button><button>Memories 31</button><button data-brain="people">People 18</button><button>Companies 6</button><button>Goals 4</button>
+  </div></div>
+
+  <div id="brain-all">
+    <div class="group-h">This week<span class="count">6</span></div>
+    <div class="kitem"><span class="klabel">Principle</span><div class="body"><div class="t-title" style="font-size:15px">Don't build what the Claude app already does</div><p>Skippy keeps the record and shows it. Projects, chat history and skills stay in Claude.</p><div class="t-meta">Added by you · Skippy OS</div></div><span class="ago">Thu</span></div>
+    <div class="kitem"><span class="klabel">Link</span><div class="body"><div class="t-title" style="font-size:15px">Convex vector search guide</div><p>How to add an embedding index and query it from an action. Relevant to Brain search.</p><div class="t-meta">convex.dev · captured from iPhone, summary by Claude · Skippy OS</div></div><span class="ago">Thu</span></div>
+    <div class="kitem"><span class="klabel">Note</span><div class="body"><div class="t-title" style="font-size:15px">Weekly review format</div><p>Friday afternoon, 30 minutes: stale projects, overdue tasks, then goals.</p><div class="t-meta">From an idea chat</div></div><span class="ago">Mon</span></div>
+    <div class="kitem"><span class="klabel">Note</span><div class="body"><div class="t-title" style="font-size:15px">Marco's quote terms</div><p>50% deposit, balance on install. A quote is valid for 30 days.</p><div class="t-meta">From Gmail, filed by the morning pass · Kitchen remodel · Marco Diaz</div></div><span class="ago">Nov 12</span></div>
+    <div class="kitem"><span class="klabel">Decision</span><div class="body"><div class="t-title" style="font-size:15px">Quartz over granite for the counters</div><p>Easier to maintain, and Stoneworks can template sooner.</p><div class="t-meta">Recorded by Claude, from the Claude Project · Kitchen remodel</div></div><span class="ago">Nov 10</span></div>
+    <div class="kitem"><span class="klabel">Memory</span><div class="body"><div class="t-title" style="font-size:15px">Sam's birthday is March 3</div><p>Likes pottery. Doesn't like surprise parties.</p><div class="t-meta">From iMessage, filed by the morning pass · Sam</div></div><span class="ago">Nov 2</span></div>
+  </div>
+
+  <div id="brain-people" hidden>
+    <div class="group-h">People<span class="count">18</span></div>
+    <div class="person"><span class="avatar">MD</span><div><div class="t-title">Marco Diaz</div><div class="t-meta">General contractor · Diaz Build</div><div class="t-meta only-m">Last contact 4 days ago · 1 task waiting on him</div></div><span class="p">Last contact 4 days ago</span><span class="p">1 task waiting on him</span></div>
+    <div class="person"><span class="avatar">DW</span><div><div class="t-title">Dana Whitfield</div><div class="t-meta">Accountant · Brightline</div><div class="t-meta only-m">Last contact 2 days ago · 1 task waiting on her</div></div><span class="p">Last contact 2 days ago</span><span class="p">1 task waiting on her</span></div>
+    <div class="person"><span class="avatar">S</span><div><div class="t-title">Sam</div><div class="t-meta">Friend</div><div class="t-meta only-m">Last contact yesterday · 2 events coming up</div></div><span class="p">Last contact yesterday</span><span class="p">2 events coming up</span></div>
+    <div class="person"><span class="avatar">PR</span><div><div class="t-title">Priya Rao</div><div class="t-meta">Design lead</div><div class="t-meta only-m">Last contact Monday · Nothing open</div></div><span class="p">Last contact Monday</span><span class="p">Nothing open</span></div>
+    <p class="muted small" style="padding-top:10px">14 more</p>
+  </div>
+</main>
+
+<!-- =====================================================================  ACTIVITY  -->
+<main class="read wide screen" id="s-activity" hidden>
+  <div class="spread wrap">
+    <h1 style="margin:0">Activity</h1>
+    <div class="seg"><button class="on">Everyone</button><button>Claude</button><button>Me</button></div>
+  </div>
+
+  <div>
+    <h2>Sources and scheduled passes</h2>
+    <div class="health">
+      <div class="card hcell"><span class="row"><i class="dot ok"></i><b>Gmail</b></span><span class="t-meta">Covered through 6:30 am today</span></div>
+      <div class="card hcell"><span class="row"><i class="dot warn"></i><b>Google Calendar</b></span><span class="t-meta">Covered through 6:30 am. 1 event couldn't be matched.</span></div>
+      <div class="card hcell"><span class="row"><i class="dot ok"></i><b>iMessage</b></span><span class="t-meta">Covered through 6:30 am today</span></div>
+      <div class="card hcell"><span class="row"><i class="dot ok"></i><b>Nightly sweep</b></span><span class="t-meta">Ran 2:10 am over 2 code projects</span></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="group-h">Today<span class="count">5</span></div>
+    <div class="act"><span class="time">8:52</span><div><span class="actor">Claude · web chat</span><div class="t-title" style="margin-top:5px">Created the task "Measure the garage bay"</div><div class="diff">Accepted from a suggestion in the Garage gym chat</div></div></div>
+    <div class="act"><span class="time">8:15</span><div><span class="actor me">You · dashboard</span><div class="t-title" style="margin-top:5px">Changed the health of Taxes 2026</div><div class="diff">On track → At risk</div></div></div>
+    <div class="act"><span class="time">6:30</span><div><span class="actor">Claude · morning pass</span><div class="t-title" style="margin-top:5px">Morning pass finished and wrote the briefing</div><div class="diff">Read 14 emails, 3 calendar changes and 22 messages. Kept 3 items and created 1 task.</div>
+      <details><summary>Show what it kept</summary>
+        <ul class="list" style="margin-top:6px">
+          <li><div><div class="t-title">Note: Marco's quote terms</div><div class="t-meta">From Gmail</div></div></li>
+          <li><div><div class="t-title">Event updated: Dentist moved to 2:30</div><div class="t-meta">From Google Calendar</div></div></li>
+          <li><div><div class="t-title">Memory: Sam prefers Saturdays</div><div class="t-meta">From iMessage</div></div></li>
+          <li><div><div class="t-title">Task: Reply to Dana about the invoice</div><div class="t-meta">From Gmail</div></div></li>
+        </ul>
+      </details></div></div>
+    <div class="act"><span class="time">2:10</span><div><span class="actor">Claude · nightly sweep</span><div class="t-title" style="margin-top:5px">Recorded a status for Skippy OS</div><div class="diff">4 commits on oauth-spike that weren't reported in the session</div></div></div>
+    <div class="act"><span class="time">2:10</span><div><span class="actor">Claude · nightly sweep</span><div class="t-title" style="margin-top:5px">Checked Portfolio site</div><div class="diff">No activity since Nov 11</div></div></div>
+  </div>
+  <div>
+    <div class="group-h">Yesterday<span class="count">3</span></div>
+    <div class="act"><span class="time">9:14p</span><div><span class="actor">Claude · Claude Project</span><div class="t-title" style="margin-top:5px">Changed the health of Kitchen remodel</div><div class="diff">On track → Blocked · "Waiting on the countertop quote from Marco"</div></div></div>
+    <div class="act"><span class="time">8:02p</span><div><span class="actor">Claude · Claude Project</span><div class="t-title" style="margin-top:5px">Recorded a decision for Trip to Lisbon</div><div class="diff">Dates: March 12 to 20</div></div></div>
+    <div class="act"><span class="time">4:40p</span><div><span class="actor me">You · dashboard</span><div class="t-title" style="margin-top:5px">Completed "Order cabinet hardware samples"</div><div class="diff">Kitchen remodel</div></div></div>
+  </div>
+</main>
+
+<!-- =====================================================================  SETTINGS  -->
+<main class="read screen" id="s-settings" hidden>
+  <h1 style="margin:0">Settings</h1>
+
+  <div>
+    <h2>Mac mini</h2>
+    <div class="card">
+      <div class="srow"><span class="when-on row"><i class="dot ok"></i></span><span class="when-off row"><i class="dot bad"></i></span><div class="grow"><div class="t-title"><span class="when-on">Online</span><span class="when-off">Offline</span></div><div class="t-meta"><span class="when-on">Last seen 12 seconds ago</span><span class="when-off">Last seen 14 minutes ago. Chats are queued until it's back.</span></div></div></div>
+      <div class="srow"><div class="grow"><div class="t-title">Chat runner</div><div class="t-meta">Answers web chats with Claude Code sessions</div></div><span class="badge ok">Running</span></div>
+      <div class="srow"><div class="grow"><div class="t-title">Skippy plugin</div><div class="t-meta">Installed in Claude Code at user scope, version 0.3</div></div><span class="badge ok">Installed</span></div>
+      <div class="srow"><div class="grow"><div class="t-title">Scheduled passes</div><div class="t-meta">Morning pass 6:30 am daily · Nightly sweep 2:00 am · Weekly review Fridays 4:00 pm</div></div></div>
+    </div>
+  </div>
+
+  <div>
+    <h2>Connected apps</h2>
+    <div class="card">
+      <div class="srow"><div class="grow"><div class="t-title">Claude (claude.ai and iOS)</div><div class="t-meta">Read and write · last used 20 minutes ago</div></div><a class="btn">Disconnect</a></div>
+      <div class="srow"><div class="grow"><div class="t-title">Claude Code on the Mac mini</div><div class="t-meta">Read and write · last used 2 hours ago</div></div><a class="btn">Disconnect</a></div>
+      <div class="srow"><div class="grow"><div class="t-title">ChatGPT</div><div class="t-meta">Read only · last used Nov 19</div></div><a class="btn">Disconnect</a></div>
+      <div class="srow"><div class="grow"><div class="t-title muted">Codex</div><div class="t-meta">Not connected</div></div><a class="btn">How to connect</a></div>
+    </div>
+  </div>
+
+  <div>
+    <h2>Sources</h2>
+    <div class="card">
+      <div class="srow"><i class="dot ok"></i><div class="grow"><div class="t-title">Gmail</div><div class="t-meta">Read by the morning pass</div></div><span class="toggle"></span></div>
+      <div class="srow"><i class="dot warn"></i><div class="grow"><div class="t-title">Google Calendar</div><div class="t-meta">Inbound only. Skippy never writes to it.</div></div><span class="toggle"></span></div>
+      <div class="srow"><i class="dot ok"></i><div class="grow"><div class="t-title">iMessage</div><div class="t-meta">Read on the Mac mini</div></div><span class="toggle"></span></div>
+      <div class="srow"><i class="dot"></i><div class="grow"><div class="t-title">Local files</div><div class="t-meta">Not set up</div></div><span class="toggle off"></span></div>
+    </div>
+  </div>
+
+  <div>
+    <h2>Rules</h2>
+    <div class="card">
+      <div class="srow"><div class="grow"><div class="t-title">Flag a project as quiet after</div><div class="t-meta">Days without an update from Claude</div></div><div class="in" style="min-width:84px">7 days <svg class="i muted"><use href="#down"/></svg></div></div>
+      <div class="srow"><div class="grow"><div class="t-title">Quiet hours</div><div class="t-meta">No notifications during this time</div></div><div class="in" style="min-width:150px">10:00 pm to 7:00 am</div></div>
+      <div class="srow"><div class="grow"><div class="t-title">Briefing notification</div><div class="t-meta">A push when the morning briefing is ready</div></div><span class="toggle"></span></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="spread"><h2>What's worth keeping</h2><a class="btn ghost">Edit</a></div>
+    <div class="card rubric">
+      <p>Keep things that change what I do or decide: commitments, dates, prices, decisions, and facts about people I deal with.</p>
+      <p>Skip newsletters, receipts under $50, and anything automated unless it names a deadline.</p>
+    </div>
+  </div>
+
+  <div>
+    <h2>This device</h2>
+    <div class="card">
+      <div class="srow"><div class="grow"><div class="t-title">Notifications on this device</div><div class="t-meta">iPhone needs Skippy added to the Home Screen first</div></div><a class="btn">Turn on</a></div>
+    </div>
+  </div>
+
+  <div>
+    <h2>Areas</h2>
+    <div class="row wrap"><span class="badge">Home</span><span class="badge">Work</span><span class="badge">Money</span><span class="badge">Health</span><span class="badge">Family</span><a class="btn ghost">+ Area</a></div>
+  </div>
+
+  <details>
+    <summary>Access tokens <span class="count">· 2, for unattended jobs</span></summary>
+    <div class="card" style="margin-top:10px">
+      <div class="srow"><div class="grow"><div class="t-title">chat</div><div class="t-meta">Used by the chat runner · last used 2 minutes ago</div></div><a class="btn">Rotate</a></div>
+      <div class="srow"><div class="grow"><div class="t-title">ingest</div><div class="t-meta">Used by the scheduled passes · last used 6:30 am</div></div><a class="btn">Rotate</a></div>
+    </div>
+    <p class="t-meta" style="margin-top:8px">A token is shown once, when it's created.</p>
+  </details>
+</main>
+
+<!-- ============ docked composer: always present, its scope follows the page ============ -->
+<div class="dock">
+  <div class="composer" id="composer">
+    <div class="ph" id="ph"></div>
+    <div class="bar">
+      <span class="scope" id="scope" hidden></span>
+      <div class="seg" id="modeseg"><button data-mode="capture">Capture</button><button data-mode="chat">Chat</button></div>
+      <span class="hint grow" id="hint"></span>
+      <button class="send" aria-label="Send"><svg class="i"><use href="#up"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ item details modal (shared by tasks, people, notes, events) ============ -->
+<div class="overlay" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Task details">
+    <div class="m-head">
+      <span class="kindl">Task</span>
+      <span class="grow" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">in <a class="ref" data-go="project">Kitchen remodel</a> › 2 · Order materials</span>
+      <button class="iconbtn" title="Copy link" aria-label="Copy link"><svg class="i"><use href="#ext"/></svg></button>
+      <button class="iconbtn" data-close title="Close (Esc)" aria-label="Close"><svg class="i"><use href="#x"/></svg></button>
+    </div>
+
+    <div class="m-body">
+      <div class="m-title">
+        <div class="titlecheck"><span class="check"></span><h1>Call Marco about the countertop quote</h1></div>
+        <div class="row wrap" style="margin-top:12px"><a class="btn primary">Mark done</a><a class="btn">Snooze</a><a class="btn ghost">Delete</a></div>
+      </div>
+
+      <aside class="m-side">
+        <div class="field"><label>Status</label><div class="in">To do <svg class="i muted"><use href="#down"/></svg></div></div>
+        <div class="field"><label>Due</label><div class="in"><span class="due">Today, Nov 20</span> <svg class="i muted"><use href="#down"/></svg></div></div>
+        <div class="field"><label>Project</label><div class="in">Kitchen remodel <svg class="i muted"><use href="#down"/></svg></div></div>
+        <div class="field"><label>Phase</label><div class="in">2 · Order materials <svg class="i muted"><use href="#down"/></svg></div></div>
+        <div class="field"><label>Area</label><div class="in">Home <svg class="i muted"><use href="#down"/></svg></div></div>
+        <div class="field"><label>Waiting on</label><div class="in muted">Nobody</div></div>
+        <div class="field"><label>Repeats</label><div class="in muted">No</div></div>
+        <p class="t-meta" style="grid-column:1/-1">Created Nov 16 by Claude, from the Claude Project. Last changed Nov 18 by you.</p>
+      </aside>
+
+      <div class="m-main">
+        <div>
+          <div class="spread"><h2>Description</h2><a class="btn ghost">Edit</a></div>
+          <p style="font-size:15px;line-height:1.6">Ask for the quartz quote and a date for templating. If it's more than $4,200, ask what the laminate option would cost.</p>
+        </div>
+
+        <div>
+          <h2>Linked</h2>
+          <ul class="list">
+            <li><div><div class="t-title">Marco Diaz</div><div class="t-meta">Person · general contractor</div></div></li>
+            <li><div><div class="t-title">Countertop quote</div><div class="t-meta">Task · waiting on Marco since Nov 16</div></div></li>
+          </ul>
+        </div>
+
+        <div>
+          <h2>Chat about this task</h2>
+          <div class="msgs">
+            <div class="me">What did Marco say last time about timing?</div>
+            <div class="ai"><p>On November 12 he said the quote would take about a week, because Stoneworks had to template first. That makes it one day late. His number is on his contact card: <a class="ref">Marco Diaz</a>.</p></div>
+          </div>
+        </div>
+
+        <details>
+          <summary>History <span class="count">· 3 changes</span></summary>
+          <ul class="tl" style="margin-top:12px">
+            <li><div class="t-title">Due date moved to Nov 20</div><div class="t-meta">Nov 18 · you, in the dashboard</div></li>
+            <li><div class="t-title">Linked to Marco Diaz</div><div class="t-meta">Nov 16 · Claude, from the Claude Project</div></li>
+            <li><div class="t-title">Created</div><div class="t-meta">Nov 16 · Claude, from the Claude Project</div></li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="m-foot">
+      <div class="composer">
+        <div class="ph">Ask about this task…</div>
+        <div class="bar">
+          <span class="scope">Task: Call Marco</span>
+          <div class="seg"><button data-ph="Add a note to this task…">Capture</button><button class="on" data-ph="Ask about this task…">Chat</button></div>
+          <span class="hint grow">Replies come from the Mac mini</span>
+          <button class="send" aria-label="Send"><svg class="i"><use href="#up"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Mockup-only behavior: switch screens, flip the composer mode, toggle the Mac mini state.
+var screens = {
+  home: {
+    note: "<b>Home.</b> The briefing, then only what needs you, then the day. New here: a Recent chats section, so an idea chat is easy to pick up again.",
+    scope: null, mode: "capture",
+    capture: "Capture a thought, link or file…", chat: "Think out loud. Claude will suggest tasks, events or a project."
+  },
+  chat: {
+    note: "<b>Idea chat.</b> Same column, same docked input. Claude's suggestions appear as cards inside the chat: one already accepted, two waiting. Use the online / offline switch above to see the queued state.",
+    scope: "Garage gym", mode: "chat", chatOnly: true,
+    chat: "Reply…"
+  },
+  project: {
+    note: "<b>Project.</b> The latest status leads, like the briefing does on Home. Proposal: the docked input stays on every page and its scope follows the page, so here it adds to or asks about this project.",
+    scope: "Kitchen remodel", mode: "capture", nav: "projects",
+    capture: "Add a task or note to this project…", chat: "Ask about this project…"
+  },
+  projects: {
+    note: "<b>Projects.</b> A list page. Projects that need attention come first: blocked, at risk, or quiet for 7 days. Each row shows the latest status, the next task and a link to its Claude home.",
+    scope: null, mode: "capture",
+    capture: "Capture a thought, or name a new project…", chat: "Think out loud. Claude will suggest tasks, events or a project."
+  },
+  agenda: {
+    note: "<b>Agenda.</b> Tasks and events on one page, in day order. Events show a time, tasks a checkbox. Waiting and undated tasks sit at the bottom. Tasks only and Board are other views of the same page.",
+    scope: null, mode: "capture",
+    capture: "Add a task or event, or capture a thought…", chat: "Think out loud. Claude will suggest tasks, events or a project."
+  },
+  brain: {
+    note: "<b>Brain.</b> Everything Skippy knows in one searchable list, with tabs by kind. Each item shows where it came from. Try the People tab. Items open in the same modal as a task.",
+    scope: null, mode: "capture",
+    capture: "Add a note, link or memory…", chat: "Ask what Skippy knows about something…"
+  },
+  activity: {
+    note: "<b>Activity.</b> Who changed what, you or Claude, and from where. Source coverage and scheduled passes are at the top, so a missed morning pass is visible here.",
+    scope: null, mode: "capture",
+    capture: "Capture a thought, link or file…", chat: "Think out loud. Claude will suggest tasks, events or a project."
+  },
+  settings: {
+    note: "<b>Settings.</b> One reading column, most-checked things first: the Mac mini, connected apps, sources, then rules. Access tokens are collapsed at the bottom. The online / offline switch above changes the Mac mini card.",
+    scope: null, mode: "capture",
+    capture: "Capture a thought, link or file…", chat: "Think out loud. Claude will suggest tasks, events or a project."
+  }
+};
+var itemNote = "<b>Task.</b> The shared item details view: a large window over whatever page you were on (here, Agenda). Fields on the right, description, links, chat and history on the left, and its own docked input scoped to the item. On a phone it fills the screen. Close it with the X, Esc, or a click outside.";
+var current = "home", mode = "capture";
+function $(id){ return document.getElementById(id); }
+function paintComposer(){
+  var s = screens[current];
+  $("ph").textContent = s[mode] || s.chat;
+  $("scope").hidden = !s.scope; $("scope").textContent = s.scope || "";
+  $("modeseg").hidden = !!s.chatOnly;
+  document.querySelectorAll("#modeseg button").forEach(function(b){ b.classList.toggle("on", b.dataset.mode === mode); });
+  var off = document.body.classList.contains("offline");
+  $("hint").innerHTML = mode === "capture" ? "<kbd>Enter</kbd> saves it. No Mac mini needed."
+    : (off ? "Mac mini offline. Messages are queued." : "Replies come from the Mac mini");
+}
+function openItem(){
+  $("modal").hidden = false; document.body.classList.add("modal-open");
+  $("note").innerHTML = itemNote;
+  document.querySelectorAll("#screenseg button").forEach(function(b){ b.classList.toggle("on", b.dataset.go === "task"); });
+  try { history.replaceState(null, "", "#task"); } catch (e) {}
+}
+function closeItem(){ if(!$("modal").hidden) go(current); }
+function go(k){
+  if(!screens[k]) k = "home";
+  $("modal").hidden = true; document.body.classList.remove("modal-open");
+  current = k; mode = screens[k].mode;
+  document.querySelectorAll(".screen").forEach(function(s){ s.hidden = s.id !== "s-" + k; });
+  document.querySelectorAll("#screenseg button").forEach(function(b){ b.classList.toggle("on", b.dataset.go === k); });
+  document.querySelectorAll("#nav a").forEach(function(a){ a.classList.toggle("on", a.dataset.nav === (screens[k].nav || k)); });
+  $("note").innerHTML = screens[k].note;
+  $("sheet").hidden = true;
+  paintComposer();
+  try { history.replaceState(null, "", "#" + k); } catch (e) {}
+  window.scrollTo(0, 0);
+}
+document.addEventListener("click", function(e){
+  if(e.target.id === "modal" || e.target.closest("[data-close]")){ closeItem(); return; }
+  var g = e.target.closest("[data-go]");
+  if(g){ e.preventDefault();
+    if(g.dataset.go === "task"){ if(g.closest("#screenseg")) go("agenda"); openItem(); } else go(g.dataset.go);
+    return; }
+  var m = e.target.closest("#modeseg button"); if(m){ mode = m.dataset.mode; paintComposer(); return; }
+  var n = e.target.closest("#miniseg button");
+  if(n){ document.body.classList.toggle("offline", n.dataset.mini === "off");
+    document.querySelectorAll("#miniseg button").forEach(function(b){ b.classList.toggle("on", b === n); }); paintComposer(); return; }
+  if(e.target.closest("#menubtn")){ $("sheet").hidden = !$("sheet").hidden; return; }
+  var s = e.target.closest(".seg button"); if(s){
+    if(s.dataset.brain){ $("brain-all").hidden = s.dataset.brain !== "all"; $("brain-people").hidden = s.dataset.brain !== "people"; }
+    if(s.dataset.ph){ s.closest(".composer").querySelector(".ph").textContent = s.dataset.ph; } s.parentNode.querySelectorAll("button").forEach(function(x){ x.classList.toggle("on", x === s); }); }
+});
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeItem(); });
+if(location.hash === "#task"){ go("agenda"); openItem(); } else go((location.hash || "#home").slice(1));
+</script>
+</body>
+</html>

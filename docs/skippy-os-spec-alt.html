@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.3 · 2026-11-20 · Status: in discussion, no code yet · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.5 · 2026-11-20 · Status: in discussion, no code yet · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -227,6 +227,22 @@
     <li><strong>skippy-weekly-review:</strong> flag stale projects, overdue tasks and goal check-ins</li>
     <li><strong>skippy-plan-project:</strong> turn a brief into phases and tasks in Skippy</li>
     <li><strong>skippy-nightly-sweep:</strong> catch unreported activity in code projects (see below)</li>
+  </ul>
+</details>
+
+<details open>
+  <summary>Where the plugin gets installed <span class="tag new">decided</span></summary>
+  <p>Adding a plugin in the Claude desktop app does not make it load in a terminal Claude Code session. Checked on the mini on 2026-11-20: <code>claude plugin list</code> shows plugins synced from the claude.ai account with the note "sync is off in this shell; these load only in a synced session". The chat runner starts terminal-style sessions, so it would not get them.</p>
+  <table>
+    <tr><th>Where Claude runs</th><th>How it gets the Skippy plugin</th></tr>
+    <tr><td>Claude Code on the mini: terminal sessions, the chat runner, the Code tab of the desktop app</td><td>Installed in Claude Code at user scope, from this repo's plugin marketplace. It's recorded in <code>~/.claude/settings.json</code> and loads in every Claude Code session on the mini.</td></tr>
+    <tr><td>Claude Projects in claude.ai, the desktop chat and iOS</td><td>The same plugin added to the claude.ai account</td></tr>
+  </table>
+  <ul>
+    <li><strong>Rule:</strong> the runner never depends on account sync. The user-scope install in Claude Code is required on the mini.</li>
+    <li>One source for both: a <code>plugin/</code> folder in this repo, plus a marketplace file so Claude Code can install it from git. Both installs come from the same version.</li>
+    <li><span class="tag open">Open</span>: confirm that skills from a plugin added to the claude.ai account are available inside Claude Project chats on iOS. If they aren't, upload the skills to the account directly.</li>
+    <li><span class="tag open">Open</span>: check that a synced session on the mini (the Code tab) doesn't load the plugin twice, once from each install.</li>
   </ul>
 </details>
 
@@ -459,13 +475,25 @@
     <tr><td><code>/</code></td><td>Home: the input (capture or chat), idea chat, Today, Projects summary, Overnight, Briefing</td></tr>
     <tr><td><code>/projects</code></td><td>Board of all projects: health, staleness, Claude home link</td></tr>
     <tr><td><code>/projects/[slug]</code></td><td>Status history, phases and tasks, notes pad, chat (including origin history), links</td></tr>
-    <tr><td><code>/tasks</code></td><td>All tasks: list and board views, filters, editing</td></tr>
-    <tr><td><code>/agenda</code></td><td>Events and recurrences</td></tr>
+    <tr><td><code>/agenda</code></td><td>Tasks, events and recurrences on one page, in day order, with waiting and undated tasks at the bottom. Views: Schedule, Tasks only, Board. Filters and editing. <span class="tag new">decided</span> (replaces separate <code>/tasks</code> and <code>/agenda</code> pages)</td></tr>
     <tr><td><code>/brain/[section]</code></td><td>Notes, links, memories, decisions, people, companies, goals; search</td></tr>
     <tr><td><code>/activity</code></td><td>Who changed what (me vs Claude), ingestion runs</td></tr>
     <tr><td><code>/settings</code></td><td>Connections, Mac mini status, tokens, rubric, staleness threshold, areas</td></tr>
   </table>
-  <p>Every item opens a shared details view that has its own chat. Sidebar: Home, Projects, Tasks, Agenda, Brain, Activity, Settings.</p>
+  <p>Every item opens a shared details view that has its own chat. Navigation: Home, Projects, Agenda, Brain, Activity, and Settings behind an icon.</p>
+</details>
+
+<details open>
+  <summary>Layout <span class="tag new">decided</span> <span class="hint">mockups in docs/mockups</span></summary>
+  <ul>
+    <li><strong>Briefing-first, one column.</strong> Home reads like a morning note: the briefing, then a short "Needs you" list, then Today, Projects, Recent chats, and Overnight and Captures collapsed. Chosen over a three-column command center and a project board; all three are in <a href="mockups/home-layouts.html">mockups/home-layouts.html</a>.</li>
+    <li><strong>Navigation:</strong> a top bar on desktop and a menu button on phone. No sidebar.</li>
+    <li><strong>Column widths:</strong> reading pages (Home, a chat, a project) use about 720px. List pages (Projects, Agenda, Brain, Activity) use about 1000px.</li>
+    <li><strong>The input is docked at the bottom of every page</strong>, and its scope follows the page. On Home it captures or starts an idea chat. On a project or any other item it adds to that item or chats about it. A chip in the input names the current scope.</li>
+    <li><strong>Item details open in a large modal</strong> over whatever page I was on, not as their own page and not as a side panel. It's about 1000px wide and most of the window's height: fields in a right-hand column, then description, links, chat and history, with its own docked input scoped to the item. On a phone it fills the screen. Each item still has its own link, so a modal can be opened directly or shared between devices. This applies to tasks, people, notes and events; projects keep a full page.</li>
+    <li>The phone layout is the same column, not a separate design.</li>
+    <li>Screens drawn so far are in <a href="mockups/b-screens.html">mockups/b-screens.html</a>. Colors and type are placeholders; visual style is a later round.</li>
+  </ul>
 </details>
 
 <!-- ============================================================ -->
@@ -557,20 +585,20 @@
 <details>
   <summary>Phase 3: Status loop <span class="hint">the first usable version</span></summary>
   <ul>
-    <li>The Skippy plugin, with <code>skippy-status</code> and <code>skippy-capture</code></li>
+    <li>The Skippy plugin, with <code>skippy-status</code> and <code>skippy-capture</code>, installed at user scope in Claude Code on the mini and added to the claude.ai account</li>
     <li>The <code>Skippy project: &lt;slug&gt;</code> line added to each Claude Project and each Code folder's <code>CLAUDE.md</code>, and <code>claudeHome</code> filled in</li>
     <li>Dashboard: the projects board with health and the 7-day stale flag, Today, and Overnight</li>
     <li>Project and task pages, the shared item details view, and full editing</li>
     <li><code>get_changes_since</code>, so Claude sees my dashboard edits</li>
   </ul>
-  <p><strong>Done when:</strong> after one week of normal work, every project I touched has a status update I didn't ask for, and a change I make in the dashboard is picked up by Claude in its next session on that project.</p>
+  <p><strong>Done when:</strong> after one week of normal work, every project I touched has a status update I didn't ask for, and a change I make in the dashboard is picked up by Claude in its next session on that project. Also, <code>claude plugin list</code> in a plain terminal on the mini shows the Skippy plugin enabled at user scope.</p>
 </details>
 
 <details>
   <summary>Phase 4: Capture &amp; brain</summary>
   <ul>
     <li>The Home input in capture mode, including files and "hold" captures</li>
-    <li><code>/brain</code> sections, people and companies, and <code>/agenda</code> with Skippy events and recurrences</li>
+    <li><code>/brain</code> sections, people and companies, and events and recurrences on <code>/agenda</code></li>
     <li>Embeddings and search, in the web app and through the MCP</li>
   </ul>
   <p><strong>Done when:</strong> a capture made on my phone is findable by search from a Claude chat, and completing a recurrence in either place advances it exactly once.</p>
@@ -614,6 +642,7 @@
     <li>The fallback if Clerk can't pass the Phase 0 OAuth test</li>
     <li>When to move to a custom domain. Moving changes the OAuth audience, so every harness has to reconnect.</li>
     <li>Deep links: can "Open in Claude" go straight to a Project on iOS?</li>
+    <li>Do skills from a plugin on the claude.ai account work inside Claude Project chats on iOS? And does a synced Code tab session load the plugin twice?</li>
   </ol>
 </details>
 
@@ -651,6 +680,11 @@
     <tr><td>2026-11-20</td><td>One-time import from a read-only snapshot export of the old deployment, with a temporary <code>importMap</code></td></tr>
     <tr><td>2026-11-20</td><td>Import all non-code projects and tasks, with full history. Code projects and their tasks are not imported.</td></tr>
     <tr><td>2026-11-20</td><td>Phase 0 is an end-to-end OAuth spike across all target clients, before building any other tools</td></tr>
+    <tr><td>2026-11-20</td><td>Layout: briefing-first single column, top bar navigation, same column on phone</td></tr>
+    <tr><td>2026-11-20</td><td>The input is docked on every page and its scope follows the page</td></tr>
+    <tr><td>2026-11-20</td><td>Item details (task, person, note, event) open in a large modal; projects keep a full page</td></tr>
+    <tr><td>2026-11-20</td><td>Tasks and Agenda are one page: tasks and events together in day order</td></tr>
+    <tr><td>2026-11-20</td><td>The Skippy plugin is installed at user scope in Claude Code on the mini, and separately added to the claude.ai account. The runner never depends on account sync.</td></tr>
   </table>
 </details>
 
