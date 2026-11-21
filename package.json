@@ -1,0 +1,30 @@
+{
+  "name": "skippy-os",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @skippy/web dev",
+    "dev:convex": "convex dev",
+    "build": "pnpm --filter @skippy/web build",
+    "typecheck": "pnpm -r typecheck && tsc -p convex/tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "pnpm -r lint",
+    "check": "pnpm typecheck && pnpm test && pnpm lint"
+  },
+  "dependencies": {
+    "@skippy/shared": "workspace:*",
+    "convex": "latest"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "@types/node": "^22",
+    "convex-test": "^0.0.73",
+    "typescript": "^5",
+    "vite": "^8.3.8",
+    "vitest": "latest"
+  }
+}
