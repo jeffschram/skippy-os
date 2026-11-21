@@ -4,21 +4,19 @@ Phase 0 proves that an MCP client can sign in to the Skippy MCP with OAuth and m
 
 ## Where the accounts stand (2026-11-21)
 
-All three accounts exist and are configured. Two secret values still have to be pasted into Vercel by the owner.
+All three accounts exist and are configured, and the hosted site has every setting it needs. The first client, claude.ai, has signed in, written and read.
 
 | Service | What exists | State |
 | --- | --- | --- |
-| Convex | Project `skippy-os` in team `schram-industries`. Dev deployment `tame-toad-217`, production deployment `elated-meerkat-158`. | Functions pushed to both. Gateway secret and MCP address set on both. Owner ID not set on either. |
-| Vercel | Project `skippy-os`, building from `main` on GitHub. Root directory `apps/web`. | Live at `skippy-os-two.vercel.app` (`skippy-os.vercel.app` belongs to someone else). Production variables set: `SKIPPY_MCP_RESOURCE_URL`, `CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_TELEMETRY_DISABLED`. Missing: `CLERK_SECRET_KEY`, `SKIPPY_GATEWAY_SECRET`. |
-| Clerk | Application "Skippy OS", development instance. | MCP server `https://skippy-os-two.vercel.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. No users yet. |
+| Convex | Project `skippy-os` in team `schram-industries`. Dev deployment `tame-toad-217`, production deployment `elated-meerkat-158`. | Functions pushed to both. Gateway secret and MCP address set on both. Owner ID set on both. |
+| Vercel | Project `skippy-os`, building from `main` on GitHub. Root directory `apps/web`. | Live at `skippy-os-two.vercel.app` (`skippy-os.vercel.app` belongs to someone else). Production variables set: `SKIPPY_MCP_RESOURCE_URL`, `CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_TELEMETRY_DISABLED`, `CLERK_SECRET_KEY`, `SKIPPY_GATEWAY_SECRET`. A made-up token is refused with `401 invalid_token`. |
+| Clerk | Application "Skippy OS", development instance. | MCP server `https://skippy-os-two.vercel.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. One user, the owner. |
 
 The hosted MCP address is `https://skippy-os-two.vercel.app/api/mcp`. Renaming the Vercel address later means registering the new address in Clerk and reconnecting every client.
 
 ### What is left before the first test
 
-1. In Vercel, add `CLERK_SECRET_KEY` (from Clerk, API keys) and `SKIPPY_GATEWAY_SECRET` (copy the value from the Convex production deployment's environment variables) as Production variables, then redeploy.
-2. Connect one client. Signing in creates the owner's Clerk user.
-3. Set that user's ID as `SKIPPY_OWNER_CLERK_USER_ID` on both Convex deployments. Until then every call is refused with `account_not_authorized`.
+Nothing. The owner signed in through the claude.ai connector, and that user's ID is set as `SKIPPY_OWNER_CLERK_USER_ID` on both Convex deployments.
 
 ### Decisions still open
 
@@ -85,7 +83,7 @@ For each client: discovery → sign-in and consent → `whoami` → `capture` �
 | Client | Needs | Result |
 | --- | --- | --- |
 | Claude Code | Step 1 | not run |
-| claude.ai connector, then Claude iOS | Step 2 | not run |
+| claude.ai connector, then Claude iOS | Step 2 | claude.ai passed discovery, sign-in and consent, `capture`, and `whoami` reading it back (2026-11-21). It registered itself by CIMD and was granted `offline_access`, `skippy:read` and `skippy:write`. The capture is stored in Convex production with the owner and Claude's client ID recorded. Token refresh and reconnect not checked yet (access tokens last a day). Claude iOS not run. |
 | Claude desktop | Step 2 | not run |
 | ChatGPT | Step 2 | not run |
 | Codex | Step 1 | not run |

@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.7 · 2026-11-21 · Status: Phase 0 deployed, waiting on two secret values and the first sign-in · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.8 · 2026-11-21 · Status: Phase 0 passing for claude.ai, other clients not run · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -570,6 +570,7 @@
     <li>The hosted address is <code>https://skippy-os-two.vercel.app/api/mcp</code>, because <code>skippy-os.vercel.app</code> belongs to someone else. It runs against a Clerk development instance, since a Clerk production instance needs a domain the owner controls.</li>
     <li>Clerk's dashboard marks DCR as deprecated and leaves it off by default. It stays off unless a client in the acceptance run needs it.</li>
     <li>Clerk checks a registered MCP server's public metadata and expects the 401 challenge to name the scopes. The endpoint now does.</li>
+    <li><strong>First result (2026-11-21):</strong> claude.ai connected with no pre-registration. It registered itself by CIMD, was granted <code>offline_access</code>, <code>skippy:read</code> and <code>skippy:write</code>, wrote a capture and read it back. Convex stored the capture with the owner's Clerk ID and Claude's client ID. So Clerk can do what the spec needs for claude.ai. Token refresh, reconnect, the other clients and the negative checks are still to run.</li>
   </ul>
   <p><strong>If Clerk can't do it:</strong> stop and decide before Phase 1. The fallback candidates are a different authorization server in front of the MCP, or static tokens only. <span class="tag open">Open</span></p>
 </details>
