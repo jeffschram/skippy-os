@@ -13,6 +13,7 @@ import {
   showWhen,
   when,
 } from "./lib/common";
+import { indexProject } from "./lib/searchIndex";
 import { actor, claudeHome, phaseStatus, projectHealth, projectKind, projectStatus } from "./schema";
 import { presentTask } from "./tasks";
 
@@ -44,7 +45,7 @@ export async function projectBySlug(ctx: QueryCtx, slug: string): Promise<Doc<"p
   return project;
 }
 
-function presentProject(project: Doc<"projects">, settings: { timeZone: string; stalenessDays: number }, now: number) {
+export function presentProject(project: Doc<"projects">, settings: { timeZone: string; stalenessDays: number }, now: number) {
   const daysSinceStatus =
     project.statusUpdatedAt === undefined ? undefined : Math.floor((now - project.statusUpdatedAt) / DAY_MS);
   // An active project is stale when nobody has reported on it within the threshold,
@@ -121,6 +122,7 @@ export const upsert = internalMutation({
         diff,
       });
       const updated = (await ctx.db.get(existing._id))!;
+      await indexProject(ctx, updated);
       return { created: false, changed: true, project: presentProject(updated, settings, now) };
     }
 
@@ -163,7 +165,9 @@ export const upsert = internalMutation({
       at: now,
       summary: `Created project "${title}"`,
     });
-    return { created: true, changed: true, project: presentProject((await ctx.db.get(id))!, settings, now) };
+    const created = (await ctx.db.get(id))!;
+    await indexProject(ctx, created);
+    return { created: true, changed: true, project: presentProject(created, settings, now) };
   },
 });
 
@@ -227,7 +231,9 @@ export const recordStatus = internalMutation({
         ? { diff: { health: { ...(project.health ? { from: project.health } : {}), to: args.health } } }
         : {}),
     });
-    return { recorded: true, project: presentProject((await ctx.db.get(project._id))!, settings, now) };
+    const reported = (await ctx.db.get(project._id))!;
+    await indexProject(ctx, reported);
+    return { recorded: true, project: presentProject(reported, settings, now) };
   },
 });
 

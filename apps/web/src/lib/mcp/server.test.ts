@@ -39,10 +39,15 @@ describe("the MCP server", () => {
       "complete_task",
       "create_phase",
       "get_changes_since",
+      "get_context_bundle",
       "get_project",
       "get_today",
+      "link_entities",
       "list_projects",
       "record_project_status",
+      "search",
+      "upsert_knowledge",
+      "upsert_person",
       "upsert_project",
       "upsert_task",
       "whoami",
@@ -50,7 +55,15 @@ describe("the MCP server", () => {
   });
 
   it("never lists a write tool to a read-only caller", async () => {
-    expect(await toolNames(READ)).toEqual(["get_changes_since", "get_project", "get_today", "list_projects", "whoami"]);
+    expect(await toolNames(READ)).toEqual([
+      "get_changes_since",
+      "get_context_bundle",
+      "get_project",
+      "get_today",
+      "list_projects",
+      "search",
+      "whoami",
+    ]);
   });
 
   it("will not run a write tool for a read-only caller", async () => {

@@ -1,4 +1,11 @@
-import { AGENT_SURFACES, type OperationName } from "@skippy/shared";
+import {
+  AGENT_SURFACES,
+  ENTITY_TYPES,
+  KNOWLEDGE_KINDS,
+  RELATIONS,
+  SEARCHABLE_TYPES,
+  type OperationName,
+} from "@skippy/shared";
 import { z } from "zod";
 
 /**
@@ -40,6 +47,26 @@ const claudeHome = z.discriminatedUnion("kind", [
     repoUrl: z.string().optional(),
   }),
 ]);
+
+const record = (what: string) =>
+  z
+    .object({
+      type: z.enum(ENTITY_TYPES),
+      id: z.string().describe("The record's id. For a project, its slug."),
+    })
+    .describe(what);
+const source = z
+  .object({
+    system: z.string().max(40).describe('Where it came from, for example "gmail", "imessage", "web" or "conversation".'),
+    url: z.string().max(2000).optional().describe("A link back to the original."),
+    externalId: z.string().max(500).optional().describe("The original's id in that system, if it has one."),
+    messageId: z.string().max(500).optional(),
+    threadId: z.string().max(500).optional(),
+    excerpt: z.string().max(1000).optional().describe("A short quote from the original. Never the whole thing."),
+    summary: z.string().max(1000).optional().describe("One or two sentences on what the original says."),
+    at: when("When the original was written or sent.").optional(),
+  })
+  .describe("Where this came from: a pointer back and a short excerpt or summary.");
 
 export const TOOLS: Record<OperationName, ToolDefinition> = {
   whoami: {
@@ -145,7 +172,96 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
     kind: "write",
     idempotent: true,
   },
+  upsert_person: {
+    title: "Create or update person",
+    description:
+      "Adds a person to the owner's address book, or updates one. Without an id, a person is found by any email or phone number given; if one matches, that person is updated and their name is left as it is. Emails and phone numbers are added to what is on file, never replaced. Pass only the fields that change, and null to clear an optional field. Search first when you only have a name.",
+    input: {
+      id: z.string().optional().describe("The id of the person to update."),
+      name: z.string().max(200).optional().describe("Their full name. Required for a new person."),
+      emails: z.array(z.string().max(320)).max(20).optional().describe("Email addresses to add."),
+      phoneNumbers: z.array(z.string().max(40)).max(20).optional().describe("Phone numbers to add."),
+      company: clearable(z.string().max(200)).describe(
+        "The name of the company they work at. A company not on file yet is added.",
+      ),
+      roleTitle: clearable(z.string().max(200)).describe("Their job title or role."),
+      relationshipContext: clearable(z.string().max(1000)).describe("How the owner knows them."),
+      birthday: clearable(z.string()).describe("Like 1984-03-09, or 03-09 when the year is not known."),
+      notes: clearable(z.string().max(8000)).describe("Free-form notes. Replaces the notes on file."),
+      favorite: clearable(z.boolean()),
+      lastContactAt: clearable(when("When the owner was last in touch with them.")),
+      contactCadenceDays: clearable(z.number().int().min(1).max(3650)).describe(
+        "How often the owner wants to be in touch, in days.",
+      ),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  upsert_knowledge: {
+    title: "Save or update knowledge",
+    description:
+      'Saves something worth remembering, or updates it when `id` is given. Kinds: "note" (free-form), "link" (a web page; needs a url, and the same url saved twice is one link), "memory" (a fact about the owner or their world), "decision" (what was decided and why), "principle" (a rule the owner works by) and "question" (something still open). Search first so the same thing is not saved twice. Use `about` to tie it to the people, projects or other records it concerns.',
+    input: {
+      id: z.string().optional().describe("The id of the item to update."),
+      kind: z.enum(KNOWLEDGE_KINDS).optional().describe("Required when saving something new."),
+      title: clearable(z.string().max(300)),
+      body: clearable(z.string().max(50_000)).describe("The content, in Markdown."),
+      summary: clearable(z.string().max(1000)).describe("One or two sentences."),
+      url: clearable(z.string().max(2000)),
+      readState: z.enum(["saved", "unread", "read"]).optional().describe('Links only. Defaults to "saved".'),
+      lifecycle: z.enum(["active", "archived"]).optional().describe("Archive something that no longer holds."),
+      whyItMatters: clearable(z.string().max(1000)).describe("Why this is worth keeping."),
+      decision: clearable(
+        z.object({
+          options: z.array(z.string().max(500)).max(20).optional().describe("What was considered."),
+          chosen: z.string().max(500).optional().describe("What was decided."),
+          rationale: z.string().max(4000).optional().describe("Why."),
+          revisitAt: when("When to look at the decision again.").optional(),
+        }),
+      ).describe('Decisions only. Replaces the decision details on file.'),
+      about: z.array(record("A record this is about.")).max(20).optional(),
+      source: source.optional(),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  link_entities: {
+    title: "Link two records",
+    description:
+      'Relates one record to another, read as "from <relation> to": a person works_at a company, a task is blocked_by another task, a note belongs_to a project. Linking the same two records the same way again changes nothing. Pass remove: true to take a link away.',
+    input: {
+      from: record("The record the link starts from."),
+      relation: z.enum(RELATIONS),
+      to: record("The record the link points to."),
+      reason: z.string().max(500).optional().describe("Why they are related, if it is not obvious."),
+      confidence: z.number().min(0).max(1).optional().describe("How sure you are, from 0 to 1, when it is a guess."),
+      remove: z.boolean().optional().describe("Take the link away instead of making it."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
 
+  search: {
+    title: "Search",
+    description:
+      "Finds projects, tasks, people, companies and saved knowledge by the words in them, best match first. Each result has a type and an id; pass them to get_context_bundle to read the record in full. Search matches words, not meaning, so try the plainest words that would appear in the record.",
+    input: {
+      query: z.string().trim().min(1).max(200).describe("Words to look for."),
+      type: z.enum(SEARCHABLE_TYPES).optional().describe("Only this kind of record."),
+      limit: z.number().int().min(1).max(25).optional().describe("How many to return. Defaults to 10."),
+    },
+    kind: "read",
+  },
+  get_context_bundle: {
+    title: "Get context bundle",
+    description:
+      "Reads one record together with what surrounds it: the record in full, every record linked to it and how, where it came from, and its last five changes. Use it after search, or before working on something, to see what Skippy already knows. For a project's phases and tasks, use get_project.",
+    input: {
+      type: z.enum(ENTITY_TYPES),
+      id: z.string().describe("The record's id. For a project, its slug."),
+    },
+    kind: "read",
+  },
   get_today: {
     title: "Today",
     description:

@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.10 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 first slice built, not deployed · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.11 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 first slice live and passing its "done when" from claude.ai; second slice built, not deployed · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -586,6 +586,37 @@
     <li>MCP tools: the status, records and read groups from §8</li>
   </ul>
   <p><strong>Done when:</strong> from a Claude chat I can create a project and a task, read them back, and see both in the activity log with Claude as the actor. <code>pnpm check</code> passes.</p>
+  <p><strong>Progress (2026-11-21):</strong></p>
+  <ul>
+    <li><strong>First slice, live:</strong> tables for areas, goals, projects, project updates, phases, tasks, activity events and settings; the tools <code>list_projects</code>, <code>get_project</code>, <code>upsert_project</code>, <code>record_project_status</code>, <code>create_phase</code>, <code>upsert_task</code>, <code>complete_task</code>, <code>get_today</code> and <code>get_changes_since</code>; and tool listing by scope, so a read-only sign-in never sees a write tool.</li>
+    <li><strong>"Done when" met for claude.ai:</strong> from a Claude chat the owner created a project and a task and read them back. Production data shows both changes logged with Claude as the actor, and the deadline "next Friday" stored as Friday 11:59pm New York time.</li>
+    <li><strong>Second slice, built and passing its checks, not deployed:</strong> tables for people, companies, knowledge, relationships and source refs; the tools <code>upsert_person</code>, <code>upsert_knowledge</code>, <code>link_entities</code>, <code>search</code> and <code>get_context_bundle</code>.</li>
+    <li><strong>Still to build in Phase 1:</strong> the web app shell with Clerk sign-in limited to the owner, and Convex deploys from CI. <code>create_event</code> and the recurrence tools wait for Phase 4, where events and recurrences arrive.</li>
+  </ul>
+  <p><strong>Found while building:</strong></p>
+  <ul>
+    <li>Clerk's current documentation covers what Phase 0 needs: MCP servers registered in the dashboard, the <code>aud</code> claim in access tokens, custom scopes, CIMD and DCR. Whether a self-registered client is granted the two custom scopes is still the thing to prove.</li>
+    <li>A Clerk development instance accepts <code>http://localhost:3000/api/mcp</code> as the MCP endpoint. So the first pass, from Claude Code on the mini, needs only a Clerk account. Vercel and a Convex cloud deployment are needed for claude.ai, iOS, Claude desktop and ChatGPT.</li>
+    <li>Clerk recommends CIMD over DCR, and Vercel's documentation says the 2026-07-28 MCP spec deprecates DCR in favor of CIMD. The acceptance run records which mode each client actually uses. <span class="tag open">Open</span></li>
+    <li>The owner is one Clerk user ID stored as a Convex setting, <code>SKIPPY_OWNER_CLERK_USER_ID</code>. There is no users table in Phase 0.</li>
+    <li>Clerk's dashboard has a setting for which scopes self-registering clients may request and which they get by default. Both custom scopes are now on both lists, so the main risk is settled in configuration. A real client still has to prove it.</li>
+    <li>The hosted address is <code>https://skippy-os-two.vercel.app/api/mcp</code>, because <code>skippy-os.vercel.app</code> belongs to someone else. It runs against a Clerk development instance, since a Clerk production instance needs a domain the owner controls.</li>
+    <li>Clerk's dashboard marks DCR as deprecated and leaves it off by default. It stays off unless a client in the acceptance run needs it.</li>
+    <li>Clerk checks a registered MCP server's public metadata and expects the 401 challenge to name the scopes. The endpoint now does.</li>
+    <li><strong>First result (2026-11-21):</strong> claude.ai connected with no pre-registration. It registered itself by CIMD, was granted <code>offline_access</code>, <code>skippy:read</code> and <code>skippy:write</code>, wrote a capture and read it back. Convex stored the capture with the owner's Clerk ID and Claude's client ID. So Clerk can do what the spec needs for claude.ai. Token refresh, reconnect, the other clients and the negative checks are still to run.</li>
+  </ul>
+  <p><strong>If Clerk can't do it:</strong> stop and decide before Phase 1. The fallback candidates are a different authorization server in front of the MCP, or static tokens only. <span class="tag open">Open</span></p>
+</details>
+
+<details>
+  <summary>Phase 1: Foundation</summary>
+  <ul>
+    <li>pnpm monorepo: <code>convex/</code>, <code>apps/web</code>, <code>packages/shared</code>; <code>pnpm check</code>; CI deploys Convex</li>
+    <li>Schema for projects, phases, tasks, goals, areas, people, companies, knowledge, relationships, source refs and activity events, with <code>Actor</code> on every write</li>
+    <li>Web app shell with Clerk sign-in, limited to the owner</li>
+    <li>MCP tools: the status, records and read groups from §8</li>
+  </ul>
+  <p><strong>Done when:</strong> from a Claude chat I can create a project and a task, read them back, and see both in the activity log with Claude as the actor. <code>pnpm check</code> passes.</p>
   <p><strong>Progress (2026-11-21):</strong> the first slice is built and passes its checks, and runs against the Convex dev deployment. It is not deployed to production yet.</p>
   <ul>
     <li><strong>Built:</strong> tables for areas, goals, projects, project updates, phases, tasks, activity events and settings; the tools <code>list_projects</code>, <code>get_project</code>, <code>upsert_project</code>, <code>record_project_status</code>, <code>create_phase</code>, <code>upsert_task</code>, <code>complete_task</code>, <code>get_today</code> and <code>get_changes_since</code>; and tool listing by scope, so a read-only sign-in never sees a write tool.</li>
@@ -597,6 +628,13 @@
     <li>Tools name projects by slug and tasks by ID. Dates go in as text and are read in the owner's time zone: a date-only deadline means the end of that day. The zone is a setting, defaulting to <code>America/New_York</code>.</li>
     <li>A repeated update changes nothing and logs nothing, so a retried call is safe. Creating a project from a title that already exists is refused, so a forgetful agent cannot make duplicates.</li>
     <li>The Phase 0 test tools <code>whoami</code> and <code>capture</code> stay until the remaining clients have been checked. Phase 4 replaces <code>capture</code> with the real one.</li>
+    <li><strong>People are matched by email or phone number.</strong> Each address and number is stored in one spelling, so the same one written two ways finds the same person. A match adds to what is on file and leaves the name alone, so a nickname in an email header cannot overwrite a full name. A new person with a name already on file is refused unless an email or number tells them apart. This is the start of the person matching Phase 5 needs; matching by name alone is still open there.</li>
+    <li><strong>Companies have no tool of their own.</strong> <code>upsert_person</code> takes a company name, adds the company if it is new, and links the two with <code>works_at</code>. The tool list stays small. A company's own details (domain, label, notes) wait for the web app.</li>
+    <li><strong>Search matches words, not meaning.</strong> One Convex text index covers projects, tasks, people, companies and knowledge, through a <code>searchDocs</code> table that every write keeps in step. Meaning-based search (embeddings) needs an embedding provider and its key, so it waits until word search proves not enough. <span class="tag open">Open</span></li>
+    <li><strong><code>get_context_bundle</code> reads one record and what surrounds it:</strong> the record, up to 50 links in each direction, its sources and its last five changes. <code>search</code> finds; the bundle expands.</li>
+    <li><strong>Knowledge:</strong> the same link saved twice is one link, matched on the address without its fragment and tracking parameters. Decisions carry options, the choice, the reason and a revisit date. Left out for now: the memory <code>category</code> and <code>confidence</code> fields, and the rubric decision on agent writes, which arrives with the rubric in Phase 5.</li>
+    <li><strong>Sources:</strong> <code>upsert_knowledge</code> takes an optional source (the system, a pointer back, and a short excerpt or summary capped at 1,000 characters). The same source sent again is recognised. Tasks and people get the same argument in Phase 5, where it becomes the <code>origin</code> ingestion records.</li>
+    <li><strong><code>link_entities</code> can also remove a link</strong> (<code>remove: true</code>), so an agent can correct a wrong one. Nothing can be deleted through the MCP yet; knowledge can be archived.</li>
   </ul>
 </details>
 

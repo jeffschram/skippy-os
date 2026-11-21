@@ -1,8 +1,15 @@
 import { actorLabel, dayBounds, localDate, WhenError } from "@skippy/shared";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalQuery } from "./_generated/server";
-import { getSettings, refuse, when } from "./lib/common";
+import { internalQuery, type QueryCtx } from "./_generated/server";
+import { getSettings, refuse, requireText, when } from "./lib/common";
+import { findEntity, mention, requireEntity, type Found } from "./lib/entities";
+import { LINK_LIMIT } from "./lib/links";
+import { listSources } from "./lib/sources";
+import { presentKnowledge } from "./knowledge";
+import { presentCompany, presentPerson } from "./people";
+import { presentProject } from "./projects";
+import { entityType, searchableType } from "./schema";
 import { presentTask } from "./tasks";
 
 /** Read operations that cut across record types. Internal, run through `gateway.call`. */
@@ -87,6 +94,122 @@ export const changesSince = internalQuery({
       })),
       // When true, call again with `since` set to the last event's `at`.
       more: rows.length > limit,
+    };
+  },
+});
+
+/** A few words either side of the first place a search term appears. */
+function snippet(text: string, title: string, query: string): string | undefined {
+  const body = text.startsWith(title) ? text.slice(title.length).trim() : text;
+  if (!body) return undefined;
+  const flat = body.replace(/\s+/g, " ");
+  const lower = flat.toLowerCase();
+  const hits = query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((term) => lower.indexOf(term))
+    .filter((at) => at >= 0);
+  const start = Math.max(0, (hits.length > 0 ? Math.min(...hits) : 0) - 60);
+  const piece = flat.slice(start, start + 220);
+  return `${start > 0 ? "…" : ""}${piece}${start + 220 < flat.length ? "…" : ""}`;
+}
+
+export const search = internalQuery({
+  args: { query: v.string(), type: v.optional(searchableType), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const query = requireText(args.query, "query");
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 10), 1), 25);
+    const type = args.type;
+    const rows = await ctx.db
+      .query("searchDocs")
+      .withSearchIndex("by_text", (q) =>
+        type ? q.search("text", query).eq("entityType", type) : q.search("text", query),
+      )
+      .take(limit);
+    const results = [];
+    for (const row of rows) {
+      const entity = await findEntity(ctx, row.entityType, row.entityId);
+      if (!entity) continue;
+      results.push({ ...mention(entity), snippet: snippet(row.text, row.title, query) });
+    }
+    // Best match first. Call get_context_bundle with a result's type and id to read it in full.
+    return { query, results };
+  },
+});
+
+/** The record itself, in the same shape the tool that writes it returns. */
+async function presentRecord(ctx: QueryCtx, entity: Found, now: number) {
+  const settings = await getSettings(ctx);
+  const { entityType: type, entityId } = entity.ref;
+  switch (type) {
+    case "project": {
+      const doc = (await ctx.db.get(entityId as Id<"projects">))!;
+      return presentProject(doc, settings, now);
+    }
+    case "task": {
+      const doc = (await ctx.db.get(entityId as Id<"tasks">))!;
+      const slug = doc.projectId ? (await ctx.db.get(doc.projectId))?.slug : undefined;
+      return presentTask(doc, slug, settings.timeZone);
+    }
+    case "person":
+      return await presentPerson(ctx, (await ctx.db.get(entityId as Id<"people">))!, settings.timeZone);
+    case "company":
+      return presentCompany((await ctx.db.get(entityId as Id<"companies">))!);
+    case "knowledge":
+      return presentKnowledge((await ctx.db.get(entityId as Id<"knowledge">))!, settings.timeZone);
+    default:
+      return mention(entity);
+  }
+}
+
+export const contextBundle = internalQuery({
+  args: { type: entityType, id: v.string() },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const entity = await requireEntity(ctx, args);
+    const { entityId } = entity.ref;
+
+    const outgoing = await ctx.db
+      .query("relationships")
+      .withIndex("by_from", (q) => q.eq("from.entityId", entityId))
+      .take(LINK_LIMIT + 1);
+    const incoming = await ctx.db
+      .query("relationships")
+      .withIndex("by_to", (q) => q.eq("to.entityId", entityId))
+      .take(LINK_LIMIT + 1);
+    const links = [];
+    for (const [direction, rows] of [
+      ["outgoing", outgoing.slice(0, LINK_LIMIT)],
+      ["incoming", incoming.slice(0, LINK_LIMIT)],
+    ] as const) {
+      for (const row of rows) {
+        const end = direction === "outgoing" ? row.to : row.from;
+        const other = await findEntity(ctx, end.entityType, end.entityId);
+        if (!other) continue;
+        links.push({ direction, relation: row.type, record: mention(other), reason: row.reason });
+      }
+    }
+
+    const activity = await ctx.db
+      .query("activityEvents")
+      .withIndex("by_entity", (q) => q.eq("entityRef.entityId", entityId))
+      .order("desc")
+      .take(5);
+
+    return {
+      type: entity.ref.entityType,
+      id: entity.publicId,
+      record: await presentRecord(ctx, entity, now),
+      // "outgoing" reads as: this record <relation> the other. "incoming" reads the other way round.
+      links,
+      moreLinks: outgoing.length > LINK_LIMIT || incoming.length > LINK_LIMIT,
+      sources: await listSources(ctx, entity.ref),
+      recentActivity: activity.map((event) => ({
+        at: new Date(event.at).toISOString(),
+        by: actorLabel(event.actor),
+        type: event.activityType,
+        summary: event.summary,
+      })),
     };
   },
 });

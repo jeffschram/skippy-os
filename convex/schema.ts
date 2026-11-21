@@ -1,3 +1,4 @@
+import { ENTITY_TYPES, KNOWLEDGE_KINDS, RELATIONS, SEARCHABLE_TYPES } from "@skippy/shared";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -29,17 +30,14 @@ export const actor = v.union(
   }),
 );
 
-/** A pointer to any record, used by the activity log and, later, by relationships. */
-export const entityRef = v.object({
-  entityType: v.union(
-    v.literal("project"),
-    v.literal("phase"),
-    v.literal("task"),
-    v.literal("goal"),
-    v.literal("area"),
-  ),
-  entityId: v.string(),
-});
+/** One of a fixed list of strings, as a validator. */
+const oneOf = <T extends readonly [string, string, ...string[]]>(values: T) =>
+  v.union(...(values.map((value) => v.literal(value)) as { [K in keyof T]: ReturnType<typeof v.literal<T[K]>> }));
+
+export const entityType = oneOf(ENTITY_TYPES);
+
+/** A pointer to any record, used by the activity log, relationships and sources. */
+export const entityRef = v.object({ entityType, entityId: v.string() });
 
 export const projectStatus = v.union(
   v.literal("idea"),
@@ -64,6 +62,26 @@ export const taskStatus = v.union(
   v.literal("cancelled"),
 );
 export const commitment = v.union(v.literal("must"), v.literal("want"));
+
+export const knowledgeKind = oneOf(KNOWLEDGE_KINDS);
+export const readState = v.union(v.literal("saved"), v.literal("unread"), v.literal("read"));
+export const lifecycle = v.union(v.literal("active"), v.literal("archived"));
+export const relation = oneOf(RELATIONS);
+export const searchableType = oneOf(SEARCHABLE_TYPES);
+export const companyLabel = v.union(
+  v.literal("client"),
+  v.literal("vendor"),
+  v.literal("employer"),
+  v.literal("partner"),
+  v.literal("prospect"),
+  v.literal("other"),
+);
+export const sourceLink = v.union(
+  v.literal("created_from"),
+  v.literal("updated_from"),
+  v.literal("mentioned_in"),
+  v.literal("evidence_for"),
+);
 
 /** Carried by every record: who made it, who last changed it, and when. */
 const authored = { createdBy: actor, updatedBy: actor, updatedAt: v.number() };
@@ -150,6 +168,126 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_status", ["status"]),
+
+  // A light address book. Emails and phone numbers are also kept in
+  // personHandles, where one can be looked up to find its person.
+  people: defineTable({
+    name: v.string(),
+    /** The name lowercased, for matching. */
+    nameKey: v.string(),
+    emails: v.array(v.string()),
+    phoneNumbers: v.array(v.string()),
+    roleTitle: v.optional(v.string()),
+    /** How I know them, in words. */
+    relationshipContext: v.optional(v.string()),
+    /** "1984-03-09", or "03-09" when the year is not known. */
+    birthday: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    favorite: v.optional(v.boolean()),
+    lastContactAt: v.optional(v.number()),
+    /** How often I want to be in touch, in days. */
+    contactCadenceDays: v.optional(v.number()),
+    ...authored,
+  }).index("by_name_key", ["nameKey"]),
+
+  personHandles: defineTable({
+    personId: v.id("people"),
+    kind: v.union(v.literal("email"), v.literal("phone")),
+    /** Normalised, so one address or number has one spelling. */
+    value: v.string(),
+  })
+    .index("by_value", ["kind", "value"])
+    .index("by_person", ["personId"]),
+
+  companies: defineTable({
+    name: v.string(),
+    nameKey: v.string(),
+    domain: v.optional(v.string()),
+    website: v.optional(v.string()),
+    relationshipLabel: v.optional(companyLabel),
+    notes: v.optional(v.string()),
+    ...authored,
+  }).index("by_name_key", ["nameKey"]),
+
+  // Everything worth remembering, in one table: notes, links, memories,
+  // decisions, principles and open questions.
+  knowledge: defineTable({
+    kind: knowledgeKind,
+    title: v.optional(v.string()),
+    /** Markdown. */
+    body: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    url: v.optional(v.string()),
+    normalizedUrl: v.optional(v.string()),
+    /** Links only. Kept apart from lifecycle. */
+    readState: v.optional(readState),
+    lifecycle,
+    whyItMatters: v.optional(v.string()),
+    /** Decisions only. */
+    decision: v.optional(
+      v.object({
+        options: v.optional(v.array(v.string())),
+        chosen: v.optional(v.string()),
+        rationale: v.optional(v.string()),
+        revisitAt: v.optional(v.number()),
+      }),
+    ),
+    ...authored,
+  })
+    .index("by_kind", ["kind"])
+    .index("by_normalized_url", ["normalizedUrl"]),
+
+  // The graph: any record can be related to any other. Read as "from <type> to".
+  relationships: defineTable({
+    from: entityRef,
+    to: entityRef,
+    type: relation,
+    confidence: v.optional(v.number()),
+    reason: v.optional(v.string()),
+    createdBy: actor,
+    createdAt: v.number(),
+  })
+    .index("by_from", ["from.entityId", "type"])
+    .index("by_to", ["to.entityId", "type"]),
+
+  // Where something came from: an email, a message, a web page, a conversation.
+  // Holds a pointer back and a short excerpt, never the full original.
+  sourceRefs: defineTable({
+    sourceSystem: v.string(),
+    externalId: v.optional(v.string()),
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+    eventId: v.optional(v.string()),
+    sourceTimestamp: v.optional(v.number()),
+    participants: v.optional(v.array(v.string())),
+    url: v.optional(v.string()),
+    deepLink: v.optional(v.string()),
+    excerpt: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_external", ["sourceSystem", "externalId"])
+    .index("by_message", ["sourceSystem", "messageId"])
+    .index("by_event", ["sourceSystem", "eventId"]),
+
+  entitySourceRefs: defineTable({
+    entityRef,
+    sourceRefId: v.id("sourceRefs"),
+    relationship: sourceLink,
+  })
+    .index("by_entity", ["entityRef.entityId"])
+    .index("by_source", ["sourceRefId"]),
+
+  // One row per searchable record, holding its words. Kept in step by every
+  // write, so one text index covers every kind of record.
+  searchDocs: defineTable({
+    entityType: searchableType,
+    entityId: v.string(),
+    title: v.string(),
+    text: v.string(),
+  })
+    .index("by_entity", ["entityId"])
+    .searchIndex("by_text", { searchField: "text", filterFields: ["entityType"] }),
 
   // Who changed what. Powers the "Overnight" panel and get_changes_since.
   activityEvents: defineTable({

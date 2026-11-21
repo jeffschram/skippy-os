@@ -19,6 +19,8 @@ type AnyArgs = Record<string, unknown>;
 const READS: Partial<Record<Phase1Operation, FunctionReference<"query", "internal", AnyArgs, unknown>>> = {
   get_project: internal.projects.get as never,
   list_projects: internal.projects.list as never,
+  search: internal.read.search as never,
+  get_context_bundle: internal.read.contextBundle as never,
   get_today: internal.read.today as never,
   get_changes_since: internal.read.changesSince as never,
 };
@@ -30,6 +32,9 @@ const WRITES: Partial<Record<Phase1Operation, FunctionReference<"mutation", "int
   create_phase: internal.projects.createPhase as never,
   upsert_task: internal.tasks.upsert as never,
   complete_task: internal.tasks.complete as never,
+  upsert_person: internal.people.upsert as never,
+  upsert_knowledge: internal.knowledge.upsert as never,
+  link_entities: internal.links.link as never,
 };
 
 /**

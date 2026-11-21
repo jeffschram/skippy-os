@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { buildPatch, cleanText, getSettings, iso, logActivity, refuse, requireText, showWhen, when } from "./lib/common";
+import { indexTask } from "./lib/searchIndex";
 import { actor, commitment, taskStatus } from "./schema";
 
 /** Task operations. Internal: they run only through `gateway.call` or the web app's own functions. */
@@ -117,11 +118,9 @@ export const upsert = internalMutation({
         summary: finished ? `Completed task "${title}"` : `Updated task "${title}": ${Object.keys(diff).join(", ")}`,
         diff,
       });
-      return {
-        created: false,
-        changed: true,
-        task: presentTask((await ctx.db.get(existing._id))!, slug, settings.timeZone),
-      };
+      const updated = (await ctx.db.get(existing._id))!;
+      await indexTask(ctx, updated);
+      return { created: false, changed: true, task: presentTask(updated, slug, settings.timeZone) };
     }
 
     const title = requireText(args.title, "title");
@@ -150,11 +149,9 @@ export const upsert = internalMutation({
       at: now,
       summary: `Created task "${title}"${project ? ` in "${project.title}"` : ""}`,
     });
-    return {
-      created: true,
-      changed: true,
-      task: presentTask((await ctx.db.get(id))!, project?.slug, settings.timeZone),
-    };
+    const created = (await ctx.db.get(id))!;
+    await indexTask(ctx, created);
+    return { created: true, changed: true, task: presentTask(created, project?.slug, settings.timeZone) };
   },
 });
 
