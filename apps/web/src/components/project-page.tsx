@@ -74,6 +74,7 @@ function Loaded() {
               <li key={update.at ?? index}>
                 <p className="text-sm text-foreground/60">
                   {update.by}
+                  {update.fromSweep ? " · from the nightly sweep, written from commits" : ""}
                   {update.at ? ` · ${showTime(update.at)}` : ""}
                   {update.health ? ` · ${words(update.health)}` : ""}
                 </p>

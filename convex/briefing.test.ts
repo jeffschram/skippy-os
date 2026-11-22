@@ -152,3 +152,37 @@ describe("notifications", () => {
     expect(await refusal(owner.mutation(api.viewer.savePushSubscription, { ...device, endpoint: "ftp://x" }))).toBe("invalid_arguments");
   });
 });
+
+describe("the weekly review", () => {
+  it("is kept apart from the morning note, shown for a week, and announced once", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.savePushSubscription, device);
+    await asClaude(t, "record_briefing", { text: "Today: the dentist." });
+    const review = await asClaude<Written>(t, "record_briefing", { kind: "weekly", text: "Two projects have gone quiet." });
+    expect(review).toMatchObject({ changed: true, notification: "pending" });
+    expect((await asClaude<Written>(t, "record_briefing", { kind: "weekly", text: "Three, in fact." })).notification).toBe("duplicate");
+
+    // Both exist for the same day, and neither replaced the other.
+    expect((await owner.query(api.viewer.briefing, { now: NOW }))!.text).toBe("Today: the dentist.");
+    expect((await owner.query(api.viewer.weeklyReview, { now: NOW }))!.text).toBe("Three, in fact.");
+    expect((await asClaude<{ briefingWritten: boolean }>(t, "get_importance_rubric", {})).briefingWritten).toBe(true);
+    const { recent } = await owner.query(api.viewer.notifications, {});
+    expect(recent.map((delivery) => delivery.title).sort()).toEqual(["Your briefing is ready", "Your weekly review is ready"]);
+
+    // A review alone does not count as the day's briefing, and after eight days it is no longer shown.
+    const later = NOW + 9 * 86_400_000;
+    expect(await owner.query(api.viewer.weeklyReview, { now: later })).toBeNull();
+    expect(await refusal(t.query(api.viewer.weeklyReview, { now: NOW }))).toBe("not_signed_in");
+  });
+
+  it("can read the owner's goals", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewerMemory.saveGoal, { title: "Record an album", horizon: "by summer" });
+    const done = await owner.mutation(api.viewerMemory.saveGoal, { title: "Given up on" });
+    await owner.mutation(api.viewerMemory.saveGoal, { id: done.id, status: "abandoned" });
+    const listed = await asClaude<{ goals: { title: string; status: string; horizon?: string }[] }>(t, "list_goals", {});
+    expect(listed.goals).toEqual([expect.objectContaining({ title: "Record an album", status: "active", horizon: "by summer" })]);
+  });
+});

@@ -13,7 +13,7 @@ const INSTRUCTIONS = [
   "Before saving a person or something to remember, search for it, so the same thing is not saved twice.",
   "The inbox holds quick captures waiting to be filed: capture adds one, list_captures reads them, and resolve_capture marks one as filed or discarded.",
   "When you work on a Skippy project, call record_project_status when a milestone is reached, a decision is made, something gets blocked, or the session ends.",
-  "When instructions say to follow the skippy-status, skippy-capture or skippy-ingest skill and you do not already have its text, call get_skill for it and follow what it returns.",
+  "When instructions say to follow a skill whose name starts with skippy- and you do not already have its text, call get_skill for it and follow what it returns.",
   "An ingestion pass uses get_importance_rubric, record_ingestion_run, sync_calendar, ingest_objects, advance_source_cursor and record_briefing; leave those alone outside a pass.",
   "Every write is logged with you as its author.",
 ].join(" ");
@@ -65,7 +65,7 @@ export function buildServer(principal: Pick<OAuthPrincipal, "scopes">, run: RunO
       {
         title: "Get skill",
         description:
-          "Returns the working instructions for a Skippy skill: skippy-status (when and how to report on a Skippy project), skippy-capture (what to save where) or skippy-ingest (how to run an ingestion pass). Call it when instructions say to follow one of these skills and you do not already have its text loaded.",
+          "Returns the working instructions for a Skippy skill: skippy-status (when and how to report on a Skippy project), skippy-capture (what to save where), skippy-ingest (how to run an ingestion pass), skippy-nightly-sweep (how to write a report from unreported commits) or skippy-weekly-review (how to write the weekly review). Call it when instructions say to follow one of these skills and you do not already have its text loaded.",
         inputSchema: {
           name: z.enum(Object.keys(SKILLS) as [SkillName, ...SkillName[]]).describe("The skill to read."),
         },

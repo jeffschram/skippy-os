@@ -475,9 +475,16 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       text: z.string().trim().min(1).max(6000).describe("The note, written to the owner."),
       date: z.string().optional().describe("The day it is for, like 2026-11-25. Defaults to today."),
       runId: z.string().optional().describe("The ingestion run that wrote it, when one did."),
+      kind: z.enum(["weekly"]).optional().describe('Pass "weekly" only when saving the weekly review. Leave out for the morning briefing.'),
     },
     kind: "write",
     idempotent: true,
+  },
+  list_goals: {
+    title: "List goals",
+    description: "Lists the owner's goals that are not abandoned, live ones first: what each is, when it is for, and its status.",
+    input: {},
+    kind: "read",
   },
   get_today: {
     title: "Today",

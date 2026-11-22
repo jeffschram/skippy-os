@@ -291,3 +291,36 @@ describe("a scheduled ingestion pass that could not run", () => {
     expect(await refusal(t.mutation(api.runner.ingestFailed, { token: "wrong", host: "mini", reason: "x" }))).toBe("bad_runner_token");
   });
 });
+
+describe("the nightly sweep", () => {
+  it("is told which code projects to look at, and its reports are marked as its own", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Garden Shed", kind: "code" });
+    await owner.mutation(api.viewer.saveProject, { slug: "garden-shed", claudeHome: { kind: "code_folder", path: "/Users/me/src/shed" } });
+    await owner.mutation(api.viewer.createProject, { title: "No Folder", kind: "code" });
+    await owner.mutation(api.viewer.createProject, { title: "Thanksgiving" });
+    await owner.mutation(api.viewer.createProject, { title: "Old App", kind: "code" });
+    await owner.mutation(api.viewer.saveProject, { slug: "old-app", status: "archived", claudeHome: { kind: "code_folder", path: "/Users/me/src/old" } });
+
+    expect(await t.mutation(api.runner.sweepTargets, mini)).toEqual([
+      { slug: "garden-shed", title: "Garden Shed", folder: "/Users/me/src/shed", lastSweptAt: null, lastReportedAt: null },
+    ]);
+    expect(await refusal(t.mutation(api.runner.sweepTargets, { token: "wrong", host: "mini" }))).toBe("bad_runner_token");
+
+    // The sweep's own session reports through the MCP, signing the report as the sweep's.
+    await asClaude(t, "record_project_status", { project: "garden-shed", note: "Three commits laid the slab.", surface: "scheduled", ref: "nightly-sweep" });
+    await asClaude(t, "record_project_status", { project: "garden-shed", note: "Framing started.", surface: "claude_code" });
+    const page = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    expect(page.recentUpdates.map((update) => [update.note, update.fromSweep])).toEqual([
+      ["Framing started.", false],
+      ["Three commits laid the slab.", true],
+    ]);
+
+    await t.mutation(api.runner.sweepDone, { ...mini, slug: "garden-shed", through: NOW - 1000 });
+    await t.mutation(api.runner.sweepDone, { ...mini, slug: "garden-shed", through: NOW - 9000 });
+    const [target] = (await t.mutation(api.runner.sweepTargets, mini)) as { lastSweptAt: number; lastReportedAt: number }[];
+    expect(target.lastSweptAt).toBe(NOW - 1000);
+    expect(target.lastReportedAt).toBeGreaterThanOrEqual(NOW);
+  });
+});

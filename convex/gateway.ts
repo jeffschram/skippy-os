@@ -26,6 +26,7 @@ const READS: Partial<Record<Phase1Operation, FunctionReference<"query", "interna
   list_captures: internal.captures.list as never,
   get_agenda: internal.agenda.agenda as never,
   get_importance_rubric: internal.ingestion.rubric as never,
+  list_goals: internal.goals.list as never,
 };
 
 /** Operations that write. Each gets the caller's arguments plus the actor, which the caller cannot set. */

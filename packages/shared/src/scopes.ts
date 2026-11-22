@@ -45,6 +45,7 @@ export const OPERATIONS = {
   get_context_bundle: { scope: SCOPE_READ },
   get_today: { scope: SCOPE_READ },
   get_agenda: { scope: SCOPE_READ },
+  list_goals: { scope: SCOPE_READ },
   get_changes_since: { scope: SCOPE_READ },
 } as const satisfies Record<string, { scope: Scope }>;
 

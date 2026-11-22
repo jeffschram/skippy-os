@@ -12,7 +12,9 @@ import { describeScope, failTurn, keepBrief, LEASE_MS } from "./chats";
  * The chat runner can do four things: say it is alive, claim the oldest
  * waiting turn, report progress on a turn it holds, and finish it. The
  * ingestion job, which holds the same token, can do one: report that a pass
- * failed. Neither can read the owner's records.
+ * failed. The nightly sweep can ask which code projects there are and where
+ * their folders are, and note how far it has swept. None of them can read the
+ * owner's tasks, people or memory.
  */
 
 async function requireRunner(token: string): Promise<void> {
@@ -78,6 +80,48 @@ export const ingestFailed = mutation({
       at: now,
       summary: `Ingestion ${args.pass ? `(${args.pass}) ` : ""}failed: ${reason}`,
     });
+    return null;
+  },
+});
+
+/**
+ * The code projects the nightly sweep looks at: each active project that has
+ * a code folder, with when it was last swept and last reported on.
+ */
+export const sweepTargets = mutation({
+  args: runner,
+  handler: async (ctx, args) => {
+    await requireRunner(args.token);
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+    return projects.flatMap((project) =>
+      project.kind === "code" && project.claudeHome?.kind === "code_folder"
+        ? [
+            {
+              slug: project.slug,
+              title: project.title,
+              folder: project.claudeHome.path,
+              lastSweptAt: project.lastSweptAt ?? null,
+              lastReportedAt: project.statusUpdatedAt ?? null,
+            },
+          ]
+        : [],
+    );
+  },
+});
+
+/** Notes that a project has been swept up to a point, so the next sweep starts there. It never moves back. */
+export const sweepDone = mutation({
+  args: { ...runner, slug: v.string(), through: v.number() },
+  handler: async (ctx, args) => {
+    await requireRunner(args.token);
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .unique();
+    if (project && args.through > (project.lastSweptAt ?? 0)) await ctx.db.patch(project._id, { lastSweptAt: Math.min(args.through, Date.now()) });
     return null;
   },
 });

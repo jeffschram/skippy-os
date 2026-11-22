@@ -486,6 +486,8 @@ export default defineSchema({
   briefings: defineTable({
     /** The day it is for, as YYYY-MM-DD in the owner's zone. */
     date: v.string(),
+    /** Missing means the daily morning note. "weekly" is the weekly review, kept on the day it was written. */
+    kind: v.optional(v.literal("weekly")),
     text: v.string(),
     runId: v.optional(v.id("ingestionRuns")),
     ...authored,

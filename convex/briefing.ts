@@ -26,10 +26,33 @@ export function presentBriefing(briefing: Doc<"briefings">, today: string) {
   };
 }
 
+/** The newest note of one kind. There are few enough that the latest dozen always hold it. */
+async function newest(ctx: QueryCtx, weekly: boolean): Promise<Doc<"briefings"> | null> {
+  const rows = await ctx.db.query("briefings").withIndex("by_date").order("desc").take(30);
+  return rows.find((row) => (row.kind === "weekly") === weekly) ?? null;
+}
+
 export async function latestBriefing(ctx: QueryCtx, now: number) {
   const settings = await getSettings(ctx);
-  const latest = await ctx.db.query("briefings").withIndex("by_date").order("desc").first();
+  const latest = await newest(ctx, false);
   return latest ? presentBriefing(latest, localDate(now, settings.timeZone)) : null;
+}
+
+/** The latest weekly review, while it is still this week's: at most eight days old. */
+export async function latestReview(ctx: QueryCtx, now: number) {
+  const settings = await getSettings(ctx);
+  const latest = await newest(ctx, true);
+  if (!latest || now - latest.updatedAt > 8 * 86_400_000) return null;
+  return presentBriefing(latest, localDate(now, settings.timeZone));
+}
+
+/** Whether a day's morning note has been written. */
+export async function dailyWritten(ctx: QueryCtx, date: string): Promise<boolean> {
+  const rows = await ctx.db
+    .query("briefings")
+    .withIndex("by_date", (q) => q.eq("date", date))
+    .collect();
+  return rows.some((row) => row.kind !== "weekly");
 }
 
 /** "3 due today, 1 overdue, 2 events", for the notification. */
@@ -44,7 +67,14 @@ function counts(today: Awaited<ReturnType<typeof readToday>>): string {
 }
 
 export const record = internalMutation({
-  args: { actor, text: v.string(), date: v.optional(v.string()), runId: v.optional(v.string()) },
+  args: {
+    actor,
+    text: v.string(),
+    date: v.optional(v.string()),
+    runId: v.optional(v.string()),
+    /** "weekly" saves the weekly review instead of the morning note. */
+    kind: v.optional(v.literal("weekly")),
+  },
   handler: async (ctx, args) => {
     const now = Date.now();
     const settings = await getSettings(ctx);
@@ -55,16 +85,21 @@ export const record = internalMutation({
     if (text.length > MAX_TEXT) throw refuse("invalid_arguments", `A briefing holds up to ${MAX_TEXT} characters. Say less.`);
     const runId = args.runId ? ctx.db.normalizeId("ingestionRuns", args.runId) : null;
 
-    const existing = await ctx.db
-      .query("briefings")
-      .withIndex("by_date", (q) => q.eq("date", date))
-      .first();
+    const weekly = args.kind === "weekly";
+    const existing =
+      (
+        await ctx.db
+          .query("briefings")
+          .withIndex("by_date", (q) => q.eq("date", date))
+          .collect()
+      ).find((row) => (row.kind === "weekly") === weekly) ?? null;
     if (existing) {
       if (existing.text === text) return { date, changed: false, notification: "duplicate" as const };
       await ctx.db.patch(existing._id, { text, updatedBy: args.actor, updatedAt: now, ...(runId ? { runId } : {}) });
     } else {
       await ctx.db.insert("briefings", {
         date,
+        ...(weekly ? { kind: "weekly" as const } : {}),
         text,
         ...(runId ? { runId } : {}),
         createdBy: args.actor,
@@ -76,8 +111,18 @@ export const record = internalMutation({
       activityType: existing ? "briefing.rewritten" : "briefing.written",
       actor: args.actor,
       at: now,
-      summary: `${existing ? "Rewrote" : "Wrote"} the briefing for ${date}`,
+      summary: `${existing ? "Rewrote" : "Wrote"} the ${weekly ? "weekly review" : "briefing"} for ${date}`,
     });
+    if (weekly) {
+      const sent = await notify(ctx, {
+        dedupeKey: `review:${date}`,
+        type: "review",
+        title: "Your weekly review is ready",
+        body: "What moved, what is stale, and a few questions for you.",
+        url: "/",
+      });
+      return { date, changed: true, notification: sent.status };
+    }
     // One notification a day, and only for today's note.
     const sent =
       date === today

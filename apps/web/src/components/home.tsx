@@ -19,6 +19,7 @@ export function Home() {
     <OwnerPage>
       <div className="space-y-12">
         <Briefing />
+        <WeeklyReview />
         <InboxPanel />
         <Today />
         <Chats />
@@ -42,6 +43,23 @@ function Briefing() {
         {briefing.by} · {showTime(briefing.writtenAt)}
       </p>
     </Panel>
+  );
+}
+
+/** This week's review, folded away under the briefing. Shown while it is at most eight days old. */
+function WeeklyReview() {
+  const review = useQuery(api.viewer.weeklyReview, { now: useNow() });
+  if (!review) return null;
+  return (
+    <details>
+      <summary className="cursor-pointer border-b border-foreground/15 pb-2 text-lg font-semibold">
+        Weekly review <span className="text-sm font-normal text-foreground/60">· {showDay(review.date)}</span>
+      </summary>
+      <p className="mt-4 text-base leading-7 whitespace-pre-wrap">{review.text}</p>
+      <p className="mt-3 text-xs text-foreground/60">
+        {review.by} · {showTime(review.writtenAt)}
+      </p>
+    </details>
   );
 }
 

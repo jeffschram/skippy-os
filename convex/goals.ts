@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { buildPatch, cleanText, logActivity, refuse, requireText } from "./lib/common";
 import { actor, goalStatus } from "./schema";
 
@@ -78,5 +78,20 @@ export const upsert = internalMutation({
       summary: `Added goal "${title}"`,
     });
     return { created: true, changed: true, goal: presentGoal((await ctx.db.get(id))!) };
+  },
+});
+
+/** Every goal that is not abandoned, live ones first, for the weekly review. */
+export const list = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("goals").take(500);
+    const order = ["active", "paused", "achieved", "abandoned"];
+    return {
+      goals: rows
+        .filter((goal) => goal.status !== "abandoned")
+        .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || a.title.localeCompare(b.title))
+        .map(presentGoal),
+    };
   },
 });

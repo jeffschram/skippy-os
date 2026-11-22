@@ -1,0 +1,5 @@
+Write this week's Skippy weekly review.
+
+Follow the skippy-weekly-review skill. If you do not have that skill loaded, get its text with the get_skill tool on the connector named "Skippy OS" (name: "skippy-weekly-review") and follow what it returns.
+
+This run is unattended. Do not ask anyone anything except in the review itself, and do not wait. Read only, apart from saving the review with record_briefing. Never use the older connector named just "Skippy".

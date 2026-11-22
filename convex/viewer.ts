@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { eventsBetween, liveRecurrences } from "./agenda";
-import { latestBriefing } from "./briefing";
+import { latestBriefing, latestReview } from "./briefing";
 import { listCaptures } from "./captures";
 import { fileOnCapture, filesOn, presentFile } from "./files";
 import { readIngestion } from "./ingestion";
@@ -603,6 +603,15 @@ export const briefing = query({
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     return await latestBriefing(ctx, args.now);
+  },
+});
+
+/** This week's review, or null when there is none or it is more than eight days old. */
+export const weeklyReview = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    return await latestReview(ctx, args.now);
   },
 });
 

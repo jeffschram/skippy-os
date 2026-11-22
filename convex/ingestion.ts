@@ -1,6 +1,7 @@
 import { actorLabel, INGEST_SOURCES, localDate, type IngestSource } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import { dailyWritten } from "./briefing";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { cleanText, getSettings, iso, refuse, requireText, when } from "./lib/common";
@@ -84,11 +85,7 @@ export const rubric = internalQuery({
       /** Where each source was left. null means it has never been read: look back `firstRunLookbackDays`. */
       cursors,
       /** Whether today's briefing has been written. The first pass of the day writes it. */
-      briefingWritten:
-        (await ctx.db
-          .query("briefings")
-          .withIndex("by_date", (q) => q.eq("date", localDate(now, settings.timeZone)))
-          .first()) !== null,
+      briefingWritten: await dailyWritten(ctx, localDate(now, settings.timeZone)),
       firstRunLookbackDays: LOOKBACK_DAYS,
     };
   },

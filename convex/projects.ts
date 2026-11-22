@@ -25,6 +25,8 @@ import { presentTask } from "./tasks";
  */
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/** How the nightly sweep signs the status reports it writes. */
+export const SWEEP_REF = "nightly-sweep";
 const DAY_MS = 86_400_000;
 const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
 
@@ -445,6 +447,8 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
     recentUpdates: updates.map((update) => ({
       at: iso(update.at),
       by: actorLabel(update.actor),
+      /** True when the nightly sweep wrote it from the project's commits, because no session had reported. */
+      fromSweep: update.actor.kind === "agent" && update.actor.ref === SWEEP_REF,
       note: update.note,
       health: update.health,
       milestone: update.milestone,
