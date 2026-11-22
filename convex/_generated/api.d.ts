@@ -11,6 +11,7 @@
 import type * as agenda from "../agenda.js";
 import type * as briefing from "../briefing.js";
 import type * as captures from "../captures.js";
+import type * as chats from "../chats.js";
 import type * as crons from "../crons.js";
 import type * as files from "../files.js";
 import type * as gateway from "../gateway.js";
@@ -31,8 +32,10 @@ import type * as projects from "../projects.js";
 import type * as push from "../push.js";
 import type * as pushNode from "../pushNode.js";
 import type * as read from "../read.js";
+import type * as runner from "../runner.js";
 import type * as tasks from "../tasks.js";
 import type * as viewer from "../viewer.js";
+import type * as viewerChat from "../viewerChat.js";
 import type * as viewerMemory from "../viewerMemory.js";
 
 import type {
@@ -45,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   agenda: typeof agenda;
   briefing: typeof briefing;
   captures: typeof captures;
+  chats: typeof chats;
   crons: typeof crons;
   files: typeof files;
   gateway: typeof gateway;
@@ -65,8 +69,10 @@ declare const fullApi: ApiFromModules<{
   push: typeof push;
   pushNode: typeof pushNode;
   read: typeof read;
+  runner: typeof runner;
   tasks: typeof tasks;
   viewer: typeof viewer;
+  viewerChat: typeof viewerChat;
   viewerMemory: typeof viewerMemory;
 }>;
 

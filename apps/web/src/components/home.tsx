@@ -21,6 +21,7 @@ export function Home() {
         <Briefing />
         <InboxPanel />
         <Today />
+        <Chats />
         <SinceLastLook />
         <IngestedPanel />
         <Projects />
@@ -40,6 +41,29 @@ function Briefing() {
       <p className="mt-3 text-xs text-foreground/60">
         {briefing.by} · {showTime(briefing.writtenAt)}
       </p>
+    </Panel>
+  );
+}
+
+/** The latest chats. Shown once there is one. */
+function Chats() {
+  const data = useQuery(api.viewerChat.chats, { limit: 5 });
+  if (!data || data.chats.length === 0) return null;
+  return (
+    <Panel title="Chats">
+      <ul className="space-y-2">
+        {data.chats.map((chat) => (
+          <li key={chat.id} className="flex flex-wrap items-baseline gap-x-3">
+            <Link href={`/chat/${chat.id}`} className="text-base underline-offset-2 hover:underline">
+              {chat.title}
+            </Link>
+            <span className="text-xs text-foreground/60">
+              {chat.scope.kind === "item" && chat.scope.record ? `${chat.scope.record.title} · ` : ""}
+              {showTime(chat.updatedAt)}
+            </span>
+          </li>
+        ))}
+      </ul>
     </Panel>
   );
 }

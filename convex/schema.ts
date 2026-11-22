@@ -371,6 +371,65 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // Chats in the dashboard. Each is a Claude Code session on the mini: the
+  // page queues a turn, the chat runner claims it and writes the reply back.
+  // See chats.ts and runner.ts.
+  chats: defineTable({
+    /** "home" is an idea chat. "item" is a chat about one record. */
+    scope: v.union(v.object({ kind: v.literal("home") }), v.object({ kind: v.literal("item"), entityRef })),
+    title: v.string(),
+    /** The Claude Code session that holds the conversation. Chosen here, so a retried first turn reuses it. */
+    sessionId: v.string(),
+    /** Set once the session exists on the mini, so later turns resume it. */
+    sessionStarted: v.optional(v.boolean()),
+    state: v.union(v.literal("open"), v.literal("promoted"), v.literal("archived")),
+    promotedTo: v.optional(entityRef),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_updated", ["updatedAt"]),
+
+  chatMessages: defineTable({
+    chatId: v.id("chats"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    /** An assistant message is "waiting" until the mini starts on it, "writing" while it does. */
+    status: v.union(v.literal("done"), v.literal("waiting"), v.literal("writing"), v.literal("failed")),
+    createdAt: v.number(),
+  }).index("by_chat", ["chatId", "createdAt"]),
+
+  // One per message the owner sends. The runner holds a lease on the turn it
+  // is working on; a lease that runs out means the runner died, and the turn fails.
+  chatTurns: defineTable({
+    chatId: v.id("chats"),
+    userMessageId: v.id("chatMessages"),
+    assistantMessageId: v.id("chatMessages"),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("claimed"),
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    leaseUntil: v.optional(v.number()),
+    host: v.optional(v.string()),
+    /** What the session is doing right now, in a few words. */
+    activity: v.optional(v.string()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+  })
+    .index("by_status", ["status", "createdAt"])
+    .index("by_chat", ["chatId", "createdAt"]),
+
+  // The machines that run chats. A heartbeat every half minute says the mini is there.
+  agentHosts: defineTable({
+    host: v.string(),
+    lastSeenAt: v.number(),
+    version: v.optional(v.string()),
+  }).index("by_host", ["host"]),
+
   // The morning note, one a day, written by the day's first ingestion pass.
   briefings: defineTable({
     /** The day it is for, as YYYY-MM-DD in the owner's zone. */

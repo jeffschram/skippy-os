@@ -4,7 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { showSize, useUpload } from "./files";
 import { itemHref } from "./item-details";
@@ -35,10 +35,13 @@ function useScope(): { type: "project"; id: string; title: string } | undefined 
 
 /**
  * The capture input, docked at the bottom of every page. On a project's page
- * it captures for that project, and says so; the scope can be dropped.
+ * it captures for that project, and says so; the scope can be dropped. The
+ * same words can start a chat instead: the Chat button, or beginning with /chat.
  */
 export function CaptureDock() {
   const add = useMutation(api.viewer.addCapture);
+  const startChat = useMutation(api.viewerChat.start);
+  const router = useRouter();
   const upload = useUpload();
   const picker = useRef<HTMLInputElement>(null);
   const scope = useScope();
@@ -73,11 +76,31 @@ export function CaptureDock() {
     }
   }
 
+  /** Starts a chat with what is typed, about the project being viewed when there is one, and goes to it. */
+  async function chat() {
+    const words = text.replace(/^\/chat\s*/i, "").trim();
+    if (!words || busy) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const { chatId } = await startChat({ text: words, ...(about ? { about: { type: about.type, id: about.id } } : {}) });
+      setText("");
+      router.push(`/chat/${chatId}`);
+    } catch (caught) {
+      setError(problem(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Enter captures, unless the words start with /chat. */
+  const submit = () => (/^\/chat(\s|$)/i.test(text) ? chat() : save("remember"));
+
   function onKey(event: KeyboardEvent<HTMLTextAreaElement>) {
     // Enter saves; Shift+Enter starts a new line.
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      void save("remember");
+      void submit();
     }
   }
 
@@ -85,7 +108,7 @@ export function CaptureDock() {
     <form
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
-        void save("remember");
+        void submit();
       }}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-foreground/15 bg-background"
     >
@@ -98,7 +121,7 @@ export function CaptureDock() {
           }}
           onKeyDown={onKey}
           rows={Math.min(Math.max(text.split("\n").length, 1), 6)}
-          placeholder={about ? `Capture for ${about.title}. Enter saves it.` : "Capture a thought, a link, something to do. Enter saves it."}
+          placeholder={about ? `Capture for ${about.title}. Enter saves it; Chat talks it through.` : "Capture a thought, a link, something to do. Enter saves it; Chat talks it through."}
           aria-label="Capture"
           className={`resize-none ${field}`}
         />
@@ -108,6 +131,9 @@ export function CaptureDock() {
           </button>
           <button type="button" disabled={busy || empty} onClick={() => save("hold")} className={`${button} disabled:opacity-50`}>
             Hold for 7 days
+          </button>
+          <button type="button" disabled={busy || !text.trim() || Boolean(file)} onClick={chat} className={`${button} disabled:opacity-50`}>
+            Chat
           </button>
           <input
             ref={picker}
