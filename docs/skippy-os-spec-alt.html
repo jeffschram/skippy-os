@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.46 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 built and in its week of use; Phase 4 built: Memory, capture and the inbox, events and recurrences, files, and the rest of the import, with the import retired; waiting on the owner's use; Phase 5 built: ingestion from Calendar, Gmail and Messages on a schedule, the briefing, notifications and the installable app; its seven-day unattended test is running · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.47 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 built and in its week of use; Phase 4 built: Memory, capture and the inbox, events and recurrences, files, and the rest of the import, with the import retired; waiting on the owner's use; Phase 5 built: ingestion from Calendar, Gmail and Messages on a schedule, the briefing, notifications and the installable app; its seven-day unattended test is running; Phase 6 started: dashboard chats and the chat runner work end to end · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -788,6 +788,18 @@
     <li>"Waiting for Mac mini" when the host is offline. Code-project chats read-only.</li>
   </ul>
   <p><strong>Done when:</strong> an idea typed on my phone becomes a project with two tasks through cards alone; a message sent while the mini is off runs after it comes back; and killing the runner mid-turn leaves the chat in a clear failed or retry state, not stuck.</p>
+  <p><strong>Built so far</strong></p>
+  <ul>
+    <li><strong>Chats, end to end (2026-11-22).</strong> Three tables: <code>chats</code>, <code>chatMessages</code> and <code>chatTurns</code>, plus <code>agentHosts</code> for the mini's heartbeat. Sending a message saves it, puts an empty reply beside it and queues a turn. One message is answered at a time.</li>
+    <li><strong>The chat runner:</strong> <code>tools/chat-runner/runner.mjs</code>, one loop. It says "alive" every half minute, claims the oldest waiting turn on a two-minute lease, runs the chat's Claude Code session with <code>claude -p</code>, and writes the reply so far and what the session is doing back every second or so, which also renews the lease. A session that prints nothing for five minutes is stopped. The session id is chosen by Skippy OS when the chat starts, so the first turn starts it and later turns resume it.</li>
+    <li><strong>Failure is visible:</strong> a cron fails any turn whose lease has run out, with what had been written kept and a message to send again. A message sent while the runner is away stays queued, and the page says "Waiting for the Mac mini" when the last heartbeat is more than 100 seconds old. The owner can stop waiting.</li>
+    <li><strong>How the runner is trusted:</strong> its functions are public Convex mutations that check a token. The token is random, lives in <code>~/.skippy-os/runner.env</code> on the mini, and the deployment holds only its SHA-256 (<code>SKIPPY_RUNNER_TOKEN_SHA256</code>). With it the runner can touch chat turns and nothing else.</li>
+    <li><strong>What a chat session may do:</strong> use the "Skippy OS" connector on the owner's account, and search the web. In a chat about a code project it runs in that project's folder and may read files. It cannot edit files or run commands. It is told to say what it would create or change and wait for a yes, until promotion cards exist.</li>
+    <li><strong>Differs from the plan:</strong> the session reaches Skippy through the account's connector, as every other session on the mini does, not through a static MCP token with a "chat" role, so there is no <code>mcpTokens</code> table. The reply is written into the message as it grows, so there is no <code>chatTurnEvents</code> table.</li>
+    <li><strong>In the dashboard:</strong> a Chat button on the capture bar (or a message that starts with <code>/chat</code>) starts a chat, about the project being viewed when there is one. A chat has its own page at <code>/chat/[id]</code>, and Home lists the latest.</li>
+    <li><strong>Tried on the live site:</strong> a message sent with no runner going waited and was answered as soon as the runner started; a follow-up used the earlier context; and with the runner killed mid-reply the turn was marked failed two minutes later. The runner was run by hand for this. Installing it as a background job is the owner's step (<code>docs/chat-runner.md</code>).</li>
+    <li><strong>Still to build:</strong> <code>propose_promotion</code> and promotion cards, promoting a chat to a project, chat inside an item's details view, and "Continue in Claude". <span class="tag open">Open</span></li>
+  </ul>
 </details>
 
 <details>
@@ -863,6 +875,8 @@
     <tr><td>2026-11-21</td><td>From here on, Claude takes its own recommendation at preference points and records the choice here, instead of asking</td></tr>
     <tr><td>2026-11-21</td><td>Phase 3 builds the plugin first, then the dashboard pages</td></tr>
     <tr><td>2026-11-21</td><td>The plugin holds skills only. The MCP connection comes from the "Skippy OS" connector on the claude.ai account.</td></tr>
+    <tr><td>2026-11-22</td><td>Chat sessions use the account's Skippy OS connector, not a static MCP token; the runner has its own narrow token for claiming turns. No <code>mcpTokens</code> and no <code>chatTurnEvents</code>.</td></tr>
+    <tr><td>2026-11-22</td><td>Until promotion cards exist, a chat asks before it creates or changes a record.</td></tr>
     <tr><td>2026-11-22</td><td>Messages are read through a dedicated exporter with its own Full Disk Access, not by giving that access to the Claude app. The pass gets a transcript file and no shell.</td></tr>
     <tr><td>2026-11-22</td><td>From messages, other people's private matters are not recorded unless the owner has to act on them, and a person is not made from a bare number.</td></tr>
     <tr><td>2026-11-22</td><td>Gmail is read from the first day, alongside Calendar, at the owner's request: mail is where most of what matters arrives, and the calendar changes little. This sets aside "prove it with Calendar alone first".</td></tr>

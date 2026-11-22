@@ -1,0 +1,47 @@
+# The chat runner
+
+A chat in the dashboard is a Claude Code session on the mini. When you send a message, Skippy OS saves it and queues a turn. The chat runner on the mini picks the turn up, runs the session, and writes the reply back as it comes.
+
+If the runner is not going, nothing is lost: your message waits, the page says "Waiting for the Mac mini", and it is answered when the runner is back.
+
+## The parts
+
+| Part | Where | What it does |
+| --- | --- | --- |
+| The runner | `tools/chat-runner/runner.mjs` | One loop: say "alive" every half minute, claim the oldest waiting turn, run it, finish it. |
+| Its secret | `~/.skippy-os/runner.env` | The address of the Convex deployment and the runner's token. Only your user can read it. The server holds the token's SHA-256, never the token. |
+| The sessions | `~/.skippy-os/chat-workspace` | Where chat sessions run. A chat about a code project runs in that project's folder instead. |
+
+## What a chat session may do
+
+- Use the Skippy OS connector on your claude.ai account, to read and change your records.
+- Search the web.
+- In a chat about a code project, read that project's files.
+
+It may not edit files or run commands. Code changes happen in a real Claude Code session.
+
+## Install it
+
+```bash
+tools/chat-runner/install.sh
+```
+
+This installs one per-user background job, `app.skippyos.chat-runner`, which starts the runner now and at each login and restarts it if it stops. It prints the runner's last word; "chat runner 1 on … talking to …" means it is up. The log is `~/.skippy-os/chat-runner.log`.
+
+To run it by hand instead, for a look:
+
+```bash
+node tools/chat-runner/runner.mjs
+```
+
+## Remove it
+
+```bash
+tools/chat-runner/install.sh --remove
+```
+
+## If it goes wrong
+
+- **"Waiting for the Mac mini" never clears.** The runner is not going. Look at the log, then install it again.
+- **A reply stops half-way.** If the runner or its session dies, the turn is marked failed within about two minutes and says so. Send the message again.
+- **"bad_runner_token" in the log.** The token in `runner.env` no longer matches the server. Make a new pair: delete `runner.env` and ask Claude to set up the runner's secret again.
