@@ -18,6 +18,7 @@ An ingestion pass reads what is new in the owner's calendar, mail or messages an
 
 - Skippy OS, through the connector named **Skippy OS**: `get_importance_rubric`, `record_ingestion_run`, `sync_calendar`, `ingest_objects`, `advance_source_cursor`, to check what is already on file `get_agenda` and `search`, and for the briefing `get_today` and `record_briefing`. An older connector named just "Skippy" is a retired system; never use it.
 - The owner's Google Calendar and Gmail, through Claude's own connectors for them.
+- The owner's messages, as a transcript file on the Mac the pass runs on. The prompt gives its path. Read it with the file-reading tool; run no commands.
 
 If the Skippy OS tools are missing, stop: there is nowhere to record anything.
 
@@ -71,6 +72,24 @@ Only when the prompt names it. Use the Gmail connector's `search_threads` to lis
 9. Call `advance_source_cursor` for `gmail` with the time of the newest message you saw, as an ISO time, whether or not it made anything.
 
 For the run's counts, "read" is the number of threads you looked at and "skipped" the number that made nothing.
+
+## iMessage
+
+Only when the prompt names it and gives the path of the transcript file. A small program on the Mac writes that file shortly before each pass: recent messages, grouped by conversation, oldest first, one message a line as `[time] who id=<message id>: text`. "me" is the owner.
+
+1. Read the file. Its first lines say when it was written. If the file is missing, or was written more than three hours ago, record that as the source's error and go on: do not judge from a stale file.
+2. The cursor is the time of the newest message handled on the last pass. Leave out every message at or before it, and any conversation the block list names. Read the earlier lines of a conversation only to understand the new ones.
+3. Judge each conversation as a whole, by the rubric and the owner's rules. Almost all of it makes nothing: chatter, plans already carried out, thanks, photos. Leave out verification codes and messages from short numbers.
+4. These are private conversations. Record only what the owner has to act on or would want kept about their own life. Do not record other people's private matters, such as their health, money or relationships, unless the owner has to do something about it.
+5. A person appears as a phone number or an email address. To learn who it is, call `search` with it. If Skippy OS does not know them, refer to them by that number or address in the summary. Do not make a person from a number alone; make one only when the conversation gives their name.
+6. Check before making a record, exactly as for mail: `get_agenda` before an event, `search` before a task.
+7. Send records with `ingest_objects`, source `imessage`. `externalId` is the message's id from its line, `at` its time, and `summary` one or two lines in your own words. There is no link back. Never quote the message.
+   - **A task** when someone asks the owner to do something, or the owner says they will ("I'll send it tomorrow"), and it is not done within the same conversation.
+   - **An event** for a plan with a day and a time that both sides settled on.
+   - **Knowledge** of kind "memory" for a lasting fact the owner stated about themselves or their plans.
+8. Call `advance_source_cursor` for `imessage` with the time of the newest message in the file, whether or not it made anything.
+
+For the run's counts, "read" is the number of new messages and "skipped" the number that made nothing.
 
 ## The briefing
 
