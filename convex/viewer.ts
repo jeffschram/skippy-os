@@ -1,13 +1,13 @@
-import { actorLabel, type Actor } from "@skippy/shared";
+import { actorLabel, localDate, type Actor } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
-import { commitment, projectHealth, projectStatus, taskStatus } from "./schema";
+import { commitment, phaseStatus, projectHealth, projectKind, projectStatus, taskStatus } from "./schema";
 import { presentTask } from "./tasks";
-import { getSettings, iso } from "./lib/common";
+import { DEFAULT_SETTINGS, getSettings, iso, refuse } from "./lib/common";
 
 /**
  * What the web app reads and changes for the person signed in to it. These are
@@ -71,6 +71,63 @@ export const activity = query({
     await requireOwner(ctx);
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 20), 1), 100);
     return { events: await recentActivity(ctx, limit) };
+  },
+});
+
+/** The activity log for its own page: newest first, optionally only the owner's lines or only agents'. */
+export const activityLog = query({
+  args: { limit: v.optional(v.number()), who: v.optional(v.union(v.literal("owner"), v.literal("agents"))) },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 50), 1), 500);
+    const wanted = (event: Doc<"activityEvents">) =>
+      args.who === undefined || (args.who === "owner" ? event.actor.kind === "user" : event.actor.kind === "agent");
+    // Read a little past the limit to learn whether there is more to show.
+    const rows = await ctx.db.query("activityEvents").withIndex("by_at").order("desc").take(args.who ? 3000 : limit + 1);
+    const matching = rows.filter(wanted);
+    return {
+      events: await Promise.all(
+        matching.slice(0, limit).map(async (event) => ({
+          id: event._id,
+          at: new Date(event.at).toISOString(),
+          by: actorLabel(event.actor),
+          type: event.activityType,
+          summary: event.summary,
+          project: await projectOf(ctx, event.entityRef),
+        })),
+      ),
+      more: matching.length > limit,
+    };
+  },
+});
+
+/** Every open task, for the Agenda page, with the owner's "today" so the page can sort them into days. */
+export const openTasks = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const settings = await getSettings(ctx);
+    const slugs = new Map<Id<"projects">, string | undefined>();
+    const tasks = [];
+    for (const status of ["in_progress", "todo", "waiting"] as const) {
+      const rows = await ctx.db
+        .query("tasks")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .collect();
+      for (const row of rows) {
+        if (row.projectId && !slugs.has(row.projectId)) slugs.set(row.projectId, (await ctx.db.get(row.projectId))?.slug);
+        tasks.push(presentTask(row, row.projectId ? slugs.get(row.projectId) : undefined, settings.timeZone));
+      }
+    }
+    return { today: localDate(args.now, settings.timeZone), timeZone: settings.timeZone, tasks };
+  },
+});
+
+export const settings = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireOwner(ctx);
+    return await getSettings(ctx);
   },
 });
 
@@ -233,5 +290,74 @@ export const saveProject = mutation({
     await readProject(ctx, { project: args.slug, now: Date.now() });
     const result = await ctx.runMutation(internal.projects.upsert, { actor: OWNER, ...args });
     return { changed: result.changed };
+  },
+});
+
+/** Adds a project. A title already in use is refused, the same as for an agent. */
+export const createProject = mutation({
+  args: { title: v.string(), summary: v.optional(v.string()), kind: v.optional(projectKind) },
+  handler: async (ctx, args): Promise<{ slug: string }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.projects.upsert, { actor: OWNER, ...args });
+    return { slug: result.project.slug };
+  },
+});
+
+/** Adds a phase to a project, or changes one when `id` is given. */
+export const savePhase = mutation({
+  args: {
+    id: v.optional(v.string()),
+    project: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: nullable(v.string()),
+    status: v.optional(phaseStatus),
+  },
+  handler: async (ctx, args): Promise<{ changed: boolean }> => {
+    await requireOwner(ctx);
+    const { id, project, title, description, status } = args;
+    if (id !== undefined) {
+      const result = await ctx.runMutation(internal.projects.updatePhase, { actor: OWNER, id, title, description, status });
+      return { changed: result.changed };
+    }
+    if (project === undefined || title === undefined) {
+      throw refuse("invalid_arguments", "A new phase needs a project and a title.");
+    }
+    await ctx.runMutation(internal.projects.createPhase, {
+      actor: OWNER,
+      project,
+      title,
+      ...(description ? { description } : {}),
+      ...(status ? { status } : {}),
+    });
+    return { changed: true };
+  },
+});
+
+/** Changes the owner-wide settings. Only the fields passed change. */
+export const saveSettings = mutation({
+  args: { timeZone: v.optional(v.string()), stalenessDays: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const timeZone = args.timeZone?.trim();
+    if (timeZone !== undefined) {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone });
+      } catch {
+        throw refuse("invalid_arguments", `"${timeZone}" is not a time zone. Use a name like America/New_York.`);
+      }
+    }
+    const days = args.stalenessDays;
+    if (days !== undefined && (!Number.isInteger(days) || days < 1 || days > 90)) {
+      throw refuse("invalid_arguments", "The stale flag takes a whole number of days from 1 to 90.");
+    }
+    const row = await ctx.db.query("settings").first();
+    const next = {
+      timeZone: timeZone || row?.timeZone || DEFAULT_SETTINGS.timeZone,
+      stalenessDays: days ?? row?.stalenessDays ?? DEFAULT_SETTINGS.stalenessDays,
+      updatedAt: Date.now(),
+    };
+    if (row) await ctx.db.patch(row._id, next);
+    else await ctx.db.insert("settings", next);
+    return { timeZone: next.timeZone, stalenessDays: next.stalenessDays };
   },
 });

@@ -2,11 +2,12 @@
 
 import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
 import { OwnerPage } from "./owner-page";
-import { Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
+import { button, problem, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
 import { useNow } from "./use-now";
 
 /** Every project on one page: where it stands, who last reported and when, and what comes next. */
@@ -30,6 +31,7 @@ function Board() {
   return (
     <div>
       <h1 className="text-2xl font-semibold">Projects</h1>
+      <NewProject />
       {current.length === 0 ? (
         <div className="mt-6">
           <Quiet>No projects yet. Ask Claude to add one.</Quiet>
@@ -56,6 +58,53 @@ function Board() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** One line to start a project. It opens the new project's page, where the rest is filled in. */
+function NewProject() {
+  const create = useMutation(api.viewer.createProject);
+  const router = useRouter();
+  const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<"general" | "code">("general");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!title.trim()) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const { slug } = await create({ title, kind });
+      router.push(`/projects/${slug}`);
+    } catch (caught) {
+      setError(problem(caught));
+      setBusy(false);
+    }
+  }
+
+  const field = "rounded-md border border-foreground/20 bg-background px-2 py-1.5 text-sm";
+  return (
+    <form onSubmit={submit} className="mt-4">
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="New project"
+          aria-label="New project title"
+          className={`min-w-48 flex-1 ${field}`}
+        />
+        <select value={kind} onChange={(event) => setKind(event.target.value as "general" | "code")} aria-label="Kind" className={field}>
+          <option value="general">General</option>
+          <option value="code">Code</option>
+        </select>
+        <button type="submit" disabled={busy || !title.trim()} className={`${button} disabled:opacity-50`}>
+          Add
+        </button>
+      </div>
+      {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+    </form>
   );
 }
 

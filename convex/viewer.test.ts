@@ -275,3 +275,72 @@ describe("what agents did since the owner last looked", () => {
     expect(await refusal(stranger.mutation(api.viewer.markSeen, { through: NOW }))).toBe("account_not_authorized");
   });
 });
+
+describe("phases, new projects, the agenda and settings", () => {
+  it("lets Claude and the owner change a phase, and logs each change once", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const made = (await asClaude(t, "create_phase", { project: "garden-shed", title: "Foundation" })) as {
+      phase: { id: string };
+    };
+    const first = (await asClaude(t, "update_phase", { id: made.phase.id, status: "active" })) as { changed: boolean };
+    const again = (await asClaude(t, "update_phase", { id: made.phase.id, status: "active" })) as { changed: boolean };
+    expect([first.changed, again.changed]).toEqual([true, false]);
+    expect(await refusal(asClaude(t, "update_phase", { id: "nope", status: "done" }))).toBe("not_found");
+
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.savePhase, { id: made.phase.id, status: "done", title: "Slab" });
+    await owner.mutation(api.viewer.savePhase, { project: "garden-shed", title: "Framing" });
+    const page = await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW });
+    expect(page!.phases.map((phase) => [phase.order, phase.title, phase.status])).toEqual([
+      [1, "Slab", "done"],
+      [2, "Framing", "planned"],
+    ]);
+    const { events } = await owner.query(api.viewer.activityLog, { who: "owner" });
+    expect(events.map((event) => event.type)).toEqual(["phase.created", "phase.updated"]);
+    expect(events[0].project).toBe("garden-shed");
+    expect((await owner.query(api.viewer.activityLog, { who: "agents" })).events).toHaveLength(3);
+    expect(await owner.query(api.viewer.activityLog, { limit: 2 })).toMatchObject({ more: true });
+  });
+
+  it("lets the owner add a project, and refuses a title already in use", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    expect(await owner.mutation(api.viewer.createProject, { title: "Garden Shed" })).toEqual({ slug: "garden-shed" });
+    expect(await refusal(owner.mutation(api.viewer.createProject, { title: "Garden Shed" }))).not.toBe("accepted");
+    expect((await owner.query(api.viewer.board, { now: NOW })).projects).toHaveLength(1);
+  });
+
+  it("lists every open task with the owner's today", async () => {
+    const t = start();
+    await asClaude(t, "upsert_task", { title: "Get three quotes", dueAt: "2026-11-27" });
+    await asClaude(t, "upsert_task", { title: "Wait for the permit", status: "waiting" });
+    await asClaude(t, "upsert_task", { title: "Pour the slab", status: "done" });
+    const owner = t.withIdentity({ subject: OWNER });
+    const agenda = await owner.query(api.viewer.openTasks, { now: NOW });
+    expect(agenda.today).toBe("2026-11-25");
+    expect(agenda.tasks.map((task) => task.title).sort()).toEqual(["Get three quotes", "Wait for the permit"]);
+  });
+
+  it("saves settings, and they change what counts as stale and as today", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const owner = t.withIdentity({ subject: OWNER });
+    expect(await owner.query(api.viewer.settings, {})).toEqual({ timeZone: "America/New_York", stalenessDays: 7 });
+    expect(await refusal(owner.mutation(api.viewer.saveSettings, { timeZone: "Mars/Olympus" }))).toBe("invalid_arguments");
+    expect(await refusal(owner.mutation(api.viewer.saveSettings, { stalenessDays: 0 }))).toBe("invalid_arguments");
+
+    await owner.mutation(api.viewer.saveSettings, { stalenessDays: 2, timeZone: "Asia/Tokyo" });
+    expect(await owner.query(api.viewer.settings, {})).toEqual({ timeZone: "Asia/Tokyo", stalenessDays: 2 });
+    expect((await owner.query(api.viewer.openTasks, { now: NOW })).today).toBe("2026-11-26");
+    const later = NOW + 3 * 86_400_000;
+    expect((await owner.query(api.viewer.board, { now: later })).projects[0].stale).toBe(true);
+
+    const stranger = t.withIdentity({ subject: "user_someone_else" });
+    expect(await refusal(stranger.mutation(api.viewer.saveSettings, { stalenessDays: 3 }))).toBe("account_not_authorized");
+    expect(await refusal(stranger.mutation(api.viewer.savePhase, { project: "garden-shed", title: "X" }))).toBe(
+      "account_not_authorized",
+    );
+    expect(await refusal(stranger.mutation(api.viewer.createProject, { title: "X" }))).toBe("account_not_authorized");
+  });
+});

@@ -17,7 +17,7 @@ The word after the colon is the project's **slug**. Tools that act on a project 
 
 ## Which tools
 
-Use the tools of the connector named **Skippy OS**: `get_project`, `record_project_status`, `upsert_task`, `complete_task`, `upsert_project`, `get_changes_since`.
+Use the tools of the connector named **Skippy OS**: `get_project`, `record_project_status`, `upsert_task`, `complete_task`, `update_phase`, `upsert_project`, `get_changes_since`.
 
 An older connector named just "Skippy" may also be connected, with similar tool names. It is a different, retired system. Never write to it.
 
@@ -38,6 +38,7 @@ If `get_project` says the project does not exist, the line in the instructions i
 - When a task now depends on someone else, set its status to "waiting" and say who in `waitingOn`.
 - Check the open tasks from `get_project` before adding one, so the same task is not added twice.
 - Do not add a task for a step you will finish in this session.
+- When the project has phases, put a new task in the phase it belongs to with `phaseId`. When work on a phase starts, set the phase to "active" with `update_phase`, and to "done" when everything in it is finished.
 
 ## When to report
 

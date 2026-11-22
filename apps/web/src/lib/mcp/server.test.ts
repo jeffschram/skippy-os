@@ -46,6 +46,7 @@ describe("the MCP server", () => {
       "list_projects",
       "record_project_status",
       "search",
+      "update_phase",
       "upsert_knowledge",
       "upsert_person",
       "upsert_project",

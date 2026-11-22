@@ -278,6 +278,55 @@ export const createPhase = internalMutation({
   },
 });
 
+export const updatePhase = internalMutation({
+  args: {
+    actor,
+    id: v.string(),
+    title: v.optional(v.string()),
+    description: nullable(v.string()),
+    status: v.optional(phaseStatus),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const id = ctx.db.normalizeId("phases", args.id);
+    const phase = id ? await ctx.db.get(id) : null;
+    if (!phase) {
+      throw refuse("not_found", `There is no phase with the id "${args.id}". Use get_project to see a project's phases.`);
+    }
+    const project = (await ctx.db.get(phase.projectId))!;
+    const show = (doc: Doc<"phases">) => ({
+      id: doc._id,
+      project: project.slug,
+      order: doc.order,
+      title: doc.title,
+      description: doc.description,
+      status: doc.status,
+    });
+    const { patch, diff } = buildPatch(phase, {
+      title: args.title === undefined ? undefined : requireText(args.title, "title"),
+      description: cleanText(args.description),
+      status: args.status,
+    });
+    // A repeated update changes nothing and logs nothing.
+    if (Object.keys(patch).length === 0) return { changed: false, phase: show(phase) };
+    await ctx.db.patch(phase._id, { ...patch, updatedBy: args.actor, updatedAt: now });
+    const title = patch.title ?? phase.title;
+    const onlyStatus = patch.status !== undefined && Object.keys(patch).length === 1;
+    await logActivity(ctx, {
+      entityType: "phase",
+      entityId: phase._id,
+      activityType: "phase.updated",
+      actor: args.actor,
+      at: now,
+      summary: onlyStatus
+        ? `Phase "${title}" of "${project.title}" is now ${patch.status}`
+        : `Updated phase "${title}" of "${project.title}": ${Object.keys(diff).join(", ")}`,
+      diff,
+    });
+    return { changed: true, phase: show((await ctx.db.get(phase._id))!) };
+  },
+});
+
 /** One project in full: details, notes, phases, tasks and the latest status reports. */
 export async function readProject(ctx: QueryCtx, args: { project: string; now: number }) {
   const now = args.now;

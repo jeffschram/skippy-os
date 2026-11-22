@@ -140,6 +140,19 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
     },
     kind: "write",
   },
+  update_phase: {
+    title: "Update phase",
+    description:
+      'Changes a phase of a project\'s plan: its status, title or description. Set the status to "active" when work on the phase starts and "done" when it is finished. Pass only the fields that change, and null to clear the description.',
+    input: {
+      id: z.string().describe("The phase's id, from get_project."),
+      title: z.string().trim().min(1).max(200).optional(),
+      description: clearable(z.string().max(4000)),
+      status: z.enum(["planned", "active", "done"]).optional(),
+    },
+    kind: "write",
+    idempotent: true,
+  },
   upsert_task: {
     title: "Create or update task",
     description:

@@ -22,6 +22,9 @@ import { TaskDetails } from "./task-details";
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/projects", label: "Projects" },
+  { href: "/agenda", label: "Agenda" },
+  { href: "/activity", label: "Activity" },
+  { href: "/settings", label: "Settings" },
 ];
 
 /** `wide` is for list pages; reading pages use the narrower column. */
@@ -69,12 +72,12 @@ function ForOwner({ wide, children }: { wide?: boolean; children: ReactNode }) {
   const here = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   return (
     <div className={`mx-auto w-full px-6 py-8 ${wide ? "max-w-5xl" : "max-w-3xl"}`}>
-      <header className="flex items-center justify-between gap-6">
-        <div className="flex items-baseline gap-6">
+      <header className="flex items-start justify-between gap-6">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
           <Link href="/" className="text-xl font-semibold">
             Skippy OS
           </Link>
-          <nav className="flex gap-4 text-sm">
+          <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {NAV.map((item) => (
               <Link
                 key={item.href}

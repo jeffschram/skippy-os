@@ -10,7 +10,7 @@ import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, problem, Quiet, showTime, staleNote, Tag, words } from "./parts";
 import { ClaudeHome } from "./projects-board";
-import { AddTask, TaskList } from "./tasks";
+import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
 /** One project: its status and history, phases, tasks and notes, all editable by the owner. */
@@ -82,23 +82,10 @@ function Loaded() {
         )}
       </Panel>
 
-      {page.phases.length > 0 ? (
-        <Panel title="Phases">
-          <ol className="space-y-2">
-            {page.phases.map((phase) => (
-              <li key={phase.id} className="flex flex-wrap items-baseline gap-2">
-                <span className="text-base">
-                  {phase.order}. {phase.title}
-                </span>
-                <Tag>{phase.status}</Tag>
-              </li>
-            ))}
-          </ol>
-        </Panel>
-      ) : null}
+      <Phases project={project.slug} phases={page.phases} />
 
       <Panel title="Tasks" note={`${page.openTasks.length} open`}>
-        {page.openTasks.length === 0 ? <Quiet>Nothing open.</Quiet> : <TaskList tasks={page.openTasks} />}
+        {page.openTasks.length === 0 ? <Quiet>Nothing open.</Quiet> : <ByPhase tasks={page.openTasks} phases={page.phases} />}
         <AddTask project={project.slug} />
         {page.recentlyClosedTasks.length > 0 ? (
           <details className="mt-6">
@@ -143,7 +130,7 @@ function Header({ project }: { project: Project }) {
             Edit
           </button>
         </div>
-        {project.summary ? <p className="mt-2 text-base text-foreground/80">{project.summary}</p> : null}
+        {project.summary ? <Summary text={project.summary} /> : null}
       </div>
     );
   }
@@ -179,6 +166,147 @@ function Header({ project }: { project: Project }) {
         </button>
       </div>
     </form>
+  );
+}
+
+/** A long summary is cut to a few lines until asked for. */
+function Summary({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 400;
+  return (
+    <div className="mt-2">
+      <p className={`text-base whitespace-pre-wrap text-foreground/80 ${long && !open ? "line-clamp-4" : ""}`}>{text}</p>
+      {long ? (
+        <button type="button" onClick={() => setOpen(!open)} className="mt-1 text-sm text-foreground/60 underline underline-offset-2">
+          {open ? "Show less" : "Show all"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Open tasks under the phase they belong to, in plan order, with the rest below. */
+function ByPhase({ tasks, phases }: { tasks: Task[]; phases: Page["phases"] }) {
+  const inPhase = (id: string) => tasks.filter((task) => task.phaseId === id);
+  const known = new Set(phases.map((phase) => String(phase.id)));
+  const loose = tasks.filter((task) => !task.phaseId || !known.has(task.phaseId));
+  const groups = phases.filter((phase) => inPhase(phase.id).length > 0);
+  if (groups.length === 0) return <TaskList tasks={tasks} />;
+  return (
+    <div className="space-y-6">
+      {groups.map((phase) => (
+        <div key={phase.id}>
+          <h3 className="mb-2 text-sm font-medium text-foreground/60">
+            {phase.order}. {phase.title}
+          </h3>
+          <TaskList tasks={inPhase(phase.id)} />
+        </div>
+      ))}
+      {loose.length > 0 ? (
+        <div>
+          <h3 className="mb-2 text-sm font-medium text-foreground/60">Not in a phase</h3>
+          <TaskList tasks={loose} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const PHASE_STATUSES = ["planned", "active", "done"] as const;
+
+/** The plan: each phase's status can be changed in place, and a phase can be renamed or added. */
+function Phases({ project, phases }: { project: string; phases: Page["phases"] }) {
+  const save = useMutation(api.viewer.savePhase);
+  const [title, setTitle] = useState("");
+  const [renaming, setRenaming] = useState<{ id: string; title: string }>();
+  const [error, setError] = useState<string>();
+
+  async function run(change: Parameters<typeof save>[0]) {
+    setError(undefined);
+    try {
+      await save(change);
+      return true;
+    } catch (caught) {
+      setError(problem(caught));
+      return false;
+    }
+  }
+
+  async function add(event: FormEvent) {
+    event.preventDefault();
+    if (title.trim() && (await run({ project, title }))) setTitle("");
+  }
+
+  async function rename(event: FormEvent) {
+    event.preventDefault();
+    if (renaming && (await run({ id: renaming.id, title: renaming.title }))) setRenaming(undefined);
+  }
+
+  return (
+    <Panel title="Phases">
+      {phases.length === 0 ? <Quiet>No phases. Add one to lay out a plan.</Quiet> : null}
+      <ol className="space-y-2">
+        {phases.map((phase) => (
+          <li key={phase.id} className="flex flex-wrap items-center gap-2">
+            {renaming?.id === phase.id ? (
+              <form onSubmit={rename} className="flex flex-1 flex-wrap gap-2">
+                <input
+                  value={renaming.title}
+                  onChange={(event) => setRenaming({ id: phase.id, title: event.target.value })}
+                  aria-label="Phase title"
+                  required
+                  className={`min-w-48 flex-1 ${field}`}
+                />
+                <button type="submit" className={button}>
+                  Save
+                </button>
+                <button type="button" onClick={() => setRenaming(undefined)} className={button}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <>
+                <span className={`flex-1 text-base ${phase.status === "done" ? "text-foreground/60" : ""}`}>
+                  {phase.order}. {phase.title}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRenaming({ id: phase.id, title: phase.title })}
+                  className="text-sm text-foreground/60 underline underline-offset-2"
+                >
+                  Rename
+                </button>
+                <select
+                  value={phase.status}
+                  onChange={(event) => run({ id: phase.id, status: event.target.value as (typeof PHASE_STATUSES)[number] })}
+                  aria-label={`Status of phase ${phase.title}`}
+                  className={field}
+                >
+                  {PHASE_STATUSES.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+          </li>
+        ))}
+      </ol>
+      <form onSubmit={add} className="mt-4 flex flex-wrap gap-2">
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Add a phase"
+          aria-label="New phase"
+          className={`min-w-48 flex-1 ${field}`}
+        />
+        <button type="submit" disabled={!title.trim()} className={`${button} disabled:opacity-50`}>
+          Add
+        </button>
+      </form>
+      {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+    </Panel>
   );
 }
 

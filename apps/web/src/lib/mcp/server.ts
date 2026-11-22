@@ -7,7 +7,7 @@ const INSTRUCTIONS = [
   "Skippy OS is the owner's personal system for projects, tasks and what is worth remembering.",
   "Projects are named by slug; every other record by its id.",
   "Read with search, get_context_bundle, list_projects, get_project, get_today and get_changes_since.",
-  "Write with upsert_project, create_phase, upsert_task, complete_task, upsert_person, upsert_knowledge and link_entities.",
+  "Write with upsert_project, create_phase, update_phase, upsert_task, complete_task, upsert_person, upsert_knowledge and link_entities.",
   "Before saving a person or something to remember, search for it, so the same thing is not saved twice.",
   "When you work on a Skippy project, call record_project_status when a milestone is reached, a decision is made, something gets blocked, or the session ends.",
   "Every write is logged with you as its author.",

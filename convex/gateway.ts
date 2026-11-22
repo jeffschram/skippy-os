@@ -30,6 +30,7 @@ const WRITES: Partial<Record<Phase1Operation, FunctionReference<"mutation", "int
   upsert_project: internal.projects.upsert as never,
   record_project_status: internal.projects.recordStatus as never,
   create_phase: internal.projects.createPhase as never,
+  update_phase: internal.projects.updatePhase as never,
   upsert_task: internal.tasks.upsert as never,
   complete_task: internal.tasks.complete as never,
   upsert_person: internal.people.upsert as never,

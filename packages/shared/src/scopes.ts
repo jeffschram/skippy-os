@@ -20,6 +20,7 @@ export const OPERATIONS = {
   // Records.
   upsert_project: { scope: SCOPE_WRITE },
   create_phase: { scope: SCOPE_WRITE },
+  update_phase: { scope: SCOPE_WRITE },
   upsert_task: { scope: SCOPE_WRITE },
   complete_task: { scope: SCOPE_WRITE },
   upsert_person: { scope: SCOPE_WRITE },
