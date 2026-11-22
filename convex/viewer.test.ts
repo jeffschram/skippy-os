@@ -116,3 +116,112 @@ describe("the web app's queries", () => {
     expect((await owner.query(api.viewer.projects, { now: later })).projects[0].stale).toBe(true);
   });
 });
+
+describe("the projects board and a project's page", () => {
+  it("lists every project, live ones first, with what is open and what comes next", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Old Fence", status: "archived" });
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    await asClaude(t, "upsert_task", { title: "Wait for the permit", project: "garden-shed", status: "waiting" });
+    await asClaude(t, "upsert_task", { title: "Order shingles", project: "garden-shed", dueAt: "2026-12-05" });
+    await asClaude(t, "upsert_task", { title: "Get three quotes", project: "garden-shed", dueAt: "2026-11-27" });
+    await asClaude(t, "upsert_task", { title: "Pour the slab", project: "garden-shed", status: "done" });
+    const owner = t.withIdentity({ subject: OWNER });
+
+    const { projects } = await owner.query(api.viewer.board, { now: NOW });
+    expect(projects.map((project) => project.slug)).toEqual(["garden-shed", "old-fence"]);
+    expect(projects[0].openTaskCount).toBe(3);
+    expect(projects[0].nextTasks.map((task) => task.title)).toEqual([
+      "Get three quotes",
+      "Order shingles",
+      "Wait for the permit",
+    ]);
+    expect(projects[1].openTaskCount).toBe(0);
+  });
+
+  it("reads one project in full, and answers null for a slug nobody has", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    await asClaude(t, "record_project_status", { project: "garden-shed", note: "Slab poured." });
+    const owner = t.withIdentity({ subject: OWNER });
+
+    const page = await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW });
+    expect(page?.project.title).toBe("Garden Shed");
+    expect(page?.recentUpdates.map((update) => update.note)).toEqual(["Slab poured."]);
+    expect(await owner.query(api.viewer.project, { slug: "no-such-project", now: NOW })).toBeNull();
+  });
+
+  it("keeps both from anyone but the owner", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const stranger = t.withIdentity({ subject: "user_someone_else" });
+    expect(await refusal(t.query(api.viewer.board, { now: NOW }))).toBe("not_signed_in");
+    expect(await refusal(stranger.query(api.viewer.board, { now: NOW }))).toBe("account_not_authorized");
+    expect(await refusal(stranger.query(api.viewer.project, { slug: "garden-shed", now: NOW }))).toBe(
+      "account_not_authorized",
+    );
+  });
+});
+
+describe("the owner's changes from the web app", () => {
+  it("add, change and finish a task, logged with the owner as the actor", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const owner = t.withIdentity({ subject: OWNER });
+
+    expect(await owner.mutation(api.viewer.saveTask, { title: "Get three quotes", project: "garden-shed" })).toEqual({
+      created: true,
+      changed: true,
+    });
+    const page = await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW });
+    const task = page!.openTasks[0];
+    expect(task.title).toBe("Get three quotes");
+
+    await owner.mutation(api.viewer.saveTask, { id: task.id, dueAt: "2026-11-27" });
+    await owner.mutation(api.viewer.saveTask, { id: task.id, status: "done" });
+    const after = await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW });
+    expect(after!.openTasks).toHaveLength(0);
+    expect(after!.recentlyClosedTasks[0].due?.date).toBe("2026-11-27");
+
+    const { events } = await owner.query(api.viewer.activity, {});
+    expect(events.slice(0, 3).map((event) => event.by)).toEqual(["You", "You", "You"]);
+    expect(events[0].type).toBe("task.completed");
+
+    // What Claude reads at the start of its next session shows the owner's change.
+    const changes = (await asClaude(t, "get_changes_since", { since: "2026-11-01" })) as {
+      events: { by: string; type: string }[];
+    };
+    expect(changes.events.at(-1)).toMatchObject({ by: "You", type: "task.completed" });
+  });
+
+  it("change a project, and never make one from a slug nobody has", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const owner = t.withIdentity({ subject: OWNER });
+
+    expect(await owner.mutation(api.viewer.saveProject, { slug: "garden-shed", status: "paused", health: "at_risk" })).toEqual({
+      changed: true,
+    });
+    const page = await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW });
+    expect(page?.project.status).toBe("paused");
+    expect(page?.project.health).toBe("at_risk");
+
+    expect(await refusal(owner.mutation(api.viewer.saveProject, { slug: "no-such-project", title: "Ghost" }))).toBe(
+      "not_found",
+    );
+    expect((await owner.query(api.viewer.board, { now: NOW })).projects).toHaveLength(1);
+  });
+
+  it("are refused for anyone but the owner", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const stranger = t.withIdentity({ subject: "user_someone_else" });
+    expect(await refusal(t.mutation(api.viewer.saveTask, { title: "Sneak in" }))).toBe("not_signed_in");
+    expect(await refusal(stranger.mutation(api.viewer.saveTask, { title: "Sneak in" }))).toBe("account_not_authorized");
+    expect(await refusal(stranger.mutation(api.viewer.saveProject, { slug: "garden-shed", status: "archived" }))).toBe(
+      "account_not_authorized",
+    );
+    const owner = t.withIdentity({ subject: OWNER });
+    expect((await owner.query(api.viewer.activity, {})).events).toHaveLength(1);
+  });
+});

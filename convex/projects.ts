@@ -1,6 +1,6 @@
 import { actorLabel, type Actor } from "@skippy/shared";
 import { v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import {
   buildPatch,
@@ -278,51 +278,91 @@ export const createPhase = internalMutation({
   },
 });
 
+/** One project in full: details, notes, phases, tasks and the latest status reports. */
+export async function readProject(ctx: QueryCtx, args: { project: string; now: number }) {
+  const now = args.now;
+  const settings = await getSettings(ctx);
+  const project = await projectBySlug(ctx, args.project);
+  const phases = await ctx.db
+    .query("phases")
+    .withIndex("by_project", (q) => q.eq("projectId", project._id))
+    .collect();
+  const tasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_project", (q) => q.eq("projectId", project._id))
+    .collect();
+  const updates = await ctx.db
+    .query("projectUpdates")
+    .withIndex("by_project", (q) => q.eq("projectId", project._id))
+    .order("desc")
+    .take(5);
+  const open = tasks.filter((task) => task.status !== "done" && task.status !== "cancelled");
+  const closed = tasks
+    .filter((task) => task.status === "done" || task.status === "cancelled")
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  return {
+    project: { ...presentProject(project, settings, now), notesPad: project.notesPad },
+    phases: phases.map((phase) => ({
+      id: phase._id,
+      order: phase.order,
+      title: phase.title,
+      description: phase.description,
+      status: phase.status,
+    })),
+    openTasks: open.map((task) => presentTask(task, project.slug, settings.timeZone)),
+    recentlyClosedTasks: closed.slice(0, 10).map((task) => presentTask(task, project.slug, settings.timeZone)),
+    closedTaskCount: closed.length,
+    recentUpdates: updates.map((update) => ({
+      at: iso(update.at),
+      by: actorLabel(update.actor),
+      note: update.note,
+      health: update.health,
+      milestone: update.milestone,
+    })),
+  };
+}
+
 export const get = internalQuery({
   args: { project: v.string() },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const settings = await getSettings(ctx);
-    const project = await projectBySlug(ctx, args.project);
-    const phases = await ctx.db
-      .query("phases")
-      .withIndex("by_project", (q) => q.eq("projectId", project._id))
-      .collect();
+  handler: (ctx, args) => readProject(ctx, { project: args.project, now: Date.now() }),
+});
+
+const BOARD_ORDER = ["active", "idea", "paused", "completed", "archived"] as const;
+const OPEN_STATUSES = ["in_progress", "todo", "waiting"] as const;
+
+/** Every project, the live ones first, each with how much is open and what comes next. */
+export async function projectBoard(ctx: QueryCtx, args: { now: number }) {
+  const settings = await getSettings(ctx);
+  const projects = await ctx.db.query("projects").collect();
+  const open = new Map<Id<"projects">, Doc<"tasks">[]>();
+  for (const status of OPEN_STATUSES) {
     const tasks = await ctx.db
       .query("tasks")
-      .withIndex("by_project", (q) => q.eq("projectId", project._id))
+      .withIndex("by_status", (q) => q.eq("status", status))
       .collect();
-    const updates = await ctx.db
-      .query("projectUpdates")
-      .withIndex("by_project", (q) => q.eq("projectId", project._id))
-      .order("desc")
-      .take(5);
-    const open = tasks.filter((task) => task.status !== "done" && task.status !== "cancelled");
-    const closed = tasks
-      .filter((task) => task.status === "done" || task.status === "cancelled")
-      .sort((a, b) => b.updatedAt - a.updatedAt);
-    return {
-      project: { ...presentProject(project, settings, now), notesPad: project.notesPad },
-      phases: phases.map((phase) => ({
-        id: phase._id,
-        order: phase.order,
-        title: phase.title,
-        description: phase.description,
-        status: phase.status,
-      })),
-      openTasks: open.map((task) => presentTask(task, project.slug, settings.timeZone)),
-      recentlyClosedTasks: closed.slice(0, 10).map((task) => presentTask(task, project.slug, settings.timeZone)),
-      closedTaskCount: closed.length,
-      recentUpdates: updates.map((update) => ({
-        at: iso(update.at),
-        by: actorLabel(update.actor),
-        note: update.note,
-        health: update.health,
-        milestone: update.milestone,
-      })),
-    };
-  },
-});
+    for (const task of tasks) {
+      if (!task.projectId) continue;
+      open.set(task.projectId, [...(open.get(task.projectId) ?? []), task]);
+    }
+  }
+  // What to do next: work that can move first, then by deadline.
+  const next = (a: Doc<"tasks">, b: Doc<"tasks">) =>
+    Number(a.status === "waiting") - Number(b.status === "waiting") || (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity);
+  return {
+    projects: projects
+      .sort(
+        (a, b) => BOARD_ORDER.indexOf(a.status) - BOARD_ORDER.indexOf(b.status) || a.title.localeCompare(b.title),
+      )
+      .map((project) => {
+        const tasks = (open.get(project._id) ?? []).sort(next);
+        return {
+          ...presentProject(project, settings, args.now),
+          openTaskCount: tasks.length,
+          nextTasks: tasks.slice(0, 3).map((task) => presentTask(task, project.slug, settings.timeZone)),
+        };
+      }),
+  };
+}
 
 /** Projects by title. With no status given, every project that is not archived. */
 export async function listProjects(ctx: QueryCtx, args: { status?: Doc<"projects">["status"]; now: number }) {

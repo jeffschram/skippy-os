@@ -1,12 +1,19 @@
+import type { Actor } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
-import { query, type QueryCtx } from "./_generated/server";
-import { listProjects } from "./projects";
+import { internal } from "./_generated/api";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
+import { commitment, projectHealth, projectStatus, taskStatus } from "./schema";
 
 /**
- * What the web app reads for the person signed in to it. These are the only
- * public queries. Each one checks the sign-in itself: the owner gets data,
- * anyone else is refused, and nothing is ever created for them.
+ * What the web app reads and changes for the person signed in to it. These are
+ * the only public functions besides the gateway. Each one checks the sign-in
+ * itself: the owner gets data, anyone else is refused, and nothing is ever
+ * created for them.
+ *
+ * A change made here runs the same internal function an agent's tool runs, so
+ * the same rules apply and the activity log shows it, with the owner as the actor.
  *
  * Convex has already checked that the sign-in is a Clerk session for this app
  * (see `auth.config.ts`), so `subject` is a Clerk user ID that can be trusted.
@@ -18,7 +25,7 @@ import { readToday, recentActivity } from "./read";
 
 export type Viewer = "signed_out" | "not_owner" | "owner";
 
-async function whoIsLooking(ctx: QueryCtx): Promise<Viewer> {
+async function whoIsLooking(ctx: QueryCtx | MutationCtx): Promise<Viewer> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return "signed_out";
   const owner = process.env.SKIPPY_OWNER_CLERK_USER_ID;
@@ -27,7 +34,7 @@ async function whoIsLooking(ctx: QueryCtx): Promise<Viewer> {
   return identity.subject === owner ? "owner" : "not_owner";
 }
 
-async function requireOwner(ctx: QueryCtx): Promise<void> {
+async function requireOwner(ctx: QueryCtx | MutationCtx): Promise<void> {
   const viewer = await whoIsLooking(ctx);
   if (viewer === "signed_out") throw new ConvexError({ code: "not_signed_in" });
   if (viewer === "not_owner") throw new ConvexError({ code: "account_not_authorized" });
@@ -61,5 +68,73 @@ export const activity = query({
     await requireOwner(ctx);
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 20), 1), 100);
     return { events: await recentActivity(ctx, limit) };
+  },
+});
+
+/** Every project, archived ones included, for the projects board. */
+export const board = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    return await projectBoard(ctx, { now: args.now });
+  },
+});
+
+/** One project in full, or null when no project has that slug. */
+export const project = query({
+  args: { slug: v.string(), now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    try {
+      return await readProject(ctx, { project: args.slug, now: args.now });
+    } catch (error) {
+      if (error instanceof ConvexError && (error.data as { code?: unknown }).code === "not_found") return null;
+      throw error;
+    }
+  },
+});
+
+// Changes. The owner is the actor on each one.
+
+const OWNER: Actor = { kind: "user" };
+const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
+
+/** Adds a task, or changes one when `id` is given. Only the fields passed change; null clears one. */
+export const saveTask = mutation({
+  args: {
+    id: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: nullable(v.string()),
+    status: v.optional(taskStatus),
+    project: nullable(v.string()),
+    commitment: nullable(commitment),
+    dueAt: nullable(v.string()),
+    scheduledFor: nullable(v.string()),
+    waitingOn: nullable(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ created: boolean; changed: boolean }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.tasks.upsert, { actor: OWNER, ...args });
+    return { created: result.created, changed: result.changed };
+  },
+});
+
+/** Changes a project. Only the fields passed change; null clears one. */
+export const saveProject = mutation({
+  args: {
+    slug: v.string(),
+    title: v.optional(v.string()),
+    summary: nullable(v.string()),
+    status: v.optional(projectStatus),
+    health: nullable(projectHealth),
+    targetDate: nullable(v.string()),
+    notesPad: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ changed: boolean }> => {
+    await requireOwner(ctx);
+    // The slug must name a project that exists: the page never creates one by accident.
+    await readProject(ctx, { project: args.slug, now: Date.now() });
+    const result = await ctx.runMutation(internal.projects.upsert, { actor: OWNER, ...args });
+    return { changed: result.changed };
   },
 });
