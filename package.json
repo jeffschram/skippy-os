@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @skippy/web dev",
+    "dev:live": "CONVEX_URL=https://elated-meerkat-158.convex.cloud NEXT_PUBLIC_SKIPPY_DATA=live pnpm --filter @skippy/web dev",
     "dev:convex": "convex dev",
     "build": "pnpm --filter @skippy/web build",
     "typecheck": "pnpm -r typecheck && tsc -p convex/tsconfig.json --noEmit",
