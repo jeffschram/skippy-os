@@ -133,6 +133,8 @@ export const upsert = internalMutation({
     /** Addresses and numbers to take off the person. Only with an id. */
     removeEmails: v.optional(v.array(v.string())),
     removePhoneNumbers: v.optional(v.array(v.string())),
+    /** True when this is a different person who shares a name with one on file. */
+    separate: v.optional(v.boolean()),
     company: nullable(v.string()),
     roleTitle: nullable(v.string()),
     relationshipContext: nullable(v.string()),
@@ -180,6 +182,19 @@ export const upsert = internalMutation({
     } else if (known.length === 1) {
       existing = await ctx.db.get(known[0]);
       matchedByHandle = true;
+    } else if (args.name !== undefined && args.name.trim() !== "" && (emails.length > 0 || phones.length > 0) && !args.separate) {
+      // One person, several addresses: the same person arrives as an email
+      // address in mail and as a phone number in messages. A new address under
+      // a name that exactly one person on file has is added to that person,
+      // not made into a second one.
+      const sameName = await ctx.db
+        .query("people")
+        .withIndex("by_name_key", (q) => q.eq("nameKey", args.name!.trim().toLowerCase()))
+        .take(2);
+      if (sameName.length === 1) {
+        existing = sameName[0];
+        matchedByHandle = true;
+      }
     }
 
     if (args.birthday && !BIRTHDAY.test(args.birthday.trim())) {
@@ -242,7 +257,7 @@ export const upsert = internalMutation({
     }
 
     const newName = requireText(args.name, "name");
-    if (emails.length === 0 && phones.length === 0) {
+    if (emails.length === 0 && phones.length === 0 && !args.separate) {
       const sameName = await ctx.db
         .query("people")
         .withIndex("by_name_key", (q) => q.eq("nameKey", newName.toLowerCase()))
@@ -250,7 +265,7 @@ export const upsert = internalMutation({
       if (sameName.length > 0) {
         throw refuse(
           "person_exists",
-          `There is already a person named "${newName}" (id ${sameName.map((row) => row._id).join(", ")}). Pass that id to update them, or include an email or phone number to add a different person with the same name.`,
+          `There is already a person named "${newName}" (id ${sameName.map((row) => row._id).join(", ")}). Pass that id to update them. If this is a different person with the same name, pass separate: true.`,
         );
       }
     }

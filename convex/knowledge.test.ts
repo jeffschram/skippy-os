@@ -117,7 +117,10 @@ describe("people", () => {
     const t = start();
     await call(t, "upsert_person", { name: "John Smith" });
     expect(await refusal(call(t, "upsert_person", { name: "john smith" }))).toBe("person_exists");
-    const other = await call(t, "upsert_person", { name: "John Smith", emails: ["john@other.example"] });
+    // An address under that name belongs to the John Smith on file, unless he is said to be someone else.
+    const same = await call(t, "upsert_person", { name: "John Smith", emails: ["john@example.com"] });
+    expect(same.created).toBe(false);
+    const other = await call(t, "upsert_person", { name: "John Smith", emails: ["john@other.example"], separate: true });
     expect(other.created).toBe(true);
     expect(await count(t, "people")).toBe(2);
   });

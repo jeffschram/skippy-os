@@ -633,3 +633,27 @@ describe("areas", () => {
     ]);
   });
 });
+
+describe("one person, several addresses", () => {
+  it("adds a new address under a known name to that person, unless told it is someone else", async () => {
+    const t = start();
+    type Saved = { created: boolean; person: { id: string; emails: string[]; phoneNumbers: string[] } };
+    const first = (await asClaude(t, "upsert_person", { name: "Marco Rossi", emails: ["marco@example.com"] })) as Saved;
+    expect(first.created).toBe(true);
+    // The same person turns up in messages as a phone number.
+    const second = (await asClaude(t, "upsert_person", { name: "marco rossi", phoneNumbers: ["+1 203 555 0100"] })) as Saved;
+    expect(second.created).toBe(false);
+    expect(second.person.id).toBe(first.person.id);
+    expect(second.person.emails).toEqual(["marco@example.com"]);
+    expect(second.person.phoneNumbers).toHaveLength(1);
+
+    // A namesake is a second person only when said to be.
+    const other = (await asClaude(t, "upsert_person", { name: "Marco Rossi", emails: ["other.marco@example.com"], separate: true })) as Saved;
+    expect(other.created).toBe(true);
+    expect(other.person.id).not.toBe(first.person.id);
+    // With two people of that name, a third address cannot be guessed onto either.
+    const third = (await asClaude(t, "upsert_person", { name: "Marco Rossi", emails: ["third@example.com"] })) as Saved;
+    expect(third.created).toBe(true);
+    expect(await t.run(async (ctx) => (await ctx.db.query("people").collect()).length)).toBe(3);
+  });
+});

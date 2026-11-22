@@ -233,6 +233,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       name: z.string().max(200).optional().describe("Their full name. Required for a new person."),
       emails: z.array(z.string().max(320)).max(20).optional().describe("Email addresses to add."),
       phoneNumbers: z.array(z.string().max(40)).max(20).optional().describe("Phone numbers to add."),
+      separate: z.boolean().optional().describe("Without an id, a new address or number under a name that exactly one person on file has is added to that person. Set this to true only when it is a different person who shares the name."),
       removeEmails: z.array(z.string().max(320)).max(20).optional().describe("Email addresses to take off this person, when one is wrong. Needs id."),
       removePhoneNumbers: z.array(z.string().max(40)).max(20).optional().describe("Phone numbers to take off this person, when one is wrong. Needs id."),
       company: clearable(z.string().max(200)).describe(

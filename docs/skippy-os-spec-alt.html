@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.57 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 built and in its week of use; Phase 4 built: Memory, capture and the inbox, events and recurrences, files, and the rest of the import, with the import retired; waiting on the owner's use; Phase 5 built: ingestion from Calendar, Gmail and Messages on a schedule, the briefing, notifications and the installable app; its seven-day unattended test is running; Phase 6 built: dashboard chats with promotion cards, chat on any record, Continue in Claude, and the chat runner installed on the mini; Phase 7 built: the nightly sweep and the weekly review, run by hand and waiting to be installed; the site and the MCP live at <code>www.skippyos.app</code> · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.58 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 built and in its week of use; Phase 4 built: Memory, capture and the inbox, events and recurrences, files, and the rest of the import, with the import retired; waiting on the owner's use; Phase 5 built: ingestion from Calendar, Gmail and Messages on a schedule, the briefing, notifications and the installable app; its seven-day unattended test is running; Phase 6 built: dashboard chats with promotion cards, chat on any record, Continue in Claude, and the chat runner installed on the mini; Phase 7 built: the nightly sweep and the weekly review, run by hand and waiting to be installed; the site and the MCP live at <code>www.skippyos.app</code>; the gaps between the spec and the build are closed, and what is left is use, the owner's own tests and the steps listed after Phase 7 · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -458,7 +458,7 @@
     <li><strong>Status:</strong> <code>record_project_status</code>, <code>get_project</code>, <code>list_projects</code></li>
     <li><strong>Records:</strong> <code>upsert_task</code>, <code>complete_task</code>, <code>upsert_project</code>, <code>create_phase</code>, <code>update_phase</code>, <code>upsert_person</code>, <code>upsert_knowledge</code>, <code>upsert_event</code>, <code>upsert_recurrence</code>, <code>complete_recurrence</code>, <code>link_entities</code></li>
     <li><strong>Capture &amp; ingest:</strong> <code>capture</code>, <code>list_captures</code>, <code>resolve_capture</code>, <code>get_importance_rubric</code> (the rubric, the rules, the block list and every cursor), <code>record_ingestion_run</code>, <code>sync_calendar</code>, <code>ingest_objects</code>, <code>advance_source_cursor</code>, <code>record_briefing</code></li>
-    <li><strong>Read:</strong> <code>search</code>, <code>get_context_bundle</code>, <code>get_today</code>, <code>get_agenda</code>, <code>get_changes_since</code>, <code>get_skill</code> (the text of <code>skippy-status</code> or <code>skippy-capture</code>, for a client with no plugin loaded)</li>
+    <li><strong>Read:</strong> <code>search</code>, <code>get_context_bundle</code>, <code>get_today</code>, <code>get_agenda</code>, <code>get_changes_since</code>, <code>list_goals</code>, <code>get_skill</code> (the text of any Skippy skill, for a client with no plugin loaded)</li>
     <li><strong>Web chat only:</strong> <code>propose_promotion</code></li>
   </ul>
   <p><strong>Who can use which tools:</strong></p>
@@ -690,7 +690,7 @@
   <ul>
     <li><strong>Renamed (2026-11-22):</strong> the Brain is now Memory, at the owner's request: the page, its address and the navigation. "Memory" is the whole section; a "memory" is still one of the six kinds of thing saved in it, shown in the Memories section.</li>
     <li><strong>The Memory page (2026-11-22):</strong> <code>/memory</code> and <code>/memory/[section]</code>, with sections Everything, Notes, Links, Memories, Decisions, Principles, Questions, People, Companies and Goals. What is saved is listed most recently changed first, thirty at a time, with the archived behind a switch. A search box searches the section; on Everything it searches all Skippy holds, tasks and projects included. Search still matches words, not meaning.</li>
-    <li><strong>Details for anything in Memory:</strong> a title opens the record over the current page, at <code>?item=&lt;type&gt;:&lt;id&gt;</code>. A note, link, memory, decision, principle or question can be edited, re-kinded, archived and restored. A person's details, company and notes can be changed and an email or number added (not yet removed). A company can be edited. A goal is read-only for now. Below each: what it is linked to, where it came from, and its history.</li>
+    <li><strong>Details for anything in Memory:</strong> a title opens the record over the current page, at <code>?item=&lt;type&gt;:&lt;id&gt;</code>. A note, link, memory, decision, principle or question can be edited, re-kinded, archived and restored. A person's details, company and notes can be changed and an email or number added or taken off. A company and a goal can be edited. Below each: what it is linked to, where it came from, and its history.</li>
     <li><strong>Adding from the page:</strong> a short form saves something new of any kind, and a person can be added by name. Every change runs the same internal function an agent's tool runs, with the owner as the actor.</li>
     <li><strong>Capture (2026-11-22):</strong> a box at the top of Home saves on Enter and says nothing back. Text that is only a web address is kept as a link. What is captured waits in the inbox as "pending" until it is filed. The same <code>capture</code> tool lets any chat drop something in.</li>
     <li><strong>The inbox:</strong> a panel on Home lists what is waiting, oldest first. The owner files each one with one click as a task, note, memory or link, or discards it. Claude does the same through <code>list_captures</code> and <code>resolve_capture</code>, following the <code>skippy-capture</code> skill (plugin 0.1.4): save the right record, then say what the capture became. Ingestion will pick up the inbox in Phase 5.</li>
@@ -776,8 +776,8 @@
     <li><strong>How iMessage is read.</strong> Decided 2026-11-22, differently from what was proposed. The scheduled pass does not read the Messages database itself, and the Claude app is not given Full Disk Access: the pass reads untrusted mail unattended, and that access would open every file on the mini to it. A small exporter with its own Full Disk Access writes a transcript, and the pass reads only that file and runs no commands. The model still judges all three sources in one pass, which was the point of the proposal.</li>
     <li><strong>Whether the scheduled task holds up.</strong> Answered 2026-11-22: as a scheduled task in the Claude desktop app, no, because its sessions get an old list of the connector's tools. As a launch agent running the command-line Claude, it ran cleanly by hand; the seven-day test is of that.</li>
     <li><strong>When a draft reply is prepared.</strong> Drafts are allowed, but which asks deserve one is not decided. Start with none and decide after a week of real runs. <span class="tag open">Open</span></li>
-    <li><strong>One person, several addresses.</strong> The same person arrives as an email address in Gmail and a phone number in Messages. Matching them is borrowed from the old project's identity matching, and needs checking against real data. <span class="tag open">Open</span></li>
-    <li><strong>Undo after an edit.</strong> If I have changed a record since ingestion made it, undo should ask before removing it. <span class="tag open">Open</span></li>
+    <li><strong>One person, several addresses.</strong> The same person arrives as an email address in Gmail and a phone number in Messages. Decided 2026-11-22: a person is found first by any address or number on file; failing that, a new address under a name that exactly one person has is added to that person. A namesake is made a second person only with <code>separate: true</code>. The live data had 21 people, all imported, and no doubles when this was checked. <span class="tag new">decided</span></li>
+    <li><strong>Undo after an edit.</strong> Built: undoing a record the owner has changed since asks first, then deletes on a second click. <span class="tag new">decided</span></li>
   </ul>
   <p><strong>Done when:</strong> for seven days in a row all six passes run on time and the 9am briefing arrives by push; each source's cursor has advanced with no gaps; re-running a pass creates no duplicates; every record ingestion made shows where it came from; an undo removes the record, and a reason given with it changes what the next run does; and nothing was sent or answered without my approval.</p>
 </details>
@@ -830,13 +830,43 @@
   </ul>
 </details>
 
+<details open>
+  <summary>After Phase 7: closing the gaps, and what is left</summary>
+  <p>On 2026-11-22 the spec was read against the build from end to end, and what the spec promised and the build lacked was added.</p>
+  <h4>Added</h4>
+  <ul>
+    <li><strong>Needs you, on Home:</strong> a short list under the briefing of what will not move until the owner does something: an active project that is blocked or at risk, with its latest report; an active project gone quiet, with a button to pause it; an ingestion pass that failed in the last day; and the Mac mini not having checked in for five minutes. Worked out from what is stored, with no model. It is not shown when empty. Tasks are left to Today, which already lists the overdue and the waiting.</li>
+    <li><strong>Areas:</strong> the imported tasks and recurrences carried an area (Household, Work and so on) that nothing showed. A task or a recurrence can now sit in one, set on its details view, and the Agenda can be narrowed to an area. Areas are the owner's list, managed in Settings: add, rename, reorder, remove (what sat in a removed area stays, with no area). Agents set an area by name with <code>upsert_task</code> and <code>upsert_recurrence</code>; a name that is not on the list is refused with the list. Projects and goals have no area for now.</li>
+    <li><strong>Settings:</strong> beside the time zone, the stale threshold, notifications and the ingestion rules, it now has Areas; Mac mini (whether the chat runner is answering, its version, and when ingestion, the briefing, the weekly review and the nightly sweep last did something); and Connections (the address a new client is given, and each client that has written, with when).</li>
+    <li><strong>Activity:</strong> an "Ingestion passes" view lists every pass, with what it read from each source, how much it made and the note it left. Home shows only passes that made something or went wrong.</li>
+    <li><strong>The planning skill:</strong> <code>skippy-plan-project</code>, in the plugin (0.4.0) and served by <code>get_skill</code>. It turns a brief into two to five phases and the tasks of the phase that is starting, shows the plan before saving it, and never doubles a phase or a task that exists.</li>
+    <li><strong>Cards in any order:</strong> tasks, events and notes a chat made before its project card was accepted join the project when it is created.</li>
+    <li><strong>The local site:</strong> <code>pnpm dev</code> runs on the test database and says so; <code>pnpm dev:live</code> runs the local pages on the live data.</li>
+  </ul>
+  <h4>Left out on purpose</h4>
+  <ul>
+    <li><strong>Project and area on a card.</strong> §5.2 lists them as fields a card can change. A card shows a title and, for a task, a due date; the owner asked for less on the cards, and a task joins the chat's project by itself.</li>
+    <li><strong>Meaning-based search</strong> waits until word search is seen to miss something.</li>
+    <li><strong>Draft replies</strong> from ingestion wait for a week of real runs.</li>
+    <li><strong>Agents reading a file's contents</strong> waits for a decided way to do it.</li>
+    <li><strong>The visual style round</strong> is its own piece of work, kept apart from this build.</li>
+  </ul>
+  <h4>Left, and whose it is</h4>
+  <ul>
+    <li><strong>Time:</strong> the seven-day unattended test of Phase 5. The first unattended pass ran at 5pm on 2026-11-22.</li>
+    <li><strong>The owner's own tests:</strong> an idea becoming a project with two tasks from the phone (begun on 2026-11-22 with the Florida Christmas chat); Continue in Claude; a file uploaded through the browser; an undo with a reason, and the rule it leaves; a change made on the dashboard being picked up by Claude's next session; and the plugin's skills inside a Claude Project chat on iOS.</li>
+    <li><strong>Other clients (Phase 0):</strong> Claude desktop, ChatGPT and Codex have not been connected, and token refresh has only been seen to work in passing (connectors stayed connected across days). The negative checks are covered by tests and, for a made-up token, on the live site.</li>
+    <li><strong>Clerk production instance:</strong> the steps are in <code>docs/clerk-production.md</code>. It needs the owner's hands and costs every client one more sign-in, so it is best done before another client is connected.</li>
+  </ul>
+</details>
+
 <!-- ============================================================ -->
 <h2 id="open">12. Open questions</h2>
 <details open>
   <summary>To discuss next</summary>
   <ol>
     <li>The fallback if Clerk can't pass the Phase 0 OAuth test</li>
-    <li>When to move Clerk to a production instance. The address moved to <code>skippyos.app</code> on 2026-11-22 with Clerk left as a development instance. A production instance means new keys, DNS records for Clerk, a new owner account and every client signing in again, so it is best done before ChatGPT and Codex are connected.</li>
+    <li>When to move Clerk to a production instance. The steps and what it costs are in <code>docs/clerk-production.md</code>: every client signs in again, the owner gets a new user id, and the local site can no longer run on live data. Best done before ChatGPT and Codex are connected.</li>
     <li>Deep links: can "Open in Claude" go straight to a Project on iOS?</li>
     <li>Do skills from a plugin on the claude.ai account work inside Claude Project chats on iOS? And does a synced Code tab session load the plugin twice?</li>
   </ol>
@@ -894,6 +924,12 @@
     <tr><td>2026-11-21</td><td>From here on, Claude takes its own recommendation at preference points and records the choice here, instead of asking</td></tr>
     <tr><td>2026-11-21</td><td>Phase 3 builds the plugin first, then the dashboard pages</td></tr>
     <tr><td>2026-11-21</td><td>The plugin holds skills only. The MCP connection comes from the "Skippy OS" connector on the claude.ai account.</td></tr>
+    <tr><td>2026-11-22</td><td>"Needs you" on Home lists projects, a failed pass and the mini being away, not tasks: Today already lists the overdue and the waiting, and one thing should not be said twice on one page.</td></tr>
+    <tr><td>2026-11-22</td><td>Areas belong to tasks and recurrences, where the imported data has them. They are the owner's list: an agent sets one by name and cannot add one.</td></tr>
+    <tr><td>2026-11-22</td><td>A new address or number under a name that exactly one person has is added to that person. A namesake needs <code>separate: true</code>. This changes the earlier rule, under which any new address made a second person.</td></tr>
+    <tr><td>2026-11-22</td><td>Cards keep to a title and a due date. The project and area fields of §5.2 are left out.</td></tr>
+    <tr><td>2026-11-22</td><td>Settings lists the clients that have written, from the activity log. A client that only reads is not listed, because reads are not recorded.</td></tr>
+    <tr><td>2026-11-22</td><td>Clerk stays on its development instance until the owner chooses the day; the move is written up in <code>docs/clerk-production.md</code>.</td></tr>
     <tr><td>2026-11-22</td><td>In a chat, the order the cards are accepted in does not matter. When the project card is accepted, the tasks, events and notes the chat already made join the project, unless a task was put in another project. The cards do not say so; the owner asked for that line to be removed.</td></tr>
     <tr><td>2026-11-22</td><td>The local site can also run on the live data (<code>pnpm dev:live</code>), at the owner's request. It is labelled "Local page, live data" in red. Its page code is local, but the Convex functions it calls are the deployed ones, and its own MCP endpoint cannot write to the live data.</td></tr>
     <tr><td>2026-11-22</td><td>The site run on this computer is labelled "Test copy" in its header. It uses the development database, which the Mac mini's chat runner does not serve, and a chat there says so instead of waiting.</td></tr>
