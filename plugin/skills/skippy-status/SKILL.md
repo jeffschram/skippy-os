@@ -1,6 +1,6 @@
 ---
 name: skippy-status
-description: Use in any session whose project instructions or CLAUDE.md contain a line "Skippy project: <slug>". Says when and how to report project status and tasks to Skippy OS, and how to pick up what the owner changed there. Load it at the start of work on such a project, before the first substantial step.
+description: 'Use when project instructions or CLAUDE.md contain a "Skippy project:" line. Says when and how to report project status and tasks to Skippy OS. Load it before the first substantial step.'
 ---
 
 # Reporting to Skippy OS
