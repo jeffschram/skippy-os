@@ -15,6 +15,7 @@ import { presentCompany, presentPerson } from "./people";
 import { presentProject } from "./projects";
 import { entityType, searchableType } from "./schema";
 import { presentTask } from "./tasks";
+import { areaNames } from "./lib/areas";
 
 /** Read operations that cut across record types. Internal, run through `gateway.call`. */
 
@@ -23,6 +24,7 @@ const OPEN = ["todo", "in_progress", "waiting"] as const;
 /** Open tasks that need attention on one day: overdue, due, planned and waiting. */
 export async function readToday(ctx: QueryCtx, args: { date?: string; now: number }) {
   const settings = await getSettings(ctx);
+  const areas = await areaNames(ctx);
   const date = args.date?.trim() || localDate(args.now, settings.timeZone);
   let bounds: { start: number; end: number };
   try {
@@ -47,7 +49,7 @@ export async function readToday(ctx: QueryCtx, args: { date?: string; now: numbe
     if (task.projectId && !slugs.has(task.projectId)) {
       slugs.set(task.projectId, (await ctx.db.get(task.projectId))?.slug);
     }
-    return presentTask(task, task.projectId ? slugs.get(task.projectId) : undefined, settings.timeZone);
+    return presentTask(task, task.projectId ? slugs.get(task.projectId) : undefined, settings.timeZone, areas);
   };
   const byDue = (a: Doc<"tasks">, b: Doc<"tasks">) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity);
 
@@ -175,6 +177,7 @@ export const search = internalQuery({
 /** The record itself, in the same shape the tool that writes it returns. */
 async function presentRecord(ctx: QueryCtx, entity: Found, now: number) {
   const settings = await getSettings(ctx);
+  const areas = await areaNames(ctx);
   const { entityType: type, entityId } = entity.ref;
   switch (type) {
     case "project": {
@@ -184,7 +187,7 @@ async function presentRecord(ctx: QueryCtx, entity: Found, now: number) {
     case "task": {
       const doc = (await ctx.db.get(entityId as Id<"tasks">))!;
       const slug = doc.projectId ? (await ctx.db.get(doc.projectId))?.slug : undefined;
-      return presentTask(doc, slug, settings.timeZone);
+      return presentTask(doc, slug, settings.timeZone, areas);
     }
     case "person":
       return await presentPerson(ctx, (await ctx.db.get(entityId as Id<"people">))!, settings.timeZone);
@@ -198,7 +201,7 @@ async function presentRecord(ctx: QueryCtx, entity: Found, now: number) {
       return presentEvent(doc, slug, settings.timeZone);
     }
     case "recurrence":
-      return presentRecurrence((await ctx.db.get(entityId as Id<"recurrences">))!, localDate(now, settings.timeZone));
+      return presentRecurrence((await ctx.db.get(entityId as Id<"recurrences">))!, localDate(now, settings.timeZone), areas);
     case "goal":
       return presentGoal((await ctx.db.get(entityId as Id<"goals">))!);
     default:

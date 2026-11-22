@@ -560,6 +560,8 @@ function RecurrenceForm({ item, onClose }: { item: RecurrenceItem; onClose: () =
   const [lead, setLead] = useState(String(item.leadTimeDays));
   const [nextDue, setNextDue] = useState(item.nextDue);
   const [status, setStatus] = useState(item.status);
+  const [area, setArea] = useState(item.area ?? "");
+  const areas = useQuery(api.viewer.areas, {})?.areas ?? [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -574,6 +576,7 @@ function RecurrenceForm({ item, onClose }: { item: RecurrenceItem; onClose: () =
     if (Number(lead) !== item.leadTimeDays) changes.leadTimeDays = Number(lead) || 0;
     if (nextDue !== item.nextDue) changes.nextDue = nextDue;
     if (status !== item.status) changes.status = status;
+    if (area !== (item.area ?? "")) changes.area = area || null;
     if (Object.keys(changes).length === 1) return onClose();
     setBusy(true);
     setError(undefined);
@@ -620,6 +623,19 @@ function RecurrenceForm({ item, onClose }: { item: RecurrenceItem; onClose: () =
             <option value="retired">retired</option>
           </select>
         </label>
+        {areas.length > 0 ? (
+          <label className="block text-sm">
+            Area
+            <select value={area} onChange={(change) => setArea(change.target.value)} className={`mt-1 ${field}`}>
+              <option value="">No area</option>
+              {areas.map((entry) => (
+                <option key={entry.id} value={entry.name}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <label className="block text-sm">
         Details

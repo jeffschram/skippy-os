@@ -49,6 +49,50 @@ async function refusal(run: Promise<unknown>): Promise<string> {
   return "accepted";
 }
 
+describe("what needs the owner", () => {
+  it("lists blocked, at-risk and quiet projects, a failed pass and a silent mini, and nothing else", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    expect(await refusal(t.query(api.viewer.needsYou, { now: NOW }))).toBe("not_signed_in");
+    expect(await owner.query(api.viewer.needsYou, { now: NOW })).toEqual({ items: [] });
+
+    for (const title of ["Kitchen", "Taxes", "Portfolio", "Garden", "Attic"]) await owner.mutation(api.viewer.createProject, { title });
+    await asClaude(t, "record_project_status", { project: "kitchen", note: "Waiting on the countertop quote.", health: "blocked" });
+    await asClaude(t, "record_project_status", { project: "taxes", note: "The Q4 payment is close.", health: "at_risk" });
+    await asClaude(t, "record_project_status", { project: "garden", note: "Beds are dug.", health: "on_track" });
+    // A paused project is nobody's worry, however long it has been quiet.
+    await owner.mutation(api.viewer.saveProject, { slug: "attic", status: "paused" });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("ingestionRuns", { startedAt: NOW - 3_600_000, status: "failed", pass: "11am", actor: { kind: "user" }, sources: [], note: "The connector needed a sign-in." });
+      await ctx.db.insert("agentHosts", { host: "mini", lastSeenAt: NOW - 20 * 60_000 });
+    });
+
+    // Eight days on: nothing has been reported, so the active ones with no trouble have gone quiet.
+    const later = NOW + 8 * 24 * 3_600_000 + 3_600_000;
+    const { items } = await owner.query(api.viewer.needsYou, { now: later });
+    expect(items.map((item) => [item.kind, "slug" in item ? item.slug : undefined])).toEqual([
+      ["project_health", "kitchen"],
+      ["project_health", "taxes"],
+      ["project_quiet", "garden"],
+      ["project_quiet", "portfolio"],
+      ["mini_away", undefined],
+    ]);
+    expect(items[0]).toMatchObject({ health: "blocked", note: "Waiting on the countertop quote." });
+    expect(items[2]).toMatchObject({ days: 8 });
+    expect(items[3]).not.toHaveProperty("days");
+
+    // The same day, the failed pass is there too; a later pass that works clears it.
+    const sameDay = (await owner.query(api.viewer.needsYou, { now: NOW })).items;
+    expect(sameDay.map((item) => item.kind)).toEqual(["project_health", "project_health", "pass_failed", "mini_away"]);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("ingestionRuns", { startedAt: NOW - 60_000, status: "finished", pass: "1pm", actor: { kind: "user" }, sources: [] });
+      const host = (await ctx.db.query("agentHosts").collect())[0];
+      await ctx.db.patch(host._id, { lastSeenAt: NOW - 30_000 });
+    });
+    expect((await owner.query(api.viewer.needsYou, { now: NOW })).items.map((item) => item.kind)).toEqual(["project_health", "project_health"]);
+  });
+});
+
 describe("the web app's queries", () => {
   it("give nothing to someone who is not signed in", async () => {
     const t = start();
@@ -549,5 +593,43 @@ describe("a capture made about a record", () => {
     expect(details!.links.map((link) => [link.relation, link.record.title])).toEqual([["related_to", "Garden Shed"]]);
     const { events } = await owner.query(api.viewer.activityLog, { who: "agents" });
     expect(events[0].summary).toBe('Captured "Check the permit rules" for project "Garden Shed"');
+  });
+});
+
+describe("areas", () => {
+  it("are the owner's list: added, renamed, ordered and removed, and set on a task or a recurrence by name", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    expect(await refusal(t.query(api.viewer.areas, {}))).toBe("not_signed_in");
+    const { id: home } = await owner.mutation(api.viewer.saveArea, { name: "Household" });
+    const { id: work } = await owner.mutation(api.viewer.saveArea, { name: "Work" });
+    expect(await refusal(owner.mutation(api.viewer.saveArea, { name: "household" }))).toBe("invalid_arguments");
+    await owner.mutation(api.viewer.saveArea, { id: work, name: "Studio" });
+    await owner.mutation(api.viewer.moveArea, { id: work, direction: "up" });
+    expect((await owner.query(api.viewer.areas, {})).areas.map((area) => area.name)).toEqual(["Studio", "Household"]);
+
+    // The owner sets it on the dashboard, and Claude by name; a name that is not on the list is refused with the list.
+    await owner.mutation(api.viewer.saveTask, { title: "Fix the gutter", area: "Household" });
+    const made = (await asClaude(t, "upsert_task", { title: "Send the invoice", area: "studio" })) as { task: { id: string; area?: string } };
+    expect(made.task.area).toBe("Studio");
+    await asClaude(t, "upsert_recurrence", { title: "Change the furnace filter", rule: { kind: "interval", everyDays: 90 }, area: "Household" });
+    const wrong = await asClaude(t, "upsert_task", { title: "Nope", area: "Garden" }).catch((error: ConvexError<{ message: string }>) => error.data.message);
+    expect(wrong).toContain("The areas are: Studio, Household.");
+    expect((await owner.query(api.viewer.areas, {})).areas).toMatchObject([
+      { name: "Studio", openTasks: 1, recurrences: 0 },
+      { name: "Household", openTasks: 1, recurrences: 1 },
+    ]);
+    const today = (await asClaude(t, "get_today", {})) as { recurrences: { area?: string }[] };
+    expect(today.recurrences[0].area).toBe("Household");
+
+    // Clearing it, and removing an area: the records stay.
+    await asClaude(t, "upsert_task", { id: made.task.id, area: null });
+    expect(await owner.mutation(api.viewer.removeArea, { id: home })).toEqual({ cleared: 2 });
+    expect((await owner.query(api.viewer.areas, {})).areas).toMatchObject([{ name: "Studio", openTasks: 0 }]);
+    const tasks = await t.run((ctx) => ctx.db.query("tasks").collect());
+    expect(tasks.map((task) => [task.title, task.areaId]).sort()).toEqual([
+      ["Fix the gutter", undefined],
+      ["Send the invoice", undefined],
+    ]);
   });
 });

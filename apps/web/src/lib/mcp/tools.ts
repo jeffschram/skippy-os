@@ -204,6 +204,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
         .optional()
         .describe('Defaults to "todo". Use "waiting" with waitingOn when it depends on someone else.'),
       project: clearable(projectSlug),
+      area: clearable(z.string().max(60)).describe('The area of life it belongs to, by name, such as "Household". Areas are the owner\'s list: a name that is not on it is refused, and the refusal lists the names.'),
       phaseId: clearable(z.string()).describe("A phase of the same project, from get_project."),
       commitment: clearable(z.enum(["must", "want"])).describe('"must" when it has to happen, "want" when it is optional.'),
       dueAt: clearable(when("The deadline.")),
@@ -548,6 +549,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       leadTimeDays: clearable(z.number().int().min(0).max(365)).describe("How many days before it is due it starts to show under Today."),
       status: z.enum(["active", "paused", "retired"]).optional(),
       nextDue: z.string().optional().describe("The day it next falls due, like 2026-12-01. Defaults to the rule's next day."),
+      area: clearable(z.string().max(60)).describe('The area of life it belongs to, by name, such as "Household". A name that is not on the owner\'s list is refused, and the refusal lists the names.'),
     },
     kind: "write",
     idempotent: true,

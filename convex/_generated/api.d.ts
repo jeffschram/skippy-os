@@ -9,6 +9,7 @@
  */
 
 import type * as agenda from "../agenda.js";
+import type * as areas from "../areas.js";
 import type * as briefing from "../briefing.js";
 import type * as captures from "../captures.js";
 import type * as chats from "../chats.js";
@@ -18,6 +19,7 @@ import type * as gateway from "../gateway.js";
 import type * as goals from "../goals.js";
 import type * as ingestion from "../ingestion.js";
 import type * as knowledge from "../knowledge.js";
+import type * as lib_areas from "../lib/areas.js";
 import type * as lib_common from "../lib/common.js";
 import type * as lib_entities from "../lib/entities.js";
 import type * as lib_links from "../lib/links.js";
@@ -46,6 +48,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agenda: typeof agenda;
+  areas: typeof areas;
   briefing: typeof briefing;
   captures: typeof captures;
   chats: typeof chats;
@@ -55,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   goals: typeof goals;
   ingestion: typeof ingestion;
   knowledge: typeof knowledge;
+  "lib/areas": typeof lib_areas;
   "lib/common": typeof lib_common;
   "lib/entities": typeof lib_entities;
   "lib/links": typeof lib_links;

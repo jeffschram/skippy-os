@@ -29,6 +29,7 @@ const VIEWS = [
 ] as const;
 type View = (typeof VIEWS)[number]["key"];
 const NO_PROJECT = "(none)";
+const NO_AREA = "(none)";
 
 /** A choice kept in this browser. It is a convenience: the page works the same without it. */
 function useRemembered<T extends string>(key: string, initial: T): [T, (value: T) => void] {
@@ -74,6 +75,7 @@ function Days() {
   const whole = useQuery(api.viewer.calendar, { now });
   const [storedView, setView] = useRemembered<View>("skippy.agenda.view", "schedule");
   const [project, setProject] = useRemembered<string>("skippy.agenda.project", "");
+  const [area, setArea] = useRemembered<string>("skippy.agenda.area", "");
   if (all === undefined || whole === undefined) return <Quiet>Loading…</Quiet>;
   const view = VIEWS.some((item) => item.key === storedView) ? storedView : "schedule";
   const today = all.today;
@@ -82,12 +84,17 @@ function Days() {
   const projects = [...new Set(all.tasks.map((task) => task.project).filter((slug): slug is string => Boolean(slug)))].sort();
   const chosen = project === NO_PROJECT || projects.includes(project) ? project : "";
   const inProject = (slug: string | undefined) => chosen === "" || (chosen === NO_PROJECT ? !slug : slug === chosen);
-  const data = { ...all, tasks: all.tasks.filter((task) => inProject(task.project)) };
+  // The areas that have something in them, for the second filter.
+  const areas = [...new Set([...all.tasks, ...whole.recurrences].map((item) => item.area).filter((name): name is string => Boolean(name)))].sort();
+  const chosenArea = area === NO_AREA || areas.includes(area) ? area : "";
+  const inArea = (name: string | undefined) => chosenArea === "" || (chosenArea === NO_AREA ? !name : name === chosenArea);
+  const data = { ...all, tasks: all.tasks.filter((task) => inProject(task.project) && inArea(task.area)) };
   // Recurrences belong to no project, so they show only when no project is picked.
+  // Events have no area, so they show only when no area is picked.
   const withCalendar = view === "schedule";
   const calendar = {
-    events: withCalendar ? whole.events.filter((event) => inProject(event.project)) : [],
-    recurrences: withCalendar && (chosen === "" || chosen === NO_PROJECT) ? whole.recurrences : [],
+    events: withCalendar && chosenArea === "" ? whole.events.filter((event) => inProject(event.project)) : [],
+    recurrences: withCalendar && (chosen === "" || chosen === NO_PROJECT) ? whole.recurrences.filter((item) => inArea(item.area)) : [],
   };
 
   const days = new Map<string, Day>();
@@ -155,6 +162,22 @@ function Days() {
             </option>
           ))}
         </select>
+        {areas.length > 0 ? (
+          <select
+            value={chosenArea}
+            onChange={(event) => setArea(event.target.value)}
+            aria-label="Area"
+            className="rounded-md border border-foreground/20 bg-transparent px-2 py-1.5 text-sm"
+          >
+            <option value="">All areas</option>
+            <option value={NO_AREA}>No area</option>
+            {areas.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </div>
       {view === "board" ? (
         <Board tasks={data.tasks} />

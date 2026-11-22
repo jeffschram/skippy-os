@@ -5,18 +5,21 @@ import { buildPatch, cleanText, getSettings, iso, logActivity, refuse, requireTe
 import { detach } from "./lib/remove";
 import { indexTask } from "./lib/searchIndex";
 import { actor, commitment, taskStatus } from "./schema";
+import { areaNames, resolveArea } from "./lib/areas";
 
 /** Task operations. Internal: they run only through `gateway.call` or the web app's own functions. */
 
 const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
 
-export function presentTask(task: Doc<"tasks">, projectSlug: string | undefined, timeZone: string) {
+export function presentTask(task: Doc<"tasks">, projectSlug: string | undefined, timeZone: string, areas?: Map<Id<"areas">, string>) {
   return {
     id: task._id,
     title: task.title,
     description: task.description,
     status: task.status,
     project: projectSlug,
+    /** The area of life it sits in, such as Household. */
+    area: task.areaId ? areas?.get(task.areaId) : undefined,
     phaseId: task.phaseId,
     commitment: task.commitment ?? "must",
     due: showWhen(task.dueAt, timeZone),
@@ -34,6 +37,8 @@ export const upsert = internalMutation({
     description: nullable(v.string()),
     status: v.optional(taskStatus),
     project: nullable(v.string()),
+    /** An area by name. Null takes the task out of its area. */
+    area: nullable(v.string()),
     phaseId: nullable(v.string()),
     commitment: nullable(commitment),
     dueAt: nullable(v.string()),
@@ -43,6 +48,7 @@ export const upsert = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const settings = await getSettings(ctx);
+    const areas = await areaNames(ctx);
 
     let existing: Doc<"tasks"> | null = null;
     if (args.id !== undefined) {
@@ -86,6 +92,7 @@ export const upsert = internalMutation({
       description: cleanText(args.description),
       status,
       projectId,
+      areaId: await resolveArea(ctx, args.area),
       phaseId,
       commitment: args.commitment,
       dueAt: when(args.dueAt, settings.timeZone, "end", "dueAt"),
@@ -104,7 +111,7 @@ export const upsert = internalMutation({
       const { patch, diff } = buildPatch(existing, fields);
       const slug = finalProjectId ? (await ctx.db.get(finalProjectId))?.slug : undefined;
       if (Object.keys(patch).length === 0) {
-        return { created: false, changed: false, task: presentTask(existing, slug, settings.timeZone) };
+        return { created: false, changed: false, task: presentTask(existing, slug, settings.timeZone, areas) };
       }
       await ctx.db.patch(existing._id, { ...patch, updatedBy: args.actor, updatedAt: now });
       const title = patch.title ?? existing.title;
@@ -121,7 +128,7 @@ export const upsert = internalMutation({
       });
       const updated = (await ctx.db.get(existing._id))!;
       await indexTask(ctx, updated);
-      return { created: false, changed: true, task: presentTask(updated, slug, settings.timeZone) };
+      return { created: false, changed: true, task: presentTask(updated, slug, settings.timeZone, areas) };
     }
 
     const title = requireText(args.title, "title");
@@ -131,6 +138,7 @@ export const upsert = internalMutation({
       status: newStatus,
       ...(fields.description ? { description: fields.description } : {}),
       ...(finalProjectId ? { projectId: finalProjectId } : {}),
+      ...(fields.areaId ? { areaId: fields.areaId } : {}),
       ...(phaseId ? { phaseId } : {}),
       ...(fields.commitment ? { commitment: fields.commitment } : {}),
       ...(typeof fields.dueAt === "number" ? { dueAt: fields.dueAt } : {}),
@@ -152,7 +160,7 @@ export const upsert = internalMutation({
     });
     const created = (await ctx.db.get(id))!;
     await indexTask(ctx, created);
-    return { created: true, changed: true, task: presentTask(created, project?.slug, settings.timeZone) };
+    return { created: true, changed: true, task: presentTask(created, project?.slug, settings.timeZone, areas) };
   },
 });
 
@@ -161,13 +169,14 @@ export const complete = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const settings = await getSettings(ctx);
+    const areas = await areaNames(ctx);
     const id = ctx.db.normalizeId("tasks", args.id);
     const task = id ? await ctx.db.get(id) : null;
     if (!task) throw refuse("not_found", `There is no task with the id "${args.id}".`);
     const slug = task.projectId ? (await ctx.db.get(task.projectId))?.slug : undefined;
     // Completing a finished task again changes nothing and logs nothing.
     if (task.status === "done") {
-      return { changed: false, task: presentTask(task, slug, settings.timeZone) };
+      return { changed: false, task: presentTask(task, slug, settings.timeZone, areas) };
     }
     const note = cleanText(args.note);
     await ctx.db.patch(task._id, { status: "done", completedAt: now, updatedBy: args.actor, updatedAt: now });
@@ -180,7 +189,7 @@ export const complete = internalMutation({
       summary: `Completed task "${task.title}"${note ? `: ${note}` : ""}`,
       diff: { status: { from: task.status, to: "done" } },
     });
-    return { changed: true, task: presentTask((await ctx.db.get(task._id))!, slug, settings.timeZone) };
+    return { changed: true, task: presentTask((await ctx.db.get(task._id))!, slug, settings.timeZone, areas) };
   },
 });
 

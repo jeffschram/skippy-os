@@ -87,6 +87,7 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
   const [status, setStatus] = useState(task.status);
   const [project, setProject] = useState(task.project ?? "");
   const [phaseId, setPhaseId] = useState<string>(task.phaseId ?? "");
+  const [area, setArea] = useState(task.area ?? "");
   const [commitment, setCommitment] = useState(task.commitment);
   const [due, setDue] = useState(task.due?.date ?? "");
   const [planned, setPlanned] = useState(task.scheduledFor?.date ?? "");
@@ -96,6 +97,7 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
   const [error, setError] = useState<string>();
 
   const projects = useQuery(api.viewer.projects, { now });
+  const areas = useQuery(api.viewer.areas, {})?.areas ?? [];
   const chosen = useQuery(api.viewer.project, project ? { slug: project, now } : "skip");
   const phases = chosen?.phases ?? [];
   // The task's own project stays in the list even when it is archived.
@@ -113,6 +115,7 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
     if (status !== task.status) changes.status = status;
     if (project !== (task.project ?? "")) changes.project = project || null;
     if (phaseId !== (task.phaseId ?? "")) changes.phaseId = phaseId || null;
+    if (area !== (task.area ?? "")) changes.area = area || null;
     if (commitment !== task.commitment) changes.commitment = commitment;
     if (due !== (task.due?.date ?? "")) changes.dueAt = due || null;
     if (planned !== (task.scheduledFor?.date ?? "")) changes.scheduledFor = planned || null;
@@ -203,6 +206,19 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
             ))}
           </select>
         </label>
+        {areas.length > 0 ? (
+          <label className="block text-sm">
+            Area
+            <select value={area} onChange={(event) => setArea(event.target.value)} className={`mt-1 ${field}`}>
+              <option value="">No area</option>
+              {areas.map((item) => (
+                <option key={item.id} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {phases.length > 0 ? (
           <label className="block text-sm">
             Phase

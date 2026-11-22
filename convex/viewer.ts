@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { eventsBetween, liveRecurrences } from "./agenda";
+import { listAreas } from "./areas";
 import { latestBriefing, latestReview } from "./briefing";
 import { listCaptures } from "./captures";
 import { fileOnCapture, filesOn, presentFile } from "./files";
@@ -29,6 +30,7 @@ import {
 } from "./schema";
 import { presentTask } from "./tasks";
 import { DEFAULT_SETTINGS, getSettings, iso, refuse } from "./lib/common";
+import { areaNames } from "./lib/areas";
 
 /**
  * What the web app reads and changes for the person signed in to it. These,
@@ -76,6 +78,67 @@ export const today = query({
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     return await readToday(ctx, { now: args.now });
+  },
+});
+
+/** How long the mini can go without saying "alive" before Home mentions it. */
+const MINI_AWAY_MS = 5 * 60_000;
+const DAY = 24 * 60 * 60_000;
+
+/**
+ * The short list at the top of Home: what will not move until the owner does
+ * something. Worked out from what is stored, with no model involved. Tasks are
+ * not here: Today lists the overdue and the waiting.
+ */
+export const needsYou = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    type Item =
+      | { kind: "project_health"; slug: string; title: string; health: "blocked" | "at_risk"; note?: string; since?: string }
+      | { kind: "project_quiet"; slug: string; title: string; days?: number }
+      | { kind: "pass_failed"; pass?: string; at: string; note?: string }
+      | { kind: "mini_away"; since: string };
+    const items: Item[] = [];
+    const { projects: active } = await listProjects(ctx, { status: "active", now: args.now });
+    for (const project of active) {
+      if (project.health === "blocked" || project.health === "at_risk") {
+        items.push({
+          kind: "project_health",
+          slug: project.slug,
+          title: project.title,
+          health: project.health,
+          ...(project.statusNote ? { note: project.statusNote } : {}),
+          ...(project.statusUpdatedAt ? { since: project.statusUpdatedAt } : {}),
+        });
+      } else if (project.stale) {
+        items.push({
+          kind: "project_quiet",
+          slug: project.slug,
+          title: project.title,
+          ...(project.daysSinceStatus !== undefined ? { days: project.daysSinceStatus } : {}),
+        });
+      }
+    }
+    // Blocked first, then at risk, then the quiet ones.
+    const rank = (item: Item) => (item.kind === "project_health" ? (item.health === "blocked" ? 0 : 1) : 2);
+    items.sort((a, b) => rank(a) - rank(b));
+
+    const lastRun = await ctx.db.query("ingestionRuns").withIndex("by_started").order("desc").first();
+    if (lastRun?.status === "failed" && args.now - lastRun.startedAt < DAY) {
+      items.push({
+        kind: "pass_failed",
+        ...(lastRun.pass ? { pass: lastRun.pass } : {}),
+        at: new Date(lastRun.startedAt).toISOString(),
+        ...(lastRun.note ? { note: lastRun.note } : {}),
+      });
+    }
+    const hosts = await ctx.db.query("agentHosts").collect();
+    if (hosts.length > 0) {
+      const seen = Math.max(...hosts.map((host) => host.lastSeenAt));
+      if (args.now - seen > MINI_AWAY_MS) items.push({ kind: "mini_away", since: new Date(seen).toISOString() });
+    }
+    return { items };
   },
 });
 
@@ -129,6 +192,7 @@ export const openTasks = query({
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     const settings = await getSettings(ctx);
+    const areas = await areaNames(ctx);
     const slugs = new Map<Id<"projects">, string | undefined>();
     const tasks = [];
     for (const status of ["in_progress", "todo", "waiting"] as const) {
@@ -138,7 +202,7 @@ export const openTasks = query({
         .collect();
       for (const row of rows) {
         if (row.projectId && !slugs.has(row.projectId)) slugs.set(row.projectId, (await ctx.db.get(row.projectId))?.slug);
-        tasks.push(presentTask(row, row.projectId ? slugs.get(row.projectId) : undefined, settings.timeZone));
+        tasks.push(presentTask(row, row.projectId ? slugs.get(row.projectId) : undefined, settings.timeZone, areas));
       }
     }
     return { today: localDate(args.now, settings.timeZone), timeZone: settings.timeZone, tasks };
@@ -237,6 +301,7 @@ export const task = query({
     const found = id ? await ctx.db.get(id) : null;
     if (!found) return null;
     const settings = await getSettings(ctx);
+    const areas = await areaNames(ctx);
     const project = found.projectId ? await ctx.db.get(found.projectId) : null;
     const history = await ctx.db
       .query("activityEvents")
@@ -244,7 +309,7 @@ export const task = query({
       .order("desc")
       .take(10);
     return {
-      task: presentTask(found, project?.slug, settings.timeZone),
+      task: presentTask(found, project?.slug, settings.timeZone, areas),
       projectTitle: project?.title,
       history: history.map((event) => ({
         id: event._id,
@@ -282,6 +347,7 @@ export const saveTask = mutation({
     description: nullable(v.string()),
     status: v.optional(taskStatus),
     project: nullable(v.string()),
+    area: nullable(v.string()),
     phaseId: nullable(v.string()),
     commitment: nullable(commitment),
     dueAt: nullable(v.string()),
@@ -292,6 +358,91 @@ export const saveTask = mutation({
     await requireOwner(ctx);
     const result = await ctx.runMutation(internal.tasks.upsert, { actor: OWNER, ...args });
     return { created: result.created, changed: result.changed };
+  },
+});
+
+/**
+ * What Settings shows about the machinery: the Mac mini's chat runner, when
+ * each scheduled job last did something, and which clients have written.
+ */
+export const system = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireOwner(ctx);
+    const at = (value: number | undefined) => (value === undefined ? undefined : new Date(value).toISOString());
+    const hosts = await ctx.db.query("agentHosts").collect();
+    const lastRun = await ctx.db.query("ingestionRuns").withIndex("by_started").order("desc").first();
+    const briefings = await ctx.db.query("briefings").withIndex("by_date").order("desc").take(40);
+    const daily = briefings.find((entry) => entry.kind === undefined);
+    const weekly = briefings.find((entry) => entry.kind === "weekly");
+    const swept = (await ctx.db.query("projects").collect()).reduce<number | undefined>(
+      (latest, project) => (project.lastSweptAt !== undefined && project.lastSweptAt > (latest ?? 0) ? project.lastSweptAt : latest),
+      undefined,
+    );
+    // Every client that has written lately, newest first. Reads leave no trace, so a client that only reads is not here.
+    const clients = new Map<string, { clientId: string; harness: string; surfaces: string[]; lastWriteAt: string }>();
+    for (const event of await ctx.db.query("activityEvents").withIndex("by_at").order("desc").take(1500)) {
+      if (event.actor.kind !== "agent") continue;
+      const seen = clients.get(event.actor.clientId);
+      const surface = event.actor.surface;
+      if (!seen) {
+        clients.set(event.actor.clientId, {
+          clientId: event.actor.clientId,
+          harness: actorLabel(event.actor),
+          surfaces: surface ? [surface] : [],
+          lastWriteAt: new Date(event.at).toISOString(),
+        });
+      } else if (surface && !seen.surfaces.includes(surface)) seen.surfaces.push(surface);
+    }
+    return {
+      /** The address a new client is given. Not a secret. */
+      mcpUrl: process.env.SKIPPY_MCP_RESOURCE_URL ?? null,
+      runnerTokenSet: Boolean(process.env.SKIPPY_RUNNER_TOKEN_SHA256),
+      mini: hosts.map((host) => ({ host: host.host, lastSeenAt: new Date(host.lastSeenAt).toISOString(), version: host.version })),
+      jobs: {
+        ingestion: lastRun ? { pass: lastRun.pass, status: lastRun.status, startedAt: at(lastRun.startedAt)!, finishedAt: at(lastRun.finishedAt) } : null,
+        briefing: daily ? { date: daily.date, writtenAt: at(daily.updatedAt)! } : null,
+        review: weekly ? { date: weekly.date, writtenAt: at(weekly.updatedAt)! } : null,
+        /** The sweep's marker moves only when it writes a report, so this is its last report, not its last run. */
+        sweepReportAt: at(swept),
+      },
+      clients: [...clients.values()],
+    };
+  },
+});
+
+/** The areas of life, in the owner's order, with how much sits in each. */
+export const areas = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireOwner(ctx);
+    return await listAreas(ctx);
+  },
+});
+
+/** Adds an area, or renames the one whose id is given. */
+export const saveArea = mutation({
+  args: { id: v.optional(v.string()), name: v.string() },
+  handler: async (ctx, args): Promise<{ id: string; changed: boolean }> => {
+    await requireOwner(ctx);
+    return await ctx.runMutation(internal.areas.upsert, { actor: OWNER, ...args });
+  },
+});
+
+export const moveArea = mutation({
+  args: { id: v.string(), direction: v.union(v.literal("up"), v.literal("down")) },
+  handler: async (ctx, args): Promise<{ changed: boolean }> => {
+    await requireOwner(ctx);
+    return await ctx.runMutation(internal.areas.move, { actor: OWNER, ...args });
+  },
+});
+
+/** Removes an area. Its tasks and recurrences stay, with no area. */
+export const removeArea = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<{ cleared: number }> => {
+    await requireOwner(ctx);
+    return await ctx.runMutation(internal.areas.remove, { actor: OWNER, ...args });
   },
 });
 
@@ -433,6 +584,7 @@ export const saveRecurrence = mutation({
     leadTimeDays: nullable(v.number()),
     status: v.optional(recurrenceStatus),
     nextDue: v.optional(v.string()),
+    area: nullable(v.string()),
   },
   handler: async (ctx, args): Promise<{ id: string; changed: boolean }> => {
     await requireOwner(ctx);

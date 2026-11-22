@@ -18,6 +18,7 @@ import { detach } from "./lib/remove";
 import { indexProject } from "./lib/searchIndex";
 import { actor, claudeHome, phaseStatus, projectHealth, projectKind, projectStatus } from "./schema";
 import { presentTask } from "./tasks";
+import { areaNames } from "./lib/areas";
 
 /**
  * Project operations. All are internal: they run only through `gateway.call`,
@@ -415,6 +416,7 @@ export const removePhase = internalMutation({
 export async function readProject(ctx: QueryCtx, args: { project: string; now: number }) {
   const now = args.now;
   const settings = await getSettings(ctx);
+  const areas = await areaNames(ctx);
   const project = await projectBySlug(ctx, args.project);
   const phases = await phasesInOrder(ctx, project._id);
   const tasks = await ctx.db
@@ -439,8 +441,8 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
       description: phase.description,
       status: phase.status,
     })),
-    openTasks: open.map((task) => presentTask(task, project.slug, settings.timeZone)),
-    recentlyClosedTasks: closed.slice(0, 10).map((task) => presentTask(task, project.slug, settings.timeZone)),
+    openTasks: open.map((task) => presentTask(task, project.slug, settings.timeZone, areas)),
+    recentlyClosedTasks: closed.slice(0, 10).map((task) => presentTask(task, project.slug, settings.timeZone, areas)),
     closedTaskCount: closed.length,
     /** What files the project holds. They are opened from the dashboard; there is no tool that reads one. */
     files: (await filesOn(ctx, project._id)).map(describeFile),
@@ -467,6 +469,7 @@ const OPEN_STATUSES = ["in_progress", "todo", "waiting"] as const;
 /** Every project, the live ones first, each with how much is open and what comes next. */
 export async function projectBoard(ctx: QueryCtx, args: { now: number }) {
   const settings = await getSettings(ctx);
+  const areas = await areaNames(ctx);
   const projects = await ctx.db.query("projects").collect();
   const open = new Map<Id<"projects">, Doc<"tasks">[]>();
   for (const status of OPEN_STATUSES) {
@@ -492,7 +495,7 @@ export async function projectBoard(ctx: QueryCtx, args: { now: number }) {
         return {
           ...presentProject(project, settings, args.now),
           openTaskCount: tasks.length,
-          nextTasks: tasks.slice(0, 3).map((task) => presentTask(task, project.slug, settings.timeZone)),
+          nextTasks: tasks.slice(0, 3).map((task) => presentTask(task, project.slug, settings.timeZone, areas)),
         };
       }),
   };

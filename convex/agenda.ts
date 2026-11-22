@@ -17,6 +17,7 @@ import { ensureLink } from "./lib/links";
 import { indexEvent, indexRecurrence } from "./lib/searchIndex";
 import { actor, entityType, eventStatus, recurrenceRule, recurrenceStatus } from "./schema";
 import { presentTask } from "./tasks";
+import { areaNames, resolveArea } from "./lib/areas";
 
 /**
  * What has a day or a time: calendar events, and things that come round again.
@@ -203,12 +204,14 @@ export const upsertEvent = internalMutation({
 
 // Recurrences
 
-export function presentRecurrence(item: Doc<"recurrences">, today: string) {
+export function presentRecurrence(item: Doc<"recurrences">, today: string, areas?: Map<Id<"areas">, string>) {
   const showFrom = shiftDay(item.nextDue, -(item.leadTimeDays ?? 0));
   return {
     id: item._id,
     title: item.title,
     description: item.description,
+    /** The area of life it sits in, such as Household. */
+    area: item.areaId ? areas?.get(item.areaId) : undefined,
     rule: item.rule,
     /** The rule in words. */
     repeats: describeRule(item.rule),
@@ -236,10 +239,13 @@ export const upsertRecurrence = internalMutation({
     leadTimeDays: nullable(v.number()),
     status: v.optional(recurrenceStatus),
     nextDue: v.optional(v.string()),
+    /** An area by name. Null takes it out of its area. */
+    area: nullable(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     const settings = await getSettings(ctx);
+    const areas = await areaNames(ctx);
     const today = localDate(now, settings.timeZone);
 
     let existing: Doc<"recurrences"> | null = null;
@@ -261,11 +267,12 @@ export const upsertRecurrence = internalMutation({
       leadTimeDays: args.leadTimeDays === 0 ? null : args.leadTimeDays,
       status: args.status,
       nextDue,
+      areaId: await resolveArea(ctx, args.area),
     };
 
     if (existing) {
       const { patch, diff } = buildPatch(existing, fields);
-      if (Object.keys(patch).length === 0) return { created: false, changed: false, recurrence: presentRecurrence(existing, today) };
+      if (Object.keys(patch).length === 0) return { created: false, changed: false, recurrence: presentRecurrence(existing, today, areas) };
       await ctx.db.patch(existing._id, { ...patch, updatedBy: args.actor, updatedAt: now });
       const updated = (await ctx.db.get(existing._id))!;
       await indexRecurrence(ctx, updated);
@@ -278,7 +285,7 @@ export const upsertRecurrence = internalMutation({
         summary: `Updated recurring "${updated.title}": ${Object.keys(diff).join(", ")}`,
         diff,
       });
-      return { created: false, changed: true, recurrence: presentRecurrence(updated, today) };
+      return { created: false, changed: true, recurrence: presentRecurrence(updated, today, areas) };
     }
 
     const title = requireText(args.title, "title");
@@ -291,6 +298,7 @@ export const upsertRecurrence = internalMutation({
       rule,
       anchor: args.anchor ?? (rule.kind === "interval" ? "completion" : "schedule"),
       ...(fields.leadTimeDays ? { leadTimeDays: fields.leadTimeDays } : {}),
+      ...(fields.areaId ? { areaId: fields.areaId } : {}),
       status: args.status ?? "active",
       nextDue: first,
       createdBy: args.actor,
@@ -307,7 +315,7 @@ export const upsertRecurrence = internalMutation({
       at: now,
       summary: `Added recurring "${title}": ${describeRule(rule).toLowerCase()}, first due ${first}`,
     });
-    return { created: true, changed: true, recurrence: presentRecurrence(created, today) };
+    return { created: true, changed: true, recurrence: presentRecurrence(created, today, areas) };
   },
 });
 
@@ -327,7 +335,8 @@ export const completeRecurrence = internalMutation({
     const item = id ? await ctx.db.get(id) : null;
     if (!item) throw refuse("not_found", `There is no recurrence with the id "${args.id}".`);
     const due = dayOrRefuse(args.due, "due");
-    if (item.nextDue !== due) return { changed: false, recurrence: presentRecurrence(item, today) };
+    const areas = await areaNames(ctx);
+    if (item.nextDue !== due) return { changed: false, recurrence: presentRecurrence(item, today, areas) };
     if (item.status === "retired") throw refuse("invalid_arguments", "That recurrence is retired. Set its status to active first.");
 
     const outcome = args.skip ? ("skipped" as const) : ("completed" as const);
@@ -351,7 +360,7 @@ export const completeRecurrence = internalMutation({
       summary: `${outcome === "completed" ? "Completed" : "Skipped"} "${item.title}" for ${due}; next due ${next}${note ? `: ${note}` : ""}`,
       diff: { nextDue: { from: due, to: next } },
     });
-    return { changed: true, recurrence: presentRecurrence((await ctx.db.get(item._id))!, today) };
+    return { changed: true, recurrence: presentRecurrence((await ctx.db.get(item._id))!, today, areas) };
   },
 });
 
@@ -387,12 +396,14 @@ export async function liveRecurrences(ctx: QueryCtx, today: string) {
         .take(500)),
     );
   }
-  return rows.sort((a, b) => a.nextDue.localeCompare(b.nextDue)).map((row) => presentRecurrence(row, today));
+  const areas = await areaNames(ctx);
+  return rows.sort((a, b) => a.nextDue.localeCompare(b.nextDue)).map((row) => presentRecurrence(row, today, areas));
 }
 
 /** What is on over a run of days: events, recurrences falling due, and tasks with a date in it. */
 export async function readAgenda(ctx: QueryCtx, args: { from?: string; days?: number; now: number }) {
   const settings = await getSettings(ctx);
+  const areas = await areaNames(ctx);
   const today = localDate(args.now, settings.timeZone);
   const from = args.from === undefined ? today : dayOrRefuse(args.from, "from");
   const days = Math.min(Math.max(Math.floor(args.days ?? 14), 1), 120);
@@ -415,7 +426,7 @@ export async function readAgenda(ctx: QueryCtx, args: { from?: string; days?: nu
       // Overdue tasks ride along when the span starts today or earlier.
       if (at === undefined || at > end || (at < start && from > today)) continue;
       if (row.projectId && !slugs.has(row.projectId)) slugs.set(row.projectId, (await ctx.db.get(row.projectId))?.slug);
-      tasks.push({ at, task: presentTask(row, row.projectId ? slugs.get(row.projectId) : undefined, settings.timeZone) });
+      tasks.push({ at, task: presentTask(row, row.projectId ? slugs.get(row.projectId) : undefined, settings.timeZone, areas) });
     }
   }
   return {
