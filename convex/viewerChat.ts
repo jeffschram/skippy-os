@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention, type Ref } from "./lib/entities";
 import { BRIEF_REQUEST, describeScope, failTurn, queueTurn, startChat } from "./chats";
@@ -113,7 +113,8 @@ async function presentCard(ctx: QueryCtx, card: Card) {
 /**
  * Creates the record a card offers, from the draft as the owner left it. A
  * project card also moves the chat to the new project: the chat becomes that
- * project's, and tasks accepted afterwards in the same chat join it.
+ * project's, and what the chat's other cards make joins it, whether they are
+ * accepted before the project card or after.
  */
 export const acceptCard = mutation({
   args: { messageId: v.string(), cardId: v.string(), draft: v.optional(cardDraft) },
@@ -167,6 +168,7 @@ export const acceptCard = mutation({
         ref = project.ref;
         // The idea chat becomes the new project's chat.
         await ctx.db.patch(chat._id, { scope: { kind: "item", entityRef: ref }, state: "promoted", promotedTo: ref, updatedAt: Date.now() });
+        await gatherEarlier(ctx, chat._id, result.project.slug);
         break;
       }
       case "note": {
@@ -295,6 +297,38 @@ export const chats = query({
     };
   },
 });
+
+/**
+ * What this chat's cards made before the project existed joins the project,
+ * so the order the cards are accepted in does not matter. A task or event that
+ * is already in another project stays where it is.
+ */
+async function gatherEarlier(ctx: MutationCtx, chatId: Id<"chats">, slug: string) {
+  const messages = await ctx.db
+    .query("chatMessages")
+    .withIndex("by_chat", (q) => q.eq("chatId", chatId))
+    .collect();
+  for (const message of messages) {
+    for (const card of message.cards ?? []) {
+      if (card.state !== "accepted" || !card.resultRef) continue;
+      const made = card.resultRef.entityId;
+      if (card.kind === "task") {
+        const id = ctx.db.normalizeId("tasks", made);
+        const task = id ? await ctx.db.get(id) : null;
+        if (task && !task.projectId) await ctx.runMutation(internal.tasks.upsert, { actor: OWNER, id: made, project: slug });
+      } else if (card.kind === "event") {
+        const id = ctx.db.normalizeId("calendarEvents", made);
+        const event = id ? await ctx.db.get(id) : null;
+        if (event && !event.projectId) await ctx.runMutation(internal.agenda.upsertEvent, { actor: OWNER, id: made, project: slug });
+      } else if (card.kind === "note") {
+        const id = ctx.db.normalizeId("knowledge", made);
+        if (id && (await ctx.db.get(id))) {
+          await ctx.runMutation(internal.knowledge.upsert, { actor: OWNER, id: made, about: [{ type: "project", id: slug }] });
+        }
+      }
+    }
+  }
+}
 
 async function setCard(ctx: MutationCtx, message: Doc<"chatMessages">, cardId: string, change: Partial<Card>) {
   await ctx.db.patch(message._id, {

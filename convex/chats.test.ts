@@ -219,6 +219,47 @@ describe("promotion cards", () => {
   });
 });
 
+describe("promotion cards accepted in the other order", () => {
+  it("puts tasks, events and notes made before the project into it when the project is created", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "House" });
+    const { chatId } = await owner.mutation(api.viewerChat.start, { text: "Christmas in Florida." });
+    const claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    const offer = (kind: string, draft: Record<string, unknown>) =>
+      asClaude<{ cardId: string; offered: boolean }>(t, "propose_promotion", { chatId, kind, draft });
+    const project = await offer("project", { title: "Florida Christmas" });
+    const flights = await offer("task", { title: "Book the flights" });
+    const elsewhere = await offer("task", { title: "Hold the mail", project: "house" });
+    const dinner = await offer("event", { title: "Christmas dinner", startAt: "2026-12-25T18:00:00-05:00" });
+    const note = await offer("note", { title: "Gift ideas", body: "Keep them packable." });
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "Offered." });
+
+    const reply = (await owner.query(api.viewerChat.chat, { id: chatId }))!.messages[1];
+    const accept = (cardId: string) => owner.mutation(api.viewerChat.acceptCard, { messageId: reply.id, cardId });
+    // Everything else first, the project last.
+    await accept(flights.cardId);
+    await accept(elsewhere.cardId);
+    await accept(dinner.cardId);
+    await accept(note.cardId);
+    expect((await owner.query(api.viewer.project, { slug: "house", now: NOW }))!.openTasks.map((task) => task.title)).toEqual(["Hold the mail"]);
+    await accept(project.cardId);
+
+    const page = (await owner.query(api.viewer.project, { slug: "florida-christmas", now: NOW }))!;
+    expect(page.openTasks.map((task) => task.title)).toEqual(["Book the flights"]);
+    // A task the card put in another project stays there.
+    expect((await owner.query(api.viewer.project, { slug: "house", now: NOW }))!.openTasks.map((task) => task.title)).toEqual(["Hold the mail"]);
+    const made = await t.run(async (ctx) => {
+      const projectRow = (await ctx.db.query("projects").collect()).find((row) => row.slug === "florida-christmas")!;
+      const event = (await ctx.db.query("calendarEvents").collect())[0];
+      const links = (await ctx.db.query("relationships").collect()).filter((link) => link.to.entityId === projectRow._id);
+      return { eventInProject: event.projectId === projectRow._id, linkTypes: links.map((link) => `${link.from.entityType}:${link.type}`) };
+    });
+    expect(made.eventInProject).toBe(true);
+    expect(made.linkTypes).toContain("knowledge:related_to");
+  });
+});
+
 describe("chats about a record, the brief, and archiving", () => {
   it("lists a record's chats, and keeps a brief in the project's notes with the line that names the project", async () => {
     const t = start();

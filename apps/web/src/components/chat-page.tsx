@@ -111,6 +111,14 @@ function Conversation({ chat }: { chat: Chat }) {
 
   const record = chat.scope.kind === "item" ? chat.scope.record : undefined;
   const recordHref = record ? itemHref(record.type, record.id) : undefined;
+  // Where a task, event or note from a card will end up, said on the card itself.
+  const projectOffered = chat.messages.some((message) => message.cards.some((card) => card.kind === "project" && card.state === "offered"));
+  const destination =
+    record?.type === "project"
+      ? `Goes into ${record.title}.`
+      : projectOffered
+        ? "Joins the new project if you create it, whichever you create first."
+        : undefined;
   return (
     <div>
       <h1 className="text-2xl font-semibold">{chat.title}</h1>
@@ -183,7 +191,7 @@ function Conversation({ chat }: { chat: Chat }) {
             {message.cards.length > 0 ? (
               <ul className="mt-3 space-y-3">
                 {message.cards.map((card) => (
-                  <CardView key={card.cardId} messageId={message.id} card={card} />
+                  <CardView key={card.cardId} messageId={message.id} card={card} destination={destination} />
                 ))}
               </ul>
             ) : null}
@@ -265,7 +273,7 @@ const KIND_WORDS: Record<Card["kind"], string> = {
  * Something Claude offered to create. The owner can change it, create it with
  * one click, or put it aside. A card lives only in the chat it came from.
  */
-function CardView({ messageId, card }: { messageId: string; card: Card }) {
+function CardView({ messageId, card, destination }: { messageId: string; card: Card; destination?: string }) {
   const accept = useMutation(api.viewerChat.acceptCard);
   const dismiss = useMutation(api.viewerChat.dismissCard);
   const [draft, setDraft] = useState<Draft>(card.draft);
@@ -350,6 +358,11 @@ function CardView({ messageId, card }: { messageId: string; card: Card }) {
       ) : null}
       {(card.kind === "task" || card.kind === "event") && draft.description ? <p className="text-sm text-foreground/70">{draft.description}</p> : null}
       {card.kind === "project" && draft.notes ? <p className="line-clamp-3 text-sm text-foreground/70">Notes to start it with: {draft.notes}</p> : null}
+      {card.kind === "task" && draft.project ? (
+        <p className="text-xs text-foreground/60">Goes into the project {draft.project}.</p>
+      ) : destination && (card.kind === "task" || card.kind === "event" || card.kind === "note") ? (
+        <p className="text-xs text-foreground/60">{destination}</p>
+      ) : null}
       {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       <div className="flex gap-2">
         <button type="button" disabled={busy} onClick={() => run(() => accept({ messageId, cardId: card.cardId, draft: cleaned() }))} className={button}>
