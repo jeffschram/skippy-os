@@ -28,6 +28,7 @@ export const actor = v.union(
     ),
     ref: v.optional(v.string()),
   }),
+  v.object({ kind: v.literal("import"), source: v.string() }),
 );
 
 /** One of a fixed list of strings, as a validator. */
@@ -83,8 +84,12 @@ export const sourceLink = v.union(
   v.literal("evidence_for"),
 );
 
-/** Carried by every record: who made it, who last changed it, and when. */
-const authored = { createdBy: actor, updatedBy: actor, updatedAt: v.number() };
+/**
+ * Carried by every record: who made it, who last changed it, and when.
+ * `createdAt` is set only when a record is older than its row here, as an
+ * imported record is. Otherwise the row's own creation time is the answer.
+ */
+const authored = { createdBy: actor, updatedBy: actor, updatedAt: v.number(), createdAt: v.optional(v.number()) };
 
 export default defineSchema({
   // Areas of life, such as Home or Work. Data, not a fixed list.
@@ -316,6 +321,15 @@ export default defineSchema({
     actor: phase0Actor,
     createdAt: v.number(),
   }).index("by_created", ["createdAt"]),
+
+  // Temporary. Where each imported record came from in the old project, so the
+  // import can be re-run and checked. Dropped once the import is verified.
+  importMap: defineTable({
+    oldTable: v.string(),
+    oldId: v.string(),
+    newTable: v.string(),
+    newId: v.string(),
+  }).index("by_old", ["oldTable", "oldId"]),
 
   // Nonces of gateway envelopes already used, kept until the envelope expires.
   gatewayNonces: defineTable({

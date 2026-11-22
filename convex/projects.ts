@@ -26,7 +26,7 @@ const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const DAY_MS = 86_400_000;
 const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
 
-function slugify(title: string): string {
+export function slugify(title: string): string {
   return title
     .toLowerCase()
     .normalize("NFKD")

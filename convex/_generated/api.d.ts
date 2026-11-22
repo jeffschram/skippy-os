@@ -9,6 +9,7 @@
  */
 
 import type * as gateway from "../gateway.js";
+import type * as importV1 from "../importV1.js";
 import type * as knowledge from "../knowledge.js";
 import type * as lib_common from "../lib/common.js";
 import type * as lib_entities from "../lib/entities.js";
@@ -32,6 +33,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   gateway: typeof gateway;
+  importV1: typeof importV1;
   knowledge: typeof knowledge;
   "lib/common": typeof lib_common;
   "lib/entities": typeof lib_entities;

@@ -23,7 +23,9 @@ export type AgentActor = {
   /** A pointer the agent gave to its own session or run. */
   ref?: string;
 };
-export type Actor = UserActor | AgentActor;
+/** A record brought across by a one-time import. `source` names where from. */
+export type ImportActor = { kind: "import"; source: string };
+export type Actor = UserActor | AgentActor | ImportActor;
 
 const HARNESS_HOSTS: Record<string, Harness> = {
   "claude.ai": "claude",
@@ -60,5 +62,7 @@ const HARNESS_LABELS: Record<Harness, string> = {
 
 /** A short name for an actor, for activity lists. */
 export function actorLabel(actor: Actor): string {
-  return actor.kind === "user" ? "You" : HARNESS_LABELS[actor.harness];
+  if (actor.kind === "user") return "You";
+  if (actor.kind === "import") return "Import";
+  return HARNESS_LABELS[actor.harness];
 }

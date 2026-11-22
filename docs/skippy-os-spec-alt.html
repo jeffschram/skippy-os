@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.15 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 tools live and tried from claude.ai; Convex deploys with each push; web app shell built, not deployed · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.19 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 import built and rehearsed on the dev deployment, production not touched · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -592,9 +592,9 @@
     <li><strong>"Done when" met for claude.ai:</strong> from a Claude chat the owner created a project and a task and read them back. Production data shows both changes logged with Claude as the actor, and the deadline "next Friday" stored as Friday 11:59pm New York time.</li>
     <li><strong>Second slice, live:</strong> tables for people, companies, knowledge, relationships and source refs; the tools <code>upsert_person</code>, <code>upsert_knowledge</code>, <code>link_entities</code>, <code>search</code> and <code>get_context_bundle</code>.</li>
     <li><strong>Second slice tried from claude.ai:</strong> the owner added a person with a company, linked him to a project, saved a memory about him, and searched for him. Production data shows the company, the person, the link and the memory, each logged with Claude as the actor.</li>
-    <li><strong>Convex deploys with each push, switched on:</strong> the Vercel build runs the tests, builds the site and then pushes Convex. The deploy key is set in Vercel, and the first build with the new step passed. That build had no Convex changes to push, so the first push that changes Convex is the real proof; until it is seen, check production after each push.</li>
-    <li><strong>Web app shell, built and not deployed:</strong> Home is a sign-in wall for everyone but the owner. Signed in, the owner sees three live, read-only panels: today's tasks, the projects, and recent activity. Checked on the mini: the wall, the sign-in button leading to Clerk, Convex refusing a caller who is not signed in, and the panels drawn with made-up data. Not checked: the signed-in view with real data, which only the owner can do.</li>
-    <li><strong>Still to build in Phase 1:</strong> nothing, once the shell is deployed and the owner has signed in to it. <code>create_event</code> and the recurrence tools wait for Phase 4, where events and recurrences arrive.</li>
+    <li><strong>Convex deploys with each push, switched on:</strong> the Vercel build runs the tests, builds the site and then pushes Convex. The deploy key is set in Vercel. Confirmed by the push that added the web app shell: its new Convex queries were missing from production before the push and answering after it, with no deploy by hand.</li>
+    <li><strong>Web app shell, live:</strong> Home is a sign-in wall for everyone but the owner. Signed in, the owner sees three live, read-only panels: today's tasks, the projects, and recent activity. Checked on the mini: the wall, the sign-in button leading to Clerk, and the panels drawn with made-up data. Checked live: the wall, and production Convex refusing every data query from a caller who is not signed in. The owner signed in on the live site and saw their tasks, projects and recent activity (2026-11-21).</li>
+    <li><strong>Phase 1 is done (2026-11-21).</strong> <code>create_event</code> and the recurrence tools wait for Phase 4, where events and recurrences arrive. Production still holds the test records made while trying the tools (the Garden Shed project and its task, Sam Lee, Acme Roofing, one memory and one capture); decide whether to clear them before the Phase 2 import.</li>
   </ul>
   <p><strong>Found while building:</strong></p>
   <ul>
@@ -624,6 +624,18 @@
     <li>A dry-run mode that prints the counts without writing</li>
   </ul>
   <p><strong>Done when:</strong> the per-table counts (exported, imported, skipped with reasons) add up, 10 records of each type pass a spot check, no code project or code task came across, and <code>importMap</code> has been dropped.</p>
+  <p><strong>Progress (2026-11-21):</strong> a read-only snapshot of the old deployment is on the mini, outside the repo, with its stored files. The import is built and has been rehearsed on the dev deployment. Nothing has been imported into production.</p>
+  <ul>
+    <li><strong>Where the data was:</strong> in the old project's dev deployment. Its production deployment is empty. The last change to a task or to knowledge there was on 2026-11-18.</li>
+    <li><strong>What the plan would bring across:</strong> 11 of 20 projects (9 are code projects), 6 of 42 phases, 472 of 743 tasks (428 with no project, 44 in non-code projects), 1,030 of 1,035 knowledge records (775 notes, 137 memories, 66 links, 33 decisions, 19 principles; 5 rejected memories dropped), 21 people, 5 companies, 3 goals, 751 of 1,167 links (the rest touch a skipped record), and 2,173 of 2,409 source attachments.</li>
+    <li><strong>No table to land in yet:</strong> 10 recurrences, 53 calendar events made by Skippy, and 7 files on non-code projects. Their tables are planned for Phase 4. Both project note snapshots belong to code projects, so none come across. <span class="tag open">Open</span></li>
+    <li><strong>Small mismatches, settled in the script:</strong> the one <code>unblocks</code> link is turned round into <code>blocked_by</code>; 5 discarded links and one archived memory come across as archived; and 10 people have neither an email nor a phone number, so they can only be matched by name.</li>
+    <li><strong>Decided (2026-11-21):</strong> recurrences, Skippy's calendar events and project files come across in Phase 4, from this same snapshot, when their tables exist. The snapshot is kept until then.</li>
+    <li><strong>Built:</strong> <code>scripts/import-v1/</code> (the rules for what comes across, a dry run that accounts for every record in all 62 old tables, the loader, and a spot check) and <code>convex/importV1.ts</code>. Added to the schema: an <code>import</code> kind of Actor, the temporary <code>importMap</code> table, and an optional <code>createdAt</code> on records, so imported records keep the date they were first made.</li>
+    <li><strong>Rehearsed on dev:</strong> every batch added up. 11 projects, 6 phases, 472 tasks, 21 people, 5 companies, 3 goals, 7 areas, 1,005 knowledge records, 2,399 sources with 2,436 attachments, and 740 links. A second run changed nothing. The spot check compared 10 records of each type (all of them where there are fewer) with what was stored, and all matched.</li>
+    <li><strong>Found in the rehearsal:</strong> 30 saved links are 5 pages saved repeatedly, so they became 5 links and 25 titles and summaries were dropped; 11 links between records collapsed with them. Areas were a word on each task and became 7 area records. 266 sources were listed only on the knowledge record itself and are attached as well. The 23 tasks with an agent's result summary lose it, as decided. The import writes one line to the activity log, not one per record.</li>
+    <li><strong>Still to do:</strong> decide what happens to the test records in production, deploy the import code, load production, spot-check it, then empty and remove <code>importMap</code>. <span class="tag open">Open</span></li>
+  </ul>
 </details>
 
 <details>
