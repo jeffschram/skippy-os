@@ -218,3 +218,52 @@ describe("promotion cards", () => {
     expect(await refusal(t.mutation(api.viewerChat.acceptCard, { messageId: reply.id, cardId: spare.cardId }))).toBe("not_signed_in");
   });
 });
+
+describe("chats about a record, the brief, and archiving", () => {
+  it("lists a record's chats, and keeps a brief in the project's notes with the line that names the project", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Garden Shed" });
+    await owner.mutation(api.viewer.saveProject, { slug: "garden-shed", notesPad: "Earlier notes." });
+    const about = { type: "project" as const, id: "garden-shed" };
+    const { chatId } = await owner.mutation(api.viewerChat.start, { text: "Where should the shed go?", about });
+    let claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "The back corner." });
+    expect((await owner.query(api.viewerChat.chatsAbout, about)).chats.map((chat) => chat.title)).toEqual(["Where should the shed go?"]);
+
+    await owner.mutation(api.viewerChat.continueInClaude, { chatId });
+    claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    expect(claimed.text).toContain("Write a brief");
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "Goal: a shed in the back corner.\nOpen: the size." });
+
+    const chat = (await owner.query(api.viewerChat.chat, { id: chatId }))!;
+    expect(chat.continuedAt).toBeDefined();
+    expect(chat.turn).toMatchObject({ kind: "brief", status: "done" });
+    const brief = chat.messages.at(-1)!.content;
+    expect(brief).toContain("Goal: a shed in the back corner.");
+    expect(brief).toContain("Skippy project: garden-shed. Follow the skippy-status skill.");
+    const page = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    expect(page.project.notesPad.startsWith("Earlier notes.\n\nBrief from a dashboard chat, 2026-11-25")).toBe(true);
+    expect(page.project.notesPad).toContain("Skippy project: garden-shed.");
+  });
+
+  it("keeps an idea chat's brief as a note, and takes an archived chat off the lists", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const { chatId } = await owner.mutation(api.viewerChat.start, { text: "A podcast about sheds" });
+    let claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "Tell me more." });
+    await owner.mutation(api.viewerChat.continueInClaude, { chatId });
+    claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "Goal: a podcast." });
+    const saved = await owner.query(api.viewerMemory.knowledge, { kind: "note", paginationOpts: { numItems: 5, cursor: null } });
+    expect(saved.page.map((note) => note.title)).toEqual(["Brief: A podcast about sheds"]);
+
+    await owner.mutation(api.viewerChat.archive, { chatId });
+    expect((await owner.query(api.viewerChat.chats, {})).chats).toEqual([]);
+    expect(await refusal(owner.mutation(api.viewerChat.send, { chatId, text: "Still there?" }))).toBe("invalid_arguments");
+    await owner.mutation(api.viewerChat.archive, { chatId, restore: true });
+    expect((await owner.query(api.viewerChat.chats, {})).chats.map((chat) => chat.state)).toEqual(["open"]);
+    expect(await refusal(t.mutation(api.viewerChat.archive, { chatId }))).toBe("not_signed_in");
+  });
+});

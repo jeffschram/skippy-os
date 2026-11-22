@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
-import { describeScope, failTurn, LEASE_MS } from "./chats";
+import { describeScope, failTurn, keepBrief, LEASE_MS } from "./chats";
 
 /**
  * What the chat runner on the mini calls. These are public functions, so each
@@ -124,6 +124,8 @@ export const finish = mutation({
     if (args.status === "done") {
       await ctx.db.patch(turn._id, { status: "done", finishedAt: now, activity: undefined, leaseUntil: undefined });
       await ctx.db.patch(turn.assistantMessageId, { status: "done" });
+      const whole = await ctx.db.get(turn.chatId);
+      if (turn.kind === "brief" && whole && args.text?.trim()) await keepBrief(ctx, whole, turn.assistantMessageId, args.text);
     } else {
       await failTurn(ctx, turn, (args.error ?? "The session ended without a reply.").slice(0, 500));
     }

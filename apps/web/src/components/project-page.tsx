@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { ChatsAbout } from "./chats-about";
 import { Files } from "./files";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
@@ -100,6 +101,10 @@ function Loaded() {
             </div>
           </details>
         ) : null}
+      </Panel>
+
+      <Panel title="Chats">
+        <ChatsAbout type="project" id={project.slug} />
       </Panel>
 
       <Panel title="Files">

@@ -428,9 +428,13 @@ export default defineSchema({
     sessionStarted: v.optional(v.boolean()),
     state: v.union(v.literal("open"), v.literal("promoted"), v.literal("archived")),
     promotedTo: v.optional(entityRef),
+    /** When a brief was last written to carry this chat on in the Claude app. */
+    continuedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index("by_updated", ["updatedAt"]),
+  })
+    .index("by_updated", ["updatedAt"])
+    .index("by_item", ["scope.entityRef.entityId", "updatedAt"]),
 
   chatMessages: defineTable({
     chatId: v.id("chats"),
@@ -459,6 +463,8 @@ export default defineSchema({
     ),
     leaseUntil: v.optional(v.number()),
     host: v.optional(v.string()),
+    /** "brief": the reply is a hand-off brief, saved to the project's notes or as a note when it is done. */
+    kind: v.optional(v.literal("brief")),
     /** What the session is doing right now, in a few words. */
     activity: v.optional(v.string()),
     error: v.optional(v.string()),

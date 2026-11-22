@@ -1,5 +1,6 @@
 import type { EntityType } from "@skippy/shared";
 import { v, type Infer } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention } from "./lib/entities";
@@ -21,7 +22,7 @@ const MAX_MESSAGE = 8000;
 export type Scope = Doc<"chats">["scope"];
 
 /** Saves the owner's message, with the reply it is waiting for and the turn that will write it. */
-export async function queueTurn(ctx: MutationCtx, chatId: Id<"chats">, text: string): Promise<Id<"chatTurns">> {
+export async function queueTurn(ctx: MutationCtx, chatId: Id<"chats">, text: string, kind?: "brief"): Promise<Id<"chatTurns">> {
   const now = Date.now();
   const content = requireText(text, "text");
   if (content.length > MAX_MESSAGE) throw refuse("invalid_arguments", `A message holds up to ${MAX_MESSAGE} characters.`);
@@ -37,7 +38,14 @@ export async function queueTurn(ctx: MutationCtx, chatId: Id<"chats">, text: str
   // One millisecond later, so the reply always sorts after its question.
   const assistantMessageId = await ctx.db.insert("chatMessages", { chatId, role: "assistant", content: "", status: "waiting", createdAt: now + 1 });
   await ctx.db.patch(chatId, { updatedAt: now });
-  return await ctx.db.insert("chatTurns", { chatId, userMessageId, assistantMessageId, status: "queued", createdAt: now });
+  return await ctx.db.insert("chatTurns", {
+    chatId,
+    userMessageId,
+    assistantMessageId,
+    status: "queued",
+    ...(kind ? { kind } : {}),
+    createdAt: now,
+  });
 }
 
 export async function startChat(ctx: MutationCtx, args: { text: string; about?: { type: EntityType; id: string } }) {
@@ -144,3 +152,39 @@ export const proposePromotion = internalMutation({
     return { cardId, offered: true };
   },
 });
+
+/** What the owner's "Continue in Claude" asks the chat's session to write. */
+export const BRIEF_REQUEST = [
+  "Write a brief so this can be carried on in the Claude app, by a session that has not seen this chat.",
+  "Cover, in this order and in plain text: the goal; what has been decided so far; what is still open; and the Skippy records this touches, each with its type and id.",
+  "Write it to that session, not to me. Keep it under 300 words. Offer no cards.",
+].join(" ");
+
+const SURFACE = { kind: "agent" as const, harness: "claude" as const, clientId: "skippy-chat-runner", surface: "web_chat" as const };
+
+/**
+ * Keeps a finished brief: at the end of the project's notes when the chat is
+ * about a project, otherwise as a note. Ends it with the line that tells a
+ * Claude session which Skippy project it is working on.
+ */
+export async function keepBrief(ctx: MutationCtx, chat: Doc<"chats">, messageId: Id<"chatMessages">, brief: string): Promise<void> {
+  const now = Date.now();
+  const day = new Date(now).toISOString().slice(0, 10);
+  const project =
+    chat.scope.kind === "item" && chat.scope.entityRef.entityType === "project"
+      ? await ctx.db.get(chat.scope.entityRef.entityId as Id<"projects">)
+      : null;
+  let text = brief.trim();
+  if (project) {
+    text += `\n\nSkippy project: ${project.slug}. Follow the skippy-status skill. If you don't have that skill, get it with get_skill from the Skippy OS connector.`;
+    await ctx.runMutation(internal.projects.upsert, {
+      actor: SURFACE,
+      slug: project.slug,
+      notesPad: `${project.notesPad.trim()}${project.notesPad.trim() ? "\n\n" : ""}Brief from a dashboard chat, ${day}\n\n${text}`,
+    });
+  } else {
+    await ctx.runMutation(internal.knowledge.upsert, { actor: SURFACE, kind: "note", title: `Brief: ${chat.title}`.slice(0, 200), body: text });
+  }
+  await ctx.db.patch(messageId, { content: text });
+  await ctx.db.patch(chat._id, { continuedAt: now });
+}

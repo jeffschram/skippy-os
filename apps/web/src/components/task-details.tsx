@@ -5,6 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { ChatsAbout } from "./chats-about";
 import { Files } from "./files";
 import { button } from "./parts";
 import { problem, Quiet, showTime } from "./parts";
@@ -251,6 +252,10 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
           </button>
         </div>
       )}
+      <div className="border-t border-foreground/15 pt-4">
+        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chats</h3>
+        <ChatsAbout type="task" id={task.id} />
+      </div>
       <div className="border-t border-foreground/15 pt-4">
         <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
         <Files type="task" id={task.id} />

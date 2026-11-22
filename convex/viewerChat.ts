@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention, type Ref } from "./lib/entities";
-import { describeScope, failTurn, queueTurn, startChat } from "./chats";
+import { BRIEF_REQUEST, describeScope, failTurn, queueTurn, startChat } from "./chats";
 import { refuse } from "./lib/common";
 import { cardDraft, entityType } from "./schema";
 import { OWNER, requireOwner } from "./viewer";
@@ -77,6 +77,7 @@ export const chat = query({
       id: found._id,
       title: found.title,
       state: found.state,
+      continuedAt: found.continuedAt ? new Date(found.continuedAt).toISOString() : undefined,
       scope: await describeScope(ctx, found.scope),
       messages: await Promise.all(
         messages.map(async (message) => ({
@@ -88,7 +89,7 @@ export const chat = query({
           cards: await Promise.all((message.cards ?? []).map((card) => presentCard(ctx, card))),
         })),
       ),
-      turn: turn ? { status: turn.status, activity: turn.activity, error: turn.error } : null,
+      turn: turn ? { status: turn.status, activity: turn.activity, error: turn.error, kind: turn.kind, replyId: turn.assistantMessageId } : null,
       /** When the chat runner last said it was alive. The page works out from this whether the mini is there. */
       miniSeenAt: hosts.length > 0 ? Math.max(...hosts.map((host) => host.lastSeenAt)) : null,
     };
@@ -223,13 +224,64 @@ export const dismissCard = mutation({
   },
 });
 
-/** The latest chats, newest first. */
+/**
+ * Asks the chat's session for a brief to carry the work on in the Claude app.
+ * When it is written it is kept: in the project's notes, or as a note.
+ */
+export const continueInClaude = mutation({
+  args: { chatId: v.string() },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    const id = ctx.db.normalizeId("chats", args.chatId);
+    const found = id ? await ctx.db.get(id) : null;
+    if (!found) throw refuse("not_found", "That chat is no longer there.");
+    await queueTurn(ctx, found._id, BRIEF_REQUEST, "brief");
+    return null;
+  },
+});
+
+/** Puts a chat away, or brings it back. An archived chat is off the lists and takes no more messages. */
+export const archive = mutation({
+  args: { chatId: v.string(), restore: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    const id = ctx.db.normalizeId("chats", args.chatId);
+    const found = id ? await ctx.db.get(id) : null;
+    if (!found) throw refuse("not_found", "That chat is no longer there.");
+    await ctx.db.patch(found._id, { state: args.restore ? (found.promotedTo ? "promoted" : "open") : "archived" });
+    return null;
+  },
+});
+
+/** The chats about one record, newest first. */
+export const chatsAbout = query({
+  args: { type: entityType, id: v.string() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const record = await findEntity(ctx, args.type, args.id);
+    if (!record) return { chats: [] };
+    const rows = await ctx.db
+      .query("chats")
+      .withIndex("by_item", (q) => q.eq("scope.entityRef.entityId", record.ref.entityId))
+      .order("desc")
+      .take(20);
+    return {
+      chats: rows
+        .filter((row) => row.state !== "archived")
+        .map((row) => ({ id: row._id, title: row.title, updatedAt: new Date(row.updatedAt).toISOString() })),
+    };
+  },
+});
+
+/** The latest chats, newest first. Archived ones are left out. */
 export const chats = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 8), 1), 50);
-    const rows = await ctx.db.query("chats").withIndex("by_updated").order("desc").take(limit);
+    const rows = (await ctx.db.query("chats").withIndex("by_updated").order("desc").take(limit * 3))
+      .filter((row) => row.state !== "archived")
+      .slice(0, limit);
     return {
       chats: await Promise.all(
         rows.map(async (row) => ({

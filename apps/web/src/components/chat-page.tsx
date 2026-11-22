@@ -22,6 +22,7 @@ type Chat = NonNullable<FunctionReturnType<typeof api.viewerChat.chat>>;
 /** The mini says "alive" every half minute. Three missed in a row means it is away. */
 const AWAY_AFTER_MS = 100_000;
 const field = "w-full resize-none rounded-md border border-foreground/20 bg-transparent px-3 py-2 text-base";
+const quiet = "text-foreground/60 underline underline-offset-2";
 
 export function ChatPage() {
   return (
@@ -63,6 +64,9 @@ function Loaded() {
 function Conversation({ chat }: { chat: Chat }) {
   const send = useMutation(api.viewerChat.send);
   const cancel = useMutation(api.viewerChat.cancel);
+  const brief = useMutation(api.viewerChat.continueInClaude);
+  const archive = useMutation(api.viewerChat.archive);
+  const [copied, setCopied] = useState(false);
   const now = useClock();
   const [text, setText] = useState("");
   const [error, setError] = useState<string>();
@@ -96,6 +100,15 @@ function Conversation({ chat }: { chat: Chat }) {
     }
   }
 
+  async function attempt(change: () => Promise<unknown>) {
+    setError(undefined);
+    try {
+      await change();
+    } catch (caught) {
+      setError(problem(caught));
+    }
+  }
+
   const record = chat.scope.kind === "item" ? chat.scope.record : undefined;
   const recordHref = record ? itemHref(record.type, record.id) : undefined;
   return (
@@ -116,7 +129,25 @@ function Conversation({ chat }: { chat: Chat }) {
         ) : (
           "An idea chat"
         )}
+        {chat.continuedAt ? ` · continued in Claude ${showTime(chat.continuedAt)}` : ""}
+        {chat.state === "archived" ? " · archived" : ""}
       </p>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        {chat.state === "archived" ? (
+          <button type="button" onClick={() => attempt(() => archive({ chatId: chat.id, restore: true }))} className={quiet}>
+            Bring it back
+          </button>
+        ) : (
+          <>
+            <button type="button" disabled={busy} onClick={() => attempt(() => brief({ chatId: chat.id }))} className={`${quiet} disabled:opacity-40`}>
+              Continue in Claude
+            </button>
+            <button type="button" onClick={() => attempt(() => archive({ chatId: chat.id }))} className={quiet}>
+              Archive
+            </button>
+          </>
+        )}
+      </div>
 
       <ol className="mt-8 space-y-6">
         {chat.messages.map((message) => (
@@ -128,6 +159,27 @@ function Conversation({ chat }: { chat: Chat }) {
               <p className={`mt-1 text-base leading-7 whitespace-pre-wrap ${message.role === "user" ? "" : "text-foreground/90"}`}>{message.content}</p>
             ) : null}
             {message.role === "assistant" && message.id === last?.id ? <Status chat={chat} away={away} /> : null}
+            {chat.turn?.kind === "brief" && chat.turn.replyId === message.id && message.status === "done" ? (
+              <p className="mt-2 text-sm">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(message.content);
+                      setCopied(true);
+                    } catch {
+                      setError("The browser did not allow copying. Select the brief and copy it by hand.");
+                    }
+                  }}
+                  className={button}
+                >
+                  {copied ? "Copied" : "Copy the brief"}
+                </button>{" "}
+                <span className="text-foreground/60">
+                  Paste it into a new Claude Project or Code session. It is also saved in {record?.type === "project" ? "the project's notes" : "Memory, as a note"}.
+                </span>
+              </p>
+            ) : null}
             {message.cards.length > 0 ? (
               <ul className="mt-3 space-y-3">
                 {message.cards.map((card) => (
@@ -152,7 +204,8 @@ function Conversation({ chat }: { chat: Chat }) {
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKey}
           rows={Math.min(Math.max(text.split("\n").length, 1), 8)}
-          placeholder={busy ? "Waiting for the reply…" : "Say something. Enter sends it."}
+          disabled={chat.state === "archived"}
+          placeholder={chat.state === "archived" ? "This chat is archived." : busy ? "Waiting for the reply…" : "Say something. Enter sends it."}
           aria-label="Message"
           className={field}
         />

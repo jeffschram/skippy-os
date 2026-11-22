@@ -10,6 +10,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { draftOfRule, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { ChatsAbout } from "./chats-about";
 import { Files } from "./files";
 import { button, problem, Quiet, showDay, showTime, Tag, words } from "./parts";
 import { useNow } from "./use-now";
@@ -114,6 +115,10 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
       ) : (
         <GoalForm key={id} goal={bundle.record as Goal} onClose={onClose} />
       )}
+      <section className="border-t border-foreground/15 pt-4">
+        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chats</h3>
+        <ChatsAbout type={type} id={id} />
+      </section>
       <section className="border-t border-foreground/15 pt-4">
         <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
         <Files type={type} id={id} />
