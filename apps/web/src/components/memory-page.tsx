@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@convex/_generated/api";
+import type { FunctionReturnType } from "convex/server";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -347,8 +348,43 @@ function Companies() {
 
 function Goals() {
   const data = useQuery(api.viewerMemory.goals);
-  if (data === undefined) return <Quiet>Loading…</Quiet>;
-  if (data.goals.length === 0) return <Quiet>No goals yet.</Quiet>;
+  const save = useMutation(api.viewerMemory.saveGoal);
+  const router = useRouter();
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState<string>();
+
+  async function add(event: FormEvent) {
+    event.preventDefault();
+    setError(undefined);
+    try {
+      const made = await save({ title });
+      setTitle("");
+      router.push(itemHref("goal", made.id)!, { scroll: false });
+    } catch (caught) {
+      setError(problem(caught));
+    }
+  }
+
+  return (
+    <div>
+      <form onSubmit={add} className="flex flex-wrap gap-2">
+        <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a goal" aria-label="New goal" className={`min-w-48 flex-1 ${field}`} />
+        <button type="submit" disabled={!title.trim()} className={`${button} disabled:opacity-50`}>
+          Add
+        </button>
+      </form>
+      {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      <div className="mt-6">
+        <GoalList goals={data?.goals} />
+      </div>
+    </div>
+  );
+}
+
+function GoalList({ goals }: { goals?: FunctionReturnType<typeof api.viewerMemory.goals>["goals"] }) {
+  if (goals === undefined) return <Quiet>Loading…</Quiet>;
+  if (goals.length === 0) return <Quiet>No goals yet.</Quiet>;
+  const data = { goals };
   return (
     <ul className="space-y-4">
       {data.goals.map((goal) => (

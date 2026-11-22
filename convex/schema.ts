@@ -54,6 +54,7 @@ export const taskStatus = v.union(
   v.literal("cancelled"),
 );
 export const commitment = v.union(v.literal("must"), v.literal("want"));
+export const goalStatus = v.union(v.literal("active"), v.literal("paused"), v.literal("achieved"), v.literal("abandoned"));
 export const recurrenceRule = v.union(
   v.object({ kind: v.literal("interval"), everyDays: v.number() }),
   v.object({ kind: v.literal("calendar"), rrule: v.string() }),
@@ -105,7 +106,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     areaId: v.optional(v.id("areas")),
     horizon: v.optional(v.string()),
-    status: v.union(v.literal("active"), v.literal("paused"), v.literal("achieved"), v.literal("abandoned")),
+    status: goalStatus,
     measures: v.optional(v.array(v.object({ label: v.string(), target: v.number(), current: v.number() }))),
     ...authored,
   }).index("by_status", ["status"]),
@@ -390,6 +391,8 @@ export default defineSchema({
     text: v.optional(v.string()),
     url: v.optional(v.string()),
     intent: captureIntent,
+    /** The record the capture was made about, such as the project whose page it was typed on. */
+    about: v.optional(entityRef),
     status: v.union(v.literal("pending"), v.literal("processed"), v.literal("discarded")),
     createdBy: actor,
     createdAt: v.number(),

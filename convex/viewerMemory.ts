@@ -8,7 +8,7 @@ import { knowledgeTitle } from "./lib/entities";
 import { getSettings, iso } from "./lib/common";
 import { presentCompany, presentPerson } from "./people";
 import { readBundle, runSearch } from "./read";
-import { companyLabel, knowledgeKind, lifecycle, readState } from "./schema";
+import { companyLabel, goalStatus, knowledgeKind, lifecycle, readState } from "./schema";
 import { OWNER, requireOwner } from "./viewer";
 
 /**
@@ -172,13 +172,15 @@ export const saveKnowledge = mutation({
   },
 });
 
-/** Adds a person, or changes one when `id` is given. Emails and numbers are added to those on file. */
+/** Adds a person, or changes one when `id` is given. Emails and numbers are added to those on file, or taken off by name. */
 export const savePerson = mutation({
   args: {
     id: v.optional(v.string()),
     name: v.optional(v.string()),
     emails: v.optional(v.array(v.string())),
     phoneNumbers: v.optional(v.array(v.string())),
+    removeEmails: v.optional(v.array(v.string())),
+    removePhoneNumbers: v.optional(v.array(v.string())),
     company: nullable(v.string()),
     roleTitle: nullable(v.string()),
     relationshipContext: nullable(v.string()),
@@ -190,6 +192,22 @@ export const savePerson = mutation({
     await requireOwner(ctx);
     const result = await ctx.runMutation(internal.people.upsert, { actor: OWNER, ...args });
     return { id: result.person.id, created: result.created, changed: result.changed };
+  },
+});
+
+/** Adds a goal, or changes one when `id` is given. Only the fields passed change; null clears one. */
+export const saveGoal = mutation({
+  args: {
+    id: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: nullable(v.string()),
+    horizon: nullable(v.string()),
+    status: v.optional(goalStatus),
+  },
+  handler: async (ctx, args): Promise<{ id: string; created: boolean; changed: boolean }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.goals.upsert, { actor: OWNER, ...args });
+    return { id: result.goal.id, created: result.created, changed: result.changed };
   },
 });
 

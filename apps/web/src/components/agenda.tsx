@@ -1,10 +1,12 @@
 "use client";
 
 import { api } from "@convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { AddToCalendar, EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { OwnerPage } from "./owner-page";
-import { Quiet, showDay } from "./parts";
+import { problem, Quiet, showDay } from "./parts";
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
@@ -14,7 +16,44 @@ import { useNow } from "./use-now";
  * waiting tasks at the bottom. A task is placed by its deadline, or by the day
  * it is planned for when it has no deadline. An event that began earlier and
  * is still running is shown under today.
+ *
+ * Three views: Schedule (all of it), Tasks only, and Board (open tasks in
+ * columns by status). A project can be picked to narrow any of them. The
+ * choice of view and project is remembered in this browser.
  */
+
+const VIEWS = [
+  { key: "schedule", label: "Schedule" },
+  { key: "tasks", label: "Tasks only" },
+  { key: "board", label: "Board" },
+] as const;
+type View = (typeof VIEWS)[number]["key"];
+const NO_PROJECT = "(none)";
+
+/** A choice kept in this browser. It is a convenience: the page works the same without it. */
+function useRemembered<T extends string>(key: string, initial: T): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(initial);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(key);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after the first render, so the server and the browser agree on the first paint
+      if (stored !== null) setValue(stored as T);
+    } catch {
+      // Storage can be blocked. The default stands.
+    }
+  }, [key]);
+  return [
+    value,
+    (next) => {
+      setValue(next);
+      try {
+        window.localStorage.setItem(key, next);
+      } catch {
+        // Not remembered, and that is fine.
+      }
+    },
+  ];
+}
 
 export function Agenda() {
   return (
@@ -31,10 +70,25 @@ const count = (day: Day) => day.events.length + day.recurrences.length + day.tas
 
 function Days() {
   const now = useNow();
-  const data = useQuery(api.viewer.openTasks, { now });
-  const calendar = useQuery(api.viewer.calendar, { now });
-  if (data === undefined || calendar === undefined) return <Quiet>Loading…</Quiet>;
-  const today = data.today;
+  const all = useQuery(api.viewer.openTasks, { now });
+  const whole = useQuery(api.viewer.calendar, { now });
+  const [storedView, setView] = useRemembered<View>("skippy.agenda.view", "schedule");
+  const [project, setProject] = useRemembered<string>("skippy.agenda.project", "");
+  if (all === undefined || whole === undefined) return <Quiet>Loading…</Quiet>;
+  const view = VIEWS.some((item) => item.key === storedView) ? storedView : "schedule";
+  const today = all.today;
+
+  // The projects that have something open, for the filter.
+  const projects = [...new Set(all.tasks.map((task) => task.project).filter((slug): slug is string => Boolean(slug)))].sort();
+  const chosen = project === NO_PROJECT || projects.includes(project) ? project : "";
+  const inProject = (slug: string | undefined) => chosen === "" || (chosen === NO_PROJECT ? !slug : slug === chosen);
+  const data = { ...all, tasks: all.tasks.filter((task) => inProject(task.project)) };
+  // Recurrences belong to no project, so they show only when no project is picked.
+  const withCalendar = view === "schedule";
+  const calendar = {
+    events: withCalendar ? whole.events.filter((event) => inProject(event.project)) : [],
+    recurrences: withCalendar && (chosen === "" || chosen === NO_PROJECT) ? whole.recurrences : [],
+  };
 
   const days = new Map<string, Day>();
   const at = (key: string) => {
@@ -68,12 +122,43 @@ function Days() {
       <div className="flex items-baseline justify-between gap-4">
         <h1 className="text-2xl font-semibold">Agenda</h1>
         <p className="text-sm text-foreground/60">
-          {data.tasks.length} open tasks · {calendar.events.length} events ahead · {live.length} repeating
+          {data.tasks.length} open tasks · {whole.events.length} events ahead · {whole.recurrences.filter((item) => item.status === "active").length} repeating
         </p>
       </div>
       <AddTask />
       <AddToCalendar />
-      {shown.length === 0 ? (
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" role="group" aria-label="View">
+          {VIEWS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              aria-pressed={view === item.key}
+              onClick={() => setView(item.key)}
+              className={view === item.key ? "font-semibold underline underline-offset-4" : "text-foreground/70 hover:text-foreground"}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <select
+          value={chosen}
+          onChange={(event) => setProject(event.target.value)}
+          aria-label="Project"
+          className="ml-auto rounded-md border border-foreground/20 bg-transparent px-2 py-1.5 text-sm"
+        >
+          <option value="">All projects</option>
+          <option value={NO_PROJECT}>No project</option>
+          {projects.map((slug) => (
+            <option key={slug} value={slug}>
+              {slug}
+            </option>
+          ))}
+        </select>
+      </div>
+      {view === "board" ? (
+        <Board tasks={data.tasks} />
+      ) : shown.length === 0 ? (
         <div className="mt-8">
           <Quiet>Nothing is open.</Quiet>
         </div>
@@ -105,6 +190,85 @@ function Days() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const COLUMNS = [
+  { status: "todo", label: "To do" },
+  { status: "in_progress", label: "In progress" },
+  { status: "waiting", label: "Waiting" },
+] as const;
+
+/** Open tasks in a column for each status. A task moves by changing its status in place. */
+function Board({ tasks }: { tasks: Task[] }) {
+  const save = useMutation(api.viewer.saveTask);
+  const [error, setError] = useState<string>();
+
+  async function move(task: Task, status: Task["status"]) {
+    setError(undefined);
+    try {
+      await save({ id: task.id, status });
+    } catch (caught) {
+      setError(problem(caught));
+    }
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="mt-8">
+        <Quiet>Nothing is open.</Quiet>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-8">
+      {error ? <p className="mb-3 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      <div className="grid gap-6 md:grid-cols-3">
+        {COLUMNS.map((column) => {
+          const mine = tasks
+            .filter((task) => task.status === column.status)
+            .sort((a, b) => (a.due?.at ?? a.scheduledFor?.at ?? "9").localeCompare(b.due?.at ?? b.scheduledFor?.at ?? "9"));
+          return (
+            <section key={column.status}>
+              <h2 className="mb-3 border-b border-foreground/15 pb-2 text-sm font-medium text-foreground/70">
+                {column.label} <span className="text-foreground/50">· {mine.length}</span>
+              </h2>
+              <ul className="space-y-3">
+                {mine.map((task) => (
+                  <li key={task.id} className="rounded-md border border-foreground/15 p-3">
+                    <Link href={`?task=${task.id}`} scroll={false} className="text-base underline-offset-2 hover:underline">
+                      {task.title}
+                    </Link>
+                    <p className="mt-1 text-xs text-foreground/60">
+                      {[
+                        task.project,
+                        task.due ? `due ${showDay(task.due.date)}` : task.scheduledFor ? `planned ${showDay(task.scheduledFor.date)}` : undefined,
+                        task.status === "waiting" && task.waitingOn ? `on ${task.waitingOn}` : undefined,
+                        task.commitment === "want" ? "optional" : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    <select
+                      value={task.status}
+                      onChange={(event) => move(task, event.target.value as Task["status"])}
+                      aria-label={`Status of ${task.title}`}
+                      className="mt-2 rounded-md border border-foreground/20 bg-transparent px-2 py-1 text-xs"
+                    >
+                      <option value="todo">To do</option>
+                      <option value="in_progress">In progress</option>
+                      <option value="waiting">Waiting</option>
+                      <option value="done">Done</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

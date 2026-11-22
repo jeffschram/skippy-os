@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@convex/_generated/api";
+import type { presentGoal } from "@convex/goals";
 import type { presentKnowledge } from "@convex/knowledge";
 import type { presentCompany, presentPerson } from "@convex/people";
 import type { FunctionReturnType } from "convex/server";
@@ -27,7 +28,7 @@ type Bundle = NonNullable<FunctionReturnType<typeof api.viewerMemory.item>>;
 type Knowledge = ReturnType<typeof presentKnowledge>;
 type Person = Awaited<ReturnType<typeof presentPerson>>;
 type Company = ReturnType<typeof presentCompany>;
-type Goal = { title: string; description?: string; status: string; horizon?: string };
+type Goal = ReturnType<typeof presentGoal>;
 
 const KINDS = ["note", "link", "memory", "decision", "principle", "question"] as const;
 const LABELS = ["client", "vendor", "employer", "partner", "prospect", "other"] as const;
@@ -111,7 +112,7 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
       ) : type === "recurrence" ? (
         <RecurrenceForm key={id} item={bundle.record as RecurrenceItem} onClose={onClose} />
       ) : (
-        <GoalView goal={bundle.record as Goal} />
+        <GoalForm key={id} goal={bundle.record as Goal} onClose={onClose} />
       )}
       <section className="border-t border-foreground/15 pt-4">
         <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
@@ -332,8 +333,28 @@ function PersonForm({ person, onClose }: { person: Person; onClose: () => void }
         <p className="text-foreground/60">Email and phone</p>
         {person.emails.length + person.phoneNumbers.length === 0 ? <p className="mt-1">None on file.</p> : null}
         <ul className="mt-1 space-y-0.5">
-          {[...person.emails, ...person.phoneNumbers].map((handle) => (
-            <li key={handle}>{handle}</li>
+          {[
+            ...person.emails.map((value) => ({ value, change: { removeEmails: [value] } })),
+            ...person.phoneNumbers.map((value) => ({ value, change: { removePhoneNumbers: [value] } })),
+          ].map((handle) => (
+            <li key={handle.value} className="flex flex-wrap items-baseline gap-3">
+              {handle.value}
+              <button
+                type="button"
+                onClick={async () => {
+                  setError(undefined);
+                  try {
+                    await save({ id: person.id, ...handle.change });
+                  } catch (caught) {
+                    setError(problem(caught));
+                  }
+                }}
+                aria-label={`Remove ${handle.value}`}
+                className="text-xs text-foreground/60 underline underline-offset-2"
+              >
+                remove
+              </button>
+            </li>
           ))}
         </ul>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -613,16 +634,74 @@ function RecurrenceForm({ item, onClose }: { item: RecurrenceItem; onClose: () =
   );
 }
 
-function GoalView({ goal }: { goal: Goal }) {
+const GOAL_STATUSES = ["active", "paused", "achieved", "abandoned"] as const;
+
+function GoalForm({ goal, onClose }: { goal: Goal; onClose: () => void }) {
+  const save = useMutation(api.viewerMemory.saveGoal);
+  const [title, setTitle] = useState(goal.title);
+  const [description, setDescription] = useState(goal.description ?? "");
+  const [horizon, setHorizon] = useState(goal.horizon ?? "");
+  const [status, setStatus] = useState(goal.status);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const changes: Parameters<typeof save>[0] = { id: goal.id };
+    if (title !== goal.title) changes.title = title;
+    if (description !== (goal.description ?? "")) changes.description = text(description);
+    if (horizon !== (goal.horizon ?? "")) changes.horizon = text(horizon);
+    if (status !== goal.status) changes.status = status;
+    if (Object.keys(changes).length === 1) return onClose();
+    setBusy(true);
+    setError(undefined);
+    try {
+      await save(changes);
+      onClose();
+    } catch (caught) {
+      setError(problem(caught));
+      setBusy(false);
+    }
+  }
+
   return (
-    <div>
-      <div className="flex flex-wrap items-baseline gap-2">
-        <p className="text-base font-medium">{goal.title}</p>
-        <Tag>{goal.status}</Tag>
-        {goal.horizon ? <span className="text-xs text-foreground/60">{goal.horizon}</span> : null}
+    <form onSubmit={submit} className="space-y-4">
+      <label className="block text-sm">
+        Goal
+        <input value={title} onChange={(event) => setTitle(event.target.value)} required className={`mt-1 text-base ${field}`} />
+      </label>
+      <label className="block text-sm">
+        What it means
+        <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} className={`mt-1 ${field}`} />
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          When it is for
+          <input value={horizon} onChange={(event) => setHorizon(event.target.value)} placeholder="This year, by June…" className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          Status
+          <select value={status} onChange={(event) => setStatus(event.target.value as Goal["status"])} className={`mt-1 ${field}`}>
+            {GOAL_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-      {goal.description ? <p className="mt-2 text-base whitespace-pre-wrap">{goal.description}</p> : null}
-    </div>
+      {goal.measures?.length ? (
+        <ul className="text-sm text-foreground/70">
+          {goal.measures.map((measure) => (
+            <li key={measure.label}>
+              {measure.label}: {measure.current} of {measure.target}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      <Buttons busy={busy} onClose={onClose} />
+    </form>
   );
 }
 

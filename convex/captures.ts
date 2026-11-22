@@ -31,6 +31,7 @@ export function captureTitle(capture: Pick<Doc<"captures">, "text" | "url">, fil
 /** `withLinks` adds a way to open the capture's file. Only the owner's own pages ask for it. */
 export async function presentCapture(ctx: QueryCtx, capture: Doc<"captures">, withLinks = false) {
   const file = await fileOnCapture(ctx, capture._id);
+  const about = capture.about ? await findEntity(ctx, capture.about.entityType, capture.about.entityId) : null;
   const results = [];
   for (const ref of capture.resultRefs ?? []) {
     const found = await findEntity(ctx, ref.entityType, ref.entityId);
@@ -41,6 +42,8 @@ export async function presentCapture(ctx: QueryCtx, capture: Doc<"captures">, wi
     text: capture.text,
     url: capture.url,
     file: file ? (withLinks ? await presentFile(ctx, file) : describeFile(file)) : undefined,
+    /** The record it was made about. File what it becomes under this, or link to it. */
+    about: about ? mention(about) : undefined,
     intent: capture.intent,
     status: capture.status,
     by: actorLabel(capture.createdBy),
@@ -64,6 +67,7 @@ export const add = internalMutation({
     text: v.optional(v.string()),
     url: v.optional(v.string()),
     intent: v.optional(captureIntent),
+    about: v.optional(v.object({ type: entityType, id: v.string() })),
     /** An upload to keep with the capture. Only the dashboard sends one. */
     file: v.optional(v.object({ storageId: v.id("_storage"), fileName: v.string() })),
   },
@@ -80,7 +84,9 @@ export const add = internalMutation({
     if ((text?.length ?? 0) > MAX_TEXT) throw refuse("invalid_arguments", `A capture holds up to ${MAX_TEXT} characters.`);
     if (url && !/^https?:\/\//i.test(url)) throw refuse("invalid_arguments", "url must start with http:// or https://.");
     const intent = args.intent ?? "remember";
+    const about = args.about ? await requireEntity(ctx, args.about, "about") : null;
     const id = await ctx.db.insert("captures", {
+      ...(about ? { about: about.ref } : {}),
       ...(text ? { text } : {}),
       ...(url ? { url } : {}),
       intent,
@@ -96,7 +102,10 @@ export const add = internalMutation({
       activityType: "capture.added",
       actor: args.actor,
       at: now,
-      summary: intent === "hold" ? "Held something for seven days" : `Captured "${captureTitle(capture, file?.fileName)}"`,
+      summary:
+        intent === "hold"
+          ? "Held something for seven days"
+          : `Captured "${captureTitle(capture, file?.fileName)}"${about ? ` for ${about.ref.entityType} "${about.title}"` : ""}`,
     });
     return { capture: await presentCapture(ctx, capture) };
   },

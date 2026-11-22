@@ -38,7 +38,7 @@ A to-do is always a task, never a note. A deadline belongs on a task only when i
 
 ## Emptying the inbox
 
-When the owner asks you to go through their captures, or the inbox: call `list_captures`. For each one, decide what it is from the table above, search for a record that already covers it, save or update the record, then call `resolve_capture` with `outcome: "processed"` and what it became in `results`. A capture that is a duplicate or not worth keeping is resolved with `outcome: "discarded"` and a few words of why in `note`. Leave a capture alone when you cannot tell what the owner meant, and ask them. Never file a held capture.
+When the owner asks you to go through their captures, or the inbox: call `list_captures`. For each one, decide what it is from the table above, search for a record that already covers it, save or update the record, then call `resolve_capture` with `outcome: "processed"` and what it became in `results`. A capture that is a duplicate or not worth keeping is resolved with `outcome: "discarded"` and a few words of why in `note`. A capture that has `about` belongs under that record: give a task that project, and list the record in `about` on knowledge. A capture that holds a file cannot be discarded by you; leave it for the owner. Leave a capture alone when you cannot tell what the owner meant, and ask them. Never file a held capture.
 
 ## Before saving
 
@@ -48,6 +48,7 @@ Call `search` with the plainest words that would be in the record. If it is alre
 
 - On knowledge, list the people, projects or other records it is about in `about`.
 - For anything else, relate two records with `link_entities`.
+- On a capture, pass `about` when it concerns a project or another record.
 - When it came from somewhere, fill `source`: "conversation" for this chat, or the system and a link back for an email, message or page. Keep any excerpt short. Never copy a whole email or message.
 
 ## Write for later

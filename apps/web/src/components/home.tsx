@@ -4,20 +4,19 @@ import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { EventRow, RecurrenceRow } from "./calendar-parts";
-import { CaptureBox, InboxPanel } from "./capture";
+import { InboxPanel } from "./capture";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
-/** Home: quick capture and the inbox, today's tasks, the live projects and the latest activity. Each panel is its own live query. */
+/** Home: the inbox, today's tasks, the live projects and the latest activity. Each panel is its own live query. */
 
 export function Home() {
   return (
     <OwnerPage>
       <div className="space-y-12">
-        <CaptureBox />
         <InboxPanel />
         <Today />
         <SinceLastLook />

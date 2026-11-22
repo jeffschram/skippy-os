@@ -130,6 +130,9 @@ export const upsert = internalMutation({
     name: v.optional(v.string()),
     emails: v.optional(v.array(v.string())),
     phoneNumbers: v.optional(v.array(v.string())),
+    /** Addresses and numbers to take off the person. Only with an id. */
+    removeEmails: v.optional(v.array(v.string())),
+    removePhoneNumbers: v.optional(v.array(v.string())),
     company: nullable(v.string()),
     roleTitle: nullable(v.string()),
     relationshipContext: nullable(v.string()),
@@ -144,6 +147,11 @@ export const upsert = internalMutation({
     const settings = await getSettings(ctx);
     const emails = handles(args.emails, normalizeEmail);
     const phones = handles(args.phoneNumbers, normalizePhone);
+    const dropEmails = new Set(handles(args.removeEmails, normalizeEmail));
+    const dropPhones = new Set(handles(args.removePhoneNumbers, normalizePhone));
+    if ((dropEmails.size > 0 || dropPhones.size > 0) && args.id === undefined) {
+      throw refuse("invalid_arguments", "Give the person's id to take an email or number off them.");
+    }
     const emailOwners = await owners(ctx, "email", emails);
     const phoneOwners = await owners(ctx, "phone", phones);
     const known = [...new Set([...emailOwners.values(), ...phoneOwners.values()])];
@@ -200,8 +208,8 @@ export const upsert = internalMutation({
       const newPhones = phones.filter((phone) => !phoneOwners.has(phone));
       const { patch, diff } = buildPatch(existing, {
         ...fields,
-        emails: [...existing.emails, ...newEmails],
-        phoneNumbers: [...existing.phoneNumbers, ...newPhones],
+        emails: [...existing.emails, ...newEmails].filter((email) => !dropEmails.has(email)),
+        phoneNumbers: [...existing.phoneNumbers, ...newPhones].filter((phone) => !dropPhones.has(phone)),
       });
       const companyChange = company === undefined ? null : await setCompany(ctx, personId, company, args.actor, now);
       if (Object.keys(patch).length === 0 && !companyChange) {
@@ -210,6 +218,13 @@ export const upsert = internalMutation({
       await ctx.db.patch(personId, { ...patch, updatedBy: args.actor, updatedAt: now });
       for (const value of newEmails) await ctx.db.insert("personHandles", { personId, kind: "email", value });
       for (const value of newPhones) await ctx.db.insert("personHandles", { personId, kind: "phone", value });
+      // What was taken off no longer finds this person.
+      for (const row of await ctx.db
+        .query("personHandles")
+        .withIndex("by_person", (q) => q.eq("personId", personId))
+        .collect()) {
+        if ((row.kind === "email" ? dropEmails : dropPhones).has(row.value)) await ctx.db.delete(row._id);
+      }
       const updated = (await ctx.db.get(personId))!;
       await indexPerson(ctx, updated);
       delete diff.nameKey;

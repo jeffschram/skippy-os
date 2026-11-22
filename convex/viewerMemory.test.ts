@@ -146,3 +146,40 @@ describe("the Memory page", () => {
     expect(details!.record).toMatchObject({ title: "Record an album", status: "active" });
   });
 });
+
+describe("fixing a person and keeping goals", () => {
+  it("takes a wrong email or number off a person, so it no longer finds them", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const pat = await owner.mutation(api.viewerMemory.savePerson, {
+      name: "Pat Jones",
+      emails: ["pat@example.com", "wrong@example.com"],
+      phoneNumbers: ["+1 555 010 0000"],
+    });
+    await owner.mutation(api.viewerMemory.savePerson, { id: pat.id, removeEmails: ["Wrong@Example.com"], removePhoneNumbers: ["+15550100000"] });
+    const { people } = await owner.query(api.viewerMemory.people, {});
+    expect([people[0].emails, people[0].phoneNumbers]).toEqual([["pat@example.com"], []]);
+    // The address that was taken off is free again: it makes a new person instead of finding Pat.
+    const other = await owner.mutation(api.viewerMemory.savePerson, { name: "Someone Else", emails: ["wrong@example.com"] });
+    expect(other).toMatchObject({ created: true });
+    expect(await refusal(owner.mutation(api.viewerMemory.savePerson, { name: "x", removeEmails: ["a@b.co"] }))).toBe("invalid_arguments");
+  });
+
+  it("adds a goal and changes it, logging each real change once", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const goal = await owner.mutation(api.viewerMemory.saveGoal, { title: "Record an album", horizon: "by next summer" });
+    expect(goal.created).toBe(true);
+    expect(await owner.mutation(api.viewerMemory.saveGoal, { id: goal.id, status: "achieved" })).toMatchObject({ changed: true });
+    expect(await owner.mutation(api.viewerMemory.saveGoal, { id: goal.id, status: "achieved" })).toMatchObject({ changed: false });
+    const { goals } = await owner.query(api.viewerMemory.goals, {});
+    expect(goals).toEqual([expect.objectContaining({ title: "Record an album", status: "achieved", horizon: "by next summer" })]);
+    const details = await owner.query(api.viewerMemory.item, { type: "goal", id: goal.id, now: NOW });
+    expect(details!.recentActivity.map((event) => event.summary)).toEqual([
+      'Goal "Record an album" is now achieved',
+      'Added goal "Record an album"',
+    ]);
+    expect(await refusal(owner.mutation(api.viewerMemory.saveGoal, { id: "nope", title: "x" }))).toBe("not_found");
+    expect(await refusal(t.mutation(api.viewerMemory.saveGoal, { title: "x" }))).toBe("not_signed_in");
+  });
+});

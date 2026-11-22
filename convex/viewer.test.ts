@@ -525,3 +525,29 @@ describe("the inbox", () => {
     expect(await refusal(owner.mutation(api.viewer.discardCapture, { id: "nope" }))).toBe("not_found");
   });
 });
+
+describe("a capture made about a record", () => {
+  it("files its task into that project, and links a note to it", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Garden Shed" });
+    const about = { type: "project" as const, id: "garden-shed" };
+    await owner.mutation(api.viewer.addCapture, { text: "Order the roofing felt", about });
+    await owner.mutation(api.viewer.addCapture, { text: "The neighbour's shed is 2.4m tall", about });
+    await asClaude(t, "capture", { text: "Check the permit rules", about });
+    expect(await refusal(owner.mutation(api.viewer.addCapture, { text: "x", about: { type: "project", id: "nope" } }))).toBe("not_found");
+
+    const inbox = await owner.query(api.viewer.captures, { now: NOW });
+    expect(inbox.pending.map((item) => item.about?.title)).toEqual(["Garden Shed", "Garden Shed", "Garden Shed"]);
+    const task = await owner.mutation(api.viewer.fileCapture, { id: inbox.pending[0].id, as: "task" });
+    const note = await owner.mutation(api.viewer.fileCapture, { id: inbox.pending[1].id, as: "note" });
+
+    const page = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    expect(page.openTasks.map((item) => item.title)).toEqual(["Order the roofing felt"]);
+    expect(task.type).toBe("task");
+    const details = await owner.query(api.viewerMemory.item, { type: "knowledge", id: note.id, now: NOW });
+    expect(details!.links.map((link) => [link.relation, link.record.title])).toEqual([["related_to", "Garden Shed"]]);
+    const { events } = await owner.query(api.viewer.activityLog, { who: "agents" });
+    expect(events[0].summary).toBe('Captured "Check the permit rules" for project "Garden Shed"');
+  });
+});

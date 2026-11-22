@@ -472,6 +472,7 @@ export const addCapture = mutation({
   args: {
     text: v.optional(v.string()),
     intent: v.optional(captureIntent),
+    about: v.optional(v.object({ type: entityType, id: v.string() })),
     file: v.optional(v.object({ storageId: v.id("_storage"), fileName: v.string() })),
   },
   handler: async (ctx, args): Promise<{ id: string }> => {
@@ -542,6 +543,9 @@ export const fileCapture = mutation({
     // A capture that is only a file is named after the file.
     const first = lines[0]?.trim() || ((await fileOnCapture(ctx, capture._id))?.fileName ?? "");
     const rest = lines.slice(1).join("\n").trim();
+    // What the capture was made about carries over: a task joins that project, anything else is linked to it.
+    const about = capture.about ? await findEntity(ctx, capture.about.entityType, capture.about.entityId) : null;
+    const aboutProject = about?.ref.entityType === "project" ? about.publicId : undefined;
     let made: { type: "task" | "knowledge"; id: string };
     if (args.as === "task") {
       const description = [rest, capture.url].filter(Boolean).join("\n\n");
@@ -549,8 +553,17 @@ export const fileCapture = mutation({
         actor: OWNER,
         title: (first || capture.url || "").slice(0, 200),
         ...(description ? { description } : {}),
+        ...(aboutProject ? { project: aboutProject } : {}),
       });
       made = { type: "task", id: result.task.id };
+      if (about && !aboutProject) {
+        await ctx.runMutation(internal.links.link, {
+          actor: OWNER,
+          from: made,
+          relation: "related_to",
+          to: { type: about.ref.entityType, id: about.publicId },
+        });
+      }
     } else {
       if (args.as === "link" && !capture.url) throw refuse("invalid_arguments", "That capture has no web address, so it cannot be a link.");
       // A one-line capture is all title; a longer one keeps its text whole and takes its title from the first line.
@@ -559,6 +572,7 @@ export const fileCapture = mutation({
         kind: args.as,
         ...(capture.text && (rest || first.length > 120) ? { body: capture.text } : first ? { title: first.slice(0, 200) } : {}),
         ...(capture.url ? { url: capture.url } : {}),
+        ...(about ? { about: [{ type: about.ref.entityType, id: about.publicId }] } : {}),
       });
       made = { type: "knowledge", id: result.knowledge.id };
     }

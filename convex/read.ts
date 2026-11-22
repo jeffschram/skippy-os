@@ -5,6 +5,7 @@ import { internalQuery, type QueryCtx } from "./_generated/server";
 import { eventsBetween, liveRecurrences, presentEvent, presentRecurrence } from "./agenda";
 import { searchCaptures } from "./captures";
 import { describeFile, filesOn } from "./files";
+import { presentGoal } from "./goals";
 import { getSettings, refuse, requireText, when } from "./lib/common";
 import { findEntity, mention, requireEntity, type Found } from "./lib/entities";
 import { LINK_LIMIT } from "./lib/links";
@@ -198,17 +199,8 @@ async function presentRecord(ctx: QueryCtx, entity: Found, now: number) {
     }
     case "recurrence":
       return presentRecurrence((await ctx.db.get(entityId as Id<"recurrences">))!, localDate(now, settings.timeZone));
-    case "goal": {
-      const doc = (await ctx.db.get(entityId as Id<"goals">))!;
-      return {
-        id: doc._id,
-        title: doc.title,
-        description: doc.description,
-        status: doc.status,
-        horizon: doc.horizon,
-        measures: doc.measures,
-      };
-    }
+    case "goal":
+      return presentGoal((await ctx.db.get(entityId as Id<"goals">))!);
     default:
       return mention(entity);
   }

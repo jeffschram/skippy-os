@@ -6,6 +6,7 @@ import { useConvexAuth, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { CaptureDock } from "./capture";
 import { ItemDetails } from "./item-details";
 import { button } from "./parts";
 import { TaskDetails } from "./task-details";
@@ -13,7 +14,8 @@ import { TaskDetails } from "./task-details";
 /**
  * The frame every page of the dashboard sits in. Signed out, it is a wall with
  * a sign-in button. Signed in as the owner, it shows the top bar and the page,
- * and mounts the details views that open over any page.
+ * and mounts the capture input docked at the bottom and the details views
+ * that open over any page.
  * Signed in as anyone else, it shows nothing.
  *
  * The wall is a courtesy. What keeps the data private is that every Convex
@@ -74,7 +76,7 @@ function ForOwner({ wide, children }: { wide?: boolean; children: ReactNode }) {
   }
   const here = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   return (
-    <div className={`mx-auto w-full px-6 py-8 ${wide ? "max-w-5xl" : "max-w-3xl"}`}>
+    <div className={`mx-auto w-full px-6 pt-8 pb-44 ${wide ? "max-w-5xl" : "max-w-3xl"}`}>
       <header className="flex items-start justify-between gap-6">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
           <Link href="/" className="text-xl font-semibold">
@@ -96,6 +98,7 @@ function ForOwner({ wide, children }: { wide?: boolean; children: ReactNode }) {
         <UserButton />
       </header>
       <main className="mt-10">{children}</main>
+      <CaptureDock />
       <TaskDetails />
       <ItemDetails />
     </div>

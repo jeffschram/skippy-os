@@ -83,6 +83,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
     input: {
       text: z.string().trim().max(4000).optional().describe("What to capture, in the owner's words."),
       url: z.string().trim().max(2000).optional().describe("A web address, when the capture is a link."),
+      about: record("The project or other record this capture concerns, when there is one.").optional(),
       intent: z
         .enum(["remember", "hold"])
         .optional()
@@ -224,12 +225,14 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   upsert_person: {
     title: "Create or update person",
     description:
-      "Adds a person to the owner's address book, or updates one. Without an id, a person is found by any email or phone number given; if one matches, that person is updated and their name is left as it is. Emails and phone numbers are added to what is on file, never replaced. Pass only the fields that change, and null to clear an optional field. Search first when you only have a name.",
+      "Adds a person to the owner's address book, or updates one. Without an id, a person is found by any email or phone number given; if one matches, that person is updated and their name is left as it is. Emails and phone numbers are added to what is on file, never replaced; a wrong one is taken off with removeEmails or removePhoneNumbers. Pass only the fields that change, and null to clear an optional field. Search first when you only have a name.",
     input: {
       id: z.string().optional().describe("The id of the person to update."),
       name: z.string().max(200).optional().describe("Their full name. Required for a new person."),
       emails: z.array(z.string().max(320)).max(20).optional().describe("Email addresses to add."),
       phoneNumbers: z.array(z.string().max(40)).max(20).optional().describe("Phone numbers to add."),
+      removeEmails: z.array(z.string().max(320)).max(20).optional().describe("Email addresses to take off this person, when one is wrong. Needs id."),
+      removePhoneNumbers: z.array(z.string().max(40)).max(20).optional().describe("Phone numbers to take off this person, when one is wrong. Needs id."),
       company: clearable(z.string().max(200)).describe(
         "The name of the company they work at. A company not on file yet is added.",
       ),

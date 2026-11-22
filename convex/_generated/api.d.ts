@@ -13,6 +13,7 @@ import type * as captures from "../captures.js";
 import type * as crons from "../crons.js";
 import type * as files from "../files.js";
 import type * as gateway from "../gateway.js";
+import type * as goals from "../goals.js";
 import type * as knowledge from "../knowledge.js";
 import type * as lib_common from "../lib/common.js";
 import type * as lib_entities from "../lib/entities.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   files: typeof files;
   gateway: typeof gateway;
+  goals: typeof goals;
   knowledge: typeof knowledge;
   "lib/common": typeof lib_common;
   "lib/entities": typeof lib_entities;
