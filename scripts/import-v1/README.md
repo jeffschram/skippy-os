@@ -1,6 +1,6 @@
 # The one-time import from the old project
 
-Brings the old Skippy's records into Skippy OS, following the table in spec §10. It is a script, not a feature: it is run a few times, checked, and then removed together with the `importMap` table.
+Brings the old Skippy's records into Skippy OS, following the table in spec §10. It is a script, not a feature: it is run a few times, checked, and then removed together with the `importMap` table, once Phase 4 has brought across the records held for it.
 
 The old project is only ever read. Skippy OS never connects to it.
 
@@ -48,7 +48,7 @@ The snapshot holds real personal data. Keep it, and the reports written beside i
 
 6. Load production the same way as dev, with `--target prod`, and spot-check it.
 
-7. When the counts add up and the spot check has been read, empty the map. Run this until it prints `0`, then remove `importMap`, `convex/importV1.ts` and this folder:
+7. Production was loaded on 2026-11-21. Leave the map in place until the records held for Phase 4 have come across: they point at old project and task ids, and the map is the only record of which new record each one became. After that, empty the map. Run this until it prints `0`, then remove `importMap`, `convex/importV1.ts` and this folder:
 
    ```bash
    npx convex run --prod importV1:dropMap
@@ -65,4 +65,4 @@ Each batch ends as four numbers that add up to what was sent:
 
 ## What is held for Phase 4
 
-Recurrences, calendar events that Skippy made, and files on non-code projects have no table yet. The dry run counts them under "later". Keep the snapshot until they have come across.
+Recurrences, calendar events that Skippy made, and files on non-code projects have no table yet. The dry run counts them under "later". Keep the snapshot and `importMap` until they have come across.

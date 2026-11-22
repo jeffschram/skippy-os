@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.19 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 import built and rehearsed on the dev deployment, production not touched · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.23 · 2026-11-21 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 started: the Skippy plugin is written and tried on the mini, not yet installed · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -219,7 +219,7 @@
 
 <details open>
   <summary>Skippy plugin <span class="hint">the behavior lives here</span></summary>
-  <p>A Claude plugin, versioned in this repo, bundling the Skippy MCP config and these skills:</p>
+  <p>A Claude plugin, versioned in this repo in <code>plugin/</code>, holding these skills. It does not carry the Skippy MCP config (decided 2026-11-21): the "Skippy OS" connector on the claude.ai account already reaches every Claude surface, including a plain terminal on the mini, and a second copy would list every tool twice and need its own sign-in.</p>
   <ul>
     <li><strong>skippy-status:</strong> when and how to record project status (see below)</li>
     <li><strong>skippy-capture:</strong> how to file a thought, link or person from any chat</li>
@@ -520,7 +520,7 @@
   <ul>
     <li><strong>Read-only source.</strong> Take a snapshot export of the old Convex deployment (<code>npx convex export</code>). Nothing ever writes to the old deployment, and Skippy OS never connects to it at runtime.</li>
     <li><strong>A script, not a feature.</strong> <code>scripts/import-v1/</code> transforms the snapshot into the new schema and loads it through internal mutations. It can be re-run against a fresh deployment, and every imported record gets <code>createdBy: {kind: "import"}</code>.</li>
-    <li><strong>Traceability without residue.</strong> A temporary <code>importMap</code> table (<code>oldTable, oldId, newRef</code>) records where each record came from. Once the import is verified, the table is dropped. <span class="tag avoid">avoid</span> the old project's permanent <code>legacyId</code> fields.</li>
+    <li><strong>Traceability without residue.</strong> A temporary <code>importMap</code> table (<code>oldTable, oldId, newRef</code>) records where each record came from. Once everything has come across, including the records held for Phase 4, the table is dropped. <span class="tag avoid">avoid</span> the old project's permanent <code>legacyId</code> fields.</li>
   </ul>
   <table>
     <tr><th>Old table</th><th>Import?</th><th>Notes</th></tr>
@@ -534,7 +534,7 @@
     <tr><td>calendarEvents</td><td>No</td><td>Re-synced from Google. Skippy-origin events are imported.</td></tr>
     <tr><td>chats, runs, ingestion, triage, finance, focus</td><td>No</td><td>Runtime state, retired features, or out of scope</td></tr>
   </table>
-  <p><strong>Acceptance:</strong> per-table counts (exported vs imported vs skipped, with reasons) and spot checks on 10 records of each type, done before <code>importMap</code> is dropped.</p>
+  <p><strong>Acceptance:</strong> per-table counts (exported vs imported vs skipped, with reasons) and spot checks on 10 records of each type, done before <code>importMap</code> is dropped. The drop itself waits for Phase 4 (decided 2026-11-21).</p>
 </details>
 
 <!-- ============================================================ -->
@@ -594,7 +594,7 @@
     <li><strong>Second slice tried from claude.ai:</strong> the owner added a person with a company, linked him to a project, saved a memory about him, and searched for him. Production data shows the company, the person, the link and the memory, each logged with Claude as the actor.</li>
     <li><strong>Convex deploys with each push, switched on:</strong> the Vercel build runs the tests, builds the site and then pushes Convex. The deploy key is set in Vercel. Confirmed by the push that added the web app shell: its new Convex queries were missing from production before the push and answering after it, with no deploy by hand.</li>
     <li><strong>Web app shell, live:</strong> Home is a sign-in wall for everyone but the owner. Signed in, the owner sees three live, read-only panels: today's tasks, the projects, and recent activity. Checked on the mini: the wall, the sign-in button leading to Clerk, and the panels drawn with made-up data. Checked live: the wall, and production Convex refusing every data query from a caller who is not signed in. The owner signed in on the live site and saw their tasks, projects and recent activity (2026-11-21).</li>
-    <li><strong>Phase 1 is done (2026-11-21).</strong> <code>create_event</code> and the recurrence tools wait for Phase 4, where events and recurrences arrive. Production still holds the test records made while trying the tools (the Garden Shed project and its task, Sam Lee, Acme Roofing, one memory and one capture); decide whether to clear them before the Phase 2 import.</li>
+    <li><strong>Phase 1 is done (2026-11-21).</strong> <code>create_event</code> and the recurrence tools wait for Phase 4, where events and recurrences arrive. The test records made while trying the tools were cleared from production before the Phase 2 import.</li>
   </ul>
   <p><strong>Found while building:</strong></p>
   <ul>
@@ -623,8 +623,8 @@
     <li>A snapshot export of the old deployment, and <code>scripts/import-v1/</code> with the §10 table mapping</li>
     <li>A dry-run mode that prints the counts without writing</li>
   </ul>
-  <p><strong>Done when:</strong> the per-table counts (exported, imported, skipped with reasons) add up, 10 records of each type pass a spot check, no code project or code task came across, and <code>importMap</code> has been dropped.</p>
-  <p><strong>Progress (2026-11-21):</strong> a read-only snapshot of the old deployment is on the mini, outside the repo, with its stored files. The import is built and has been rehearsed on the dev deployment. Nothing has been imported into production.</p>
+  <p><strong>Done when:</strong> the per-table counts (exported, imported, skipped with reasons) add up, 10 records of each type pass a spot check, and no code project or code task came across. Dropping <code>importMap</code> moved to Phase 4 (decided 2026-11-21).</p>
+  <p><strong>Progress (2026-11-21):</strong> a read-only snapshot of the old deployment is on the mini, outside the repo, with its stored files. The import is built, rehearsed on the dev deployment and deployed. Nothing has been imported into production yet.</p>
   <ul>
     <li><strong>Where the data was:</strong> in the old project's dev deployment. Its production deployment is empty. The last change to a task or to knowledge there was on 2026-11-18.</li>
     <li><strong>What the plan would bring across:</strong> 11 of 20 projects (9 are code projects), 6 of 42 phases, 472 of 743 tasks (428 with no project, 44 in non-code projects), 1,030 of 1,035 knowledge records (775 notes, 137 memories, 66 links, 33 decisions, 19 principles; 5 rejected memories dropped), 21 people, 5 companies, 3 goals, 751 of 1,167 links (the rest touch a skipped record), and 2,173 of 2,409 source attachments.</li>
@@ -634,7 +634,9 @@
     <li><strong>Built:</strong> <code>scripts/import-v1/</code> (the rules for what comes across, a dry run that accounts for every record in all 62 old tables, the loader, and a spot check) and <code>convex/importV1.ts</code>. Added to the schema: an <code>import</code> kind of Actor, the temporary <code>importMap</code> table, and an optional <code>createdAt</code> on records, so imported records keep the date they were first made.</li>
     <li><strong>Rehearsed on dev:</strong> every batch added up. 11 projects, 6 phases, 472 tasks, 21 people, 5 companies, 3 goals, 7 areas, 1,005 knowledge records, 2,399 sources with 2,436 attachments, and 740 links. A second run changed nothing. The spot check compared 10 records of each type (all of them where there are fewer) with what was stored, and all matched.</li>
     <li><strong>Found in the rehearsal:</strong> 30 saved links are 5 pages saved repeatedly, so they became 5 links and 25 titles and summaries were dropped; 11 links between records collapsed with them. Areas were a word on each task and became 7 area records. 266 sources were listed only on the knowledge record itself and are attached as well. The 23 tasks with an agent's result summary lose it, as decided. The import writes one line to the activity log, not one per record.</li>
-    <li><strong>Still to do:</strong> decide what happens to the test records in production, deploy the import code, load production, spot-check it, then empty and remove <code>importMap</code>. <span class="tag open">Open</span></li>
+    <li><strong>Production cleared (2026-11-21):</strong> the import code is deployed, and the records made while trying the tools were deleted with the owner's go-ahead: 1 project, 1 task, 1 person, 1 company, 1 memory, 1 capture, 3 links and 7 activity lines. Production's record tables are empty.</li>
+    <li><strong>Production loaded (2026-11-21):</strong> the same run as the rehearsal, with the owner's go-ahead. 11 projects, 6 phases, 472 tasks, 21 people, 5 companies, 3 goals, 7 areas, 1,005 knowledge records (25 repeated saved links merged), 740 links, and 2,399 sources with 2,436 attachments. Every batch added up, nothing was skipped, and row counts in production match. The spot check matched 10 records of each type, or all of them where there are fewer. All 11 projects are non-code. Search finds the imported records, and Home shows 3 active projects, 3 overdue tasks and 1 waiting.</li>
+    <li><strong>Phase 2 is done (2026-11-21).</strong> Decided the same day: <code>importMap</code>, <code>convex/importV1.ts</code> and <code>scripts/import-v1</code> stay until Phase 4. The recurrences, calendar events and project files held for Phase 4 point at old project and task ids, and the map is the only record of which new record each old id became. The snapshot stays too.</li>
   </ul>
 </details>
 
@@ -648,6 +650,15 @@
     <li><code>get_changes_since</code>, so Claude sees my dashboard edits</li>
   </ul>
   <p><strong>Done when:</strong> after one week of normal work, every project I touched has a status update I didn't ask for, and a change I make in the dashboard is picked up by Claude in its next session on that project. Also, <code>claude plugin list</code> in a plain terminal on the mini shows the Skippy plugin enabled at user scope.</p>
+  <p><strong>Progress (2026-11-21):</strong></p>
+  <ul>
+    <li><strong>Order:</strong> the plugin first, then the dashboard pages. The week of normal work starts counting when Claude starts reporting, and the dashboard is built while it runs.</li>
+    <li><strong>Plugin written:</strong> <code>plugin/</code> holds <code>skippy-status</code> and <code>skippy-capture</code>, and <code>.claude-plugin/marketplace.json</code> lets Claude Code install it from this repo. Both manifests pass <code>claude plugin validate</code>.</li>
+    <li><strong>Tried on the mini</strong> in fresh Claude Code sessions that loaded the plugin from its folder. With only the project line in <code>CLAUDE.md</code>, one session loaded the skill and read a life project from Skippy OS. Another, at the end of a working session, created the missing <code>skippy-os</code> project with its Code folder as <code>claudeHome</code>, added four open tasks and recorded a status report, none of which it was asked to do.</li>
+    <li><strong>This repo has its line:</strong> <code>CLAUDE.md</code> names the project <code>skippy-os</code>, the first code project in the new system.</li>
+    <li><strong>Found:</strong> the old project's connector, named "Skippy", is still on the claude.ai account next to "Skippy OS", with similar tool names. Both skills name the right one and say never to write to the other. Turning the old connector off removes the risk. <span class="tag open">Open</span></li>
+    <li><strong>Still to do:</strong> install the plugin at user scope on the mini from the pushed repo, add it to the claude.ai account, add the project line to each Claude Project, then the dashboard: projects board, Overnight, project and task pages, item details and editing. <span class="tag open">Open</span></li>
+  </ul>
 </details>
 
 <details>
@@ -656,8 +667,9 @@
     <li>The Home input in capture mode, including files and "hold" captures</li>
     <li><code>/brain</code> sections, people and companies, and events and recurrences on <code>/agenda</code></li>
     <li>Embeddings and search, in the web app and through the MCP</li>
+    <li>The rest of the import: 10 recurrences, 53 calendar events made by Skippy and 7 files on non-code projects, from the Phase 2 snapshot. Then empty and remove <code>importMap</code>, <code>convex/importV1.ts</code> and <code>scripts/import-v1</code>.</li>
   </ul>
-  <p><strong>Done when:</strong> a capture made on my phone is findable by search from a Claude chat, and completing a recurrence in either place advances it exactly once.</p>
+  <p><strong>Done when:</strong> a capture made on my phone is findable by search from a Claude chat, completing a recurrence in either place advances it exactly once, and the held records are imported and <code>importMap</code> is dropped.</p>
 </details>
 
 <details>
@@ -782,6 +794,10 @@
     <tr><td>2026-11-21</td><td>Mistakes are fixed with a one-tap undo on Home, and the reason given becomes a rule</td></tr>
     <tr><td>2026-11-21</td><td>The first ingestion run looks back 2 weeks</td></tr>
     <tr><td>2026-11-21</td><td>Build order changed: ingestion and the briefing (Phase 5) now come before the idea chat (Phase 6)</td></tr>
+    <tr><td>2026-11-21</td><td>Recurrences, Skippy's calendar events and project files are imported in Phase 4, and <code>importMap</code> is kept until then</td></tr>
+    <tr><td>2026-11-21</td><td>From here on, Claude takes its own recommendation at preference points and records the choice here, instead of asking</td></tr>
+    <tr><td>2026-11-21</td><td>Phase 3 builds the plugin first, then the dashboard pages</td></tr>
+    <tr><td>2026-11-21</td><td>The plugin holds skills only. The MCP connection comes from the "Skippy OS" connector on the claude.ai account.</td></tr>
   </table>
 </details>
 

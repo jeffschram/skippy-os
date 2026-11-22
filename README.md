@@ -12,6 +12,7 @@ The plan lives in [docs/skippy-os-spec-alt.html](docs/skippy-os-spec-alt.html). 
 | `convex` | Convex functions and schema: the single shared record. Agents reach it through the signed gateway; the dashboard reads it as the signed-in owner. |
 | `packages/shared` | Code both sides use: OAuth scopes and the signed gateway envelope. |
 | `docs` | The spec and the static mockups. |
+| `plugin` | The Skippy plugin for Claude: the skills that tell Claude when to report project status and how to file things. `.claude-plugin/marketplace.json` lets Claude Code install it from this repo. |
 
 ## Commands
 
