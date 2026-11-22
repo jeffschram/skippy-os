@@ -315,6 +315,11 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // One row. How far down the activity log the owner has read on the dashboard.
+  viewerState: defineTable({
+    activitySeenAt: v.number(),
+  }),
+
   // Phase 0 only. Phase 4 replaces it with the real captures table.
   captures: defineTable({
     text: v.string(),

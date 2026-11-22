@@ -1,0 +1,238 @@
+"use client";
+
+import { api } from "@convex/_generated/api";
+import type { FunctionReturnType } from "convex/server";
+import { useMutation, useQuery } from "convex/react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { button } from "./parts";
+import { problem, Quiet, showTime } from "./parts";
+import { useNow } from "./use-now";
+
+/**
+ * A task's details, opened over whatever page the owner is on by adding
+ * `?task=<id>` to the address. The address can be bookmarked or opened on
+ * another device. Saving sends only the fields that were changed, so a
+ * deadline with a time of day is not flattened by an edit to something else.
+ */
+
+type Details = NonNullable<FunctionReturnType<typeof api.viewer.task>>;
+type Task = Details["task"];
+
+const STATUSES: [Task["status"], string][] = [
+  ["todo", "To do"],
+  ["in_progress", "In progress"],
+  ["waiting", "Waiting"],
+  ["done", "Done"],
+  ["cancelled", "Cancelled"],
+];
+const field = "w-full rounded-md border border-foreground/20 bg-background px-2 py-1.5 text-sm";
+
+export function TaskDetails() {
+  const id = useSearchParams().get("task");
+  const path = usePathname();
+  const router = useRouter();
+  const close = () => router.replace(path, { scroll: false });
+
+  useEffect(() => {
+    if (!id) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") router.replace(path, { scroll: false });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [id, path, router]);
+
+  if (!id) return null;
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-0 sm:p-6" onClick={close}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Task details"
+        onClick={(event) => event.stopPropagation()}
+        className="mx-auto min-h-full w-full max-w-3xl bg-background p-6 sm:min-h-0 sm:rounded-lg sm:border sm:border-foreground/15"
+      >
+        <Loaded id={id} onClose={close} />
+      </div>
+    </div>
+  );
+}
+
+function Loaded({ id, onClose }: { id: string; onClose: () => void }) {
+  const details = useQuery(api.viewer.task, { id });
+  if (details === undefined) return <Quiet>Loading…</Quiet>;
+  if (details === null) {
+    return (
+      <div>
+        <p>There is no task with that address.</p>
+        <button type="button" onClick={onClose} className={`mt-4 ${button}`}>
+          Close
+        </button>
+      </div>
+    );
+  }
+  return <Form key={details.task.id} details={details} onClose={onClose} />;
+}
+
+function Form({ details, onClose }: { details: Details; onClose: () => void }) {
+  const { task } = details;
+  const save = useMutation(api.viewer.saveTask);
+  const now = useNow();
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [status, setStatus] = useState(task.status);
+  const [project, setProject] = useState(task.project ?? "");
+  const [phaseId, setPhaseId] = useState<string>(task.phaseId ?? "");
+  const [commitment, setCommitment] = useState(task.commitment);
+  const [due, setDue] = useState(task.due?.date ?? "");
+  const [planned, setPlanned] = useState(task.scheduledFor?.date ?? "");
+  const [waitingOn, setWaitingOn] = useState(task.waitingOn ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const projects = useQuery(api.viewer.projects, { now });
+  const chosen = useQuery(api.viewer.project, project ? { slug: project, now } : "skip");
+  const phases = chosen?.phases ?? [];
+  // The task's own project stays in the list even when it is archived.
+  const options = [...(projects?.projects ?? []).map((item) => ({ slug: item.slug, title: item.title }))];
+  if (task.project && !options.some((item) => item.slug === task.project)) {
+    options.push({ slug: task.project, title: details.projectTitle ?? task.project });
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const text = (value: string) => (value.trim() ? value : null);
+    const changes: Parameters<typeof save>[0] = { id: task.id };
+    if (title !== task.title) changes.title = title;
+    if (description !== (task.description ?? "")) changes.description = text(description);
+    if (status !== task.status) changes.status = status;
+    if (project !== (task.project ?? "")) changes.project = project || null;
+    if (phaseId !== (task.phaseId ?? "")) changes.phaseId = phaseId || null;
+    if (commitment !== task.commitment) changes.commitment = commitment;
+    if (due !== (task.due?.date ?? "")) changes.dueAt = due || null;
+    if (planned !== (task.scheduledFor?.date ?? "")) changes.scheduledFor = planned || null;
+    if (waitingOn !== (task.waitingOn ?? "")) changes.waitingOn = text(waitingOn);
+    if (Object.keys(changes).length === 1) return onClose();
+    setBusy(true);
+    setError(undefined);
+    try {
+      await save(changes);
+      onClose();
+    } catch (caught) {
+      setError(problem(caught));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="text-lg font-semibold">Task</h2>
+        <button type="button" onClick={onClose} aria-label="Close" className="text-sm text-foreground/60 underline underline-offset-2">
+          Close
+        </button>
+      </div>
+      <label className="block text-sm">
+        Title
+        <input value={title} onChange={(event) => setTitle(event.target.value)} required className={`mt-1 text-base ${field}`} />
+      </label>
+      <label className="block text-sm">
+        Details
+        <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={5} className={`mt-1 ${field}`} />
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          Status
+          <select value={status} onChange={(event) => setStatus(event.target.value as Task["status"])} className={`mt-1 ${field}`}>
+            {STATUSES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          Waiting on
+          <input
+            value={waitingOn}
+            onChange={(event) => setWaitingOn(event.target.value)}
+            placeholder="Who or what, when it is waiting"
+            className={`mt-1 ${field}`}
+          />
+        </label>
+        <label className="block text-sm">
+          Due
+          <input type="date" value={due} onChange={(event) => setDue(event.target.value)} className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          Planned for
+          <input type="date" value={planned} onChange={(event) => setPlanned(event.target.value)} className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          Project
+          <select
+            value={project}
+            onChange={(event) => {
+              setProject(event.target.value);
+              setPhaseId("");
+            }}
+            className={`mt-1 ${field}`}
+          >
+            <option value="">No project</option>
+            {options.map((item) => (
+              <option key={item.slug} value={item.slug}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        {phases.length > 0 ? (
+          <label className="block text-sm">
+            Phase
+            <select value={phaseId} onChange={(event) => setPhaseId(event.target.value)} className={`mt-1 ${field}`}>
+              <option value="">No phase</option>
+              {phases.map((phase) => (
+                <option key={phase.id} value={phase.id}>
+                  {phase.order}. {phase.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <label className="block text-sm">
+          How firm
+          <select value={commitment} onChange={(event) => setCommitment(event.target.value as Task["commitment"])} className={`mt-1 ${field}`}>
+            <option value="must">Must happen</option>
+            <option value="want">Optional</option>
+          </select>
+        </label>
+      </div>
+      {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      <div className="flex gap-2">
+        <button type="submit" disabled={busy} className={button}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={onClose} className={button}>
+          Cancel
+        </button>
+      </div>
+      {details.history.length > 0 ? (
+        <div className="border-t border-foreground/15 pt-4">
+          <h3 className="text-sm font-medium text-foreground/60">History</h3>
+          <ul className="mt-2 space-y-2">
+            {details.history.map((event) => (
+              <li key={event.id} className="text-sm">
+                {event.summary}
+                <span className="text-foreground/60">
+                  {" "}
+                  · {event.by} · {showTime(event.at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </form>
+  );
+}

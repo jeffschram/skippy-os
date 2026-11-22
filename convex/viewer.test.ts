@@ -225,3 +225,53 @@ describe("the owner's changes from the web app", () => {
     expect((await owner.query(api.viewer.activity, {})).events).toHaveLength(1);
   });
 });
+
+describe("what agents did since the owner last looked", () => {
+  it("lists agents' changes only, and clears when marked as seen", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    await asClaude(t, "upsert_task", { title: "Get three quotes", project: "garden-shed" });
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.saveTask, { title: "Buy paint" });
+
+    const unseen = await owner.query(api.viewer.sinceLastLook, {});
+    expect(unseen.count).toBe(2);
+    expect(unseen.events.map((event) => event.by)).toEqual(["Claude", "Claude"]);
+    expect(unseen.events.map((event) => event.project)).toEqual(["garden-shed", "garden-shed"]);
+
+    await owner.mutation(api.viewer.markSeen, { through: unseen.newestAt! });
+    expect((await owner.query(api.viewer.sinceLastLook, {})).count).toBe(0);
+
+    vi.setSystemTime(new Date(NOW + 60_000));
+    await asClaude(t, "record_project_status", { project: "garden-shed", note: "Quotes are in." });
+    const later = await owner.query(api.viewer.sinceLastLook, {});
+    expect(later.events.map((event) => event.type)).toEqual(["project.status_recorded"]);
+
+    // Marking an older point never brings read lines back.
+    await owner.mutation(api.viewer.markSeen, { through: later.newestAt! });
+    await owner.mutation(api.viewer.markSeen, { through: NOW - 1000 });
+    expect((await owner.query(api.viewer.sinceLastLook, {})).count).toBe(0);
+  });
+
+  it("reads one task with its history, and is closed to everyone else", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const made = (await asClaude(t, "upsert_task", { title: "Get three quotes", project: "garden-shed" })) as {
+      task: { id: string };
+    };
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.saveTask, { id: made.task.id, scheduledFor: "2026-11-27", commitment: "want" });
+
+    const details = await owner.query(api.viewer.task, { id: made.task.id });
+    expect(details?.task.scheduledFor?.date).toBe("2026-11-27");
+    expect(details?.task.commitment).toBe("want");
+    expect(details?.projectTitle).toBe("Garden Shed");
+    expect(details?.history.map((event) => event.by)).toEqual(["You", "Claude"]);
+    expect(await owner.query(api.viewer.task, { id: "not-a-task" })).toBeNull();
+
+    const stranger = t.withIdentity({ subject: "user_someone_else" });
+    expect(await refusal(stranger.query(api.viewer.task, { id: made.task.id }))).toBe("account_not_authorized");
+    expect(await refusal(stranger.query(api.viewer.sinceLastLook, {}))).toBe("account_not_authorized");
+    expect(await refusal(stranger.mutation(api.viewer.markSeen, { through: NOW }))).toBe("account_not_authorized");
+  });
+});

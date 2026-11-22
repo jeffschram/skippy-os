@@ -5,21 +5,13 @@ import type { FunctionReturnType } from "convex/server";
 import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { button } from "./owner-page";
+import { button } from "./parts";
 import { problem, showDay } from "./parts";
 
-/** Task rows the owner can tick off, edit and add to. Every change goes through `viewer.saveTask`. */
+/** Task rows the owner can tick off and add to. A title opens the task's details. Every change goes through `viewer.saveTask`. */
 
 export type Task = FunctionReturnType<typeof api.viewer.today>["dueToday"][number];
 
-const STATUSES = ["todo", "in_progress", "waiting", "done", "cancelled"] as const;
-const STATUS_LABEL: Record<Task["status"], string> = {
-  todo: "To do",
-  in_progress: "In progress",
-  waiting: "Waiting",
-  done: "Done",
-  cancelled: "Cancelled",
-};
 const field = "w-full rounded-md border border-foreground/20 bg-transparent px-2 py-1.5 text-sm";
 
 export function TaskList({ tasks, showProject }: { tasks: Task[]; showProject?: boolean }) {
@@ -34,7 +26,6 @@ export function TaskList({ tasks, showProject }: { tasks: Task[]; showProject?: 
 
 function TaskItem({ task, showProject }: { task: Task; showProject?: boolean }) {
   const save = useMutation(api.viewer.saveTask);
-  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string>();
   const closed = task.status === "done" || task.status === "cancelled";
 
@@ -47,13 +38,12 @@ function TaskItem({ task, showProject }: { task: Task; showProject?: boolean }) 
     }
   }
 
-  if (editing) return <TaskForm task={task} onDone={() => setEditing(false)} />;
-
   const details = [
     task.status === "in_progress" ? "in progress" : undefined,
     task.status === "cancelled" ? "cancelled" : undefined,
     task.status === "waiting" ? `waiting${task.waitingOn ? ` on ${task.waitingOn}` : ""}` : undefined,
     task.due ? `due ${showDay(task.due.date)}` : undefined,
+    task.scheduledFor ? `planned ${showDay(task.scheduledFor.date)}` : undefined,
     task.commitment === "want" ? "optional" : undefined,
   ].filter(Boolean);
 
@@ -67,7 +57,13 @@ function TaskItem({ task, showProject }: { task: Task; showProject?: boolean }) 
         className="mt-1.5 size-4 shrink-0"
       />
       <div className="min-w-0 flex-1">
-        <p className={`text-base ${closed ? "text-foreground/60 line-through" : ""}`}>{task.title}</p>
+        <Link
+          href={`?task=${task.id}`}
+          scroll={false}
+          className={`text-base underline-offset-2 hover:underline ${closed ? "text-foreground/60 line-through" : ""}`}
+        >
+          {task.title}
+        </Link>
         <p className="text-sm text-foreground/60">
           {showProject && task.project ? (
             <>
@@ -81,86 +77,6 @@ function TaskItem({ task, showProject }: { task: Task; showProject?: boolean }) 
         </p>
         {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       </div>
-      <button type="button" onClick={() => setEditing(true)} className="text-sm text-foreground/60 underline underline-offset-2">
-        Edit
-      </button>
-    </li>
-  );
-}
-
-function TaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
-  const save = useMutation(api.viewer.saveTask);
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [status, setStatus] = useState(task.status);
-  const [due, setDue] = useState(task.due?.date ?? "");
-  const [waitingOn, setWaitingOn] = useState(task.waitingOn ?? "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(undefined);
-    try {
-      await save({
-        id: task.id,
-        title,
-        description: description.trim() ? description : null,
-        status,
-        dueAt: due || null,
-        waitingOn: status === "waiting" && waitingOn.trim() ? waitingOn : null,
-      });
-      onDone();
-    } catch (caught) {
-      setError(problem(caught));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <li>
-      <form onSubmit={submit} className="space-y-3 rounded-md border border-foreground/15 p-3">
-        <label className="block text-sm">
-          Task
-          <input value={title} onChange={(event) => setTitle(event.target.value)} required className={`mt-1 ${field}`} />
-        </label>
-        <label className="block text-sm">
-          Details
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className={`mt-1 ${field}`} />
-        </label>
-        <div className="flex flex-wrap gap-3">
-          <label className="block text-sm">
-            Status
-            <select value={status} onChange={(event) => setStatus(event.target.value as Task["status"])} className={`mt-1 ${field}`}>
-              {STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {STATUS_LABEL[value]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            Due
-            <input type="date" value={due} onChange={(event) => setDue(event.target.value)} className={`mt-1 ${field}`} />
-          </label>
-          {status === "waiting" ? (
-            <label className="block flex-1 text-sm">
-              Waiting on
-              <input value={waitingOn} onChange={(event) => setWaitingOn(event.target.value)} className={`mt-1 ${field}`} />
-            </label>
-          ) : null}
-        </div>
-        {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
-        <div className="flex gap-2">
-          <button type="submit" disabled={busy} className={button}>
-            {busy ? "Saving…" : "Save"}
-          </button>
-          <button type="button" onClick={onDone} className={button}>
-            Cancel
-          </button>
-        </div>
-      </form>
     </li>
   );
 }

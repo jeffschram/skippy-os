@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 /** Small pieces the dashboard pages share. */
 
+export const button = "rounded-md border border-foreground/20 px-3 py-1.5 text-sm font-medium hover:bg-foreground/5";
+
 export function Panel({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
   return (
     <section>

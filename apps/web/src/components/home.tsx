@@ -1,9 +1,10 @@
 "use client";
 
 import { api } from "@convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { OwnerPage } from "./owner-page";
+import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
@@ -15,6 +16,7 @@ export function Home() {
     <OwnerPage>
       <div className="space-y-12">
         <Today />
+        <SinceLastLook />
         <Projects />
         <Activity />
       </div>
@@ -53,6 +55,57 @@ function Today() {
         </div>
       )}
       <AddTask />
+    </Panel>
+  );
+}
+
+/** What Claude and other agents recorded since the owner last cleared this list. */
+function SinceLastLook() {
+  const data = useQuery(api.viewer.sinceLastLook);
+  const markSeen = useMutation(api.viewer.markSeen);
+  if (data === undefined) {
+    return (
+      <Panel title="Since you last looked">
+        <Quiet>Loading…</Quiet>
+      </Panel>
+    );
+  }
+  const newest = data.newestAt;
+  return (
+    <Panel
+      title="Since you last looked"
+      note={data.count > 0 ? `${data.count} from Claude` : data.seenAt ? `cleared ${showTime(data.seenAt)}` : undefined}
+    >
+      {data.events.length === 0 || newest === undefined ? (
+        <Quiet>Nothing new from Claude.</Quiet>
+      ) : (
+        <>
+          <ul className="space-y-3">
+            {data.events.map((event) => (
+              <li key={event.id}>
+                <p className="line-clamp-4 text-base">{event.summary}</p>
+                <p className="text-sm text-foreground/60">
+                  {event.by} · {showTime(event.at)}
+                  {event.project ? (
+                    <>
+                      {" · "}
+                      <Link href={`/projects/${event.project}`} className="underline underline-offset-2">
+                        {event.project}
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {data.count > data.events.length ? (
+            <p className="mt-3 text-sm text-foreground/60">And {data.count - data.events.length} older ones.</p>
+          ) : null}
+          <button type="button" onClick={() => markSeen({ through: newest })} className={`mt-4 ${button}`}>
+            Mark all as seen
+          </button>
+        </>
+      )}
     </Panel>
   );
 }

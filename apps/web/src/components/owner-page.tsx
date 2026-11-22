@@ -6,6 +6,8 @@ import { useConvexAuth, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { button } from "./parts";
+import { TaskDetails } from "./task-details";
 
 /**
  * The frame every page of the dashboard sits in. Signed out, it is a wall with
@@ -16,7 +18,6 @@ import type { ReactNode } from "react";
  * function checks the sign-in and answers the owner only.
  */
 
-export const button = "rounded-md border border-foreground/20 px-3 py-1.5 text-sm font-medium hover:bg-foreground/5";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -89,6 +90,7 @@ function ForOwner({ wide, children }: { wide?: boolean; children: ReactNode }) {
         <UserButton />
       </header>
       <main className="mt-10">{children}</main>
+      <TaskDetails />
     </div>
   );
 }

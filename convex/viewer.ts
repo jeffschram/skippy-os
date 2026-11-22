@@ -1,10 +1,13 @@
-import type { Actor } from "@skippy/shared";
+import { actorLabel, type Actor } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
 import { commitment, projectHealth, projectStatus, taskStatus } from "./schema";
+import { presentTask } from "./tasks";
+import { getSettings, iso } from "./lib/common";
 
 /**
  * What the web app reads and changes for the person signed in to it. These are
@@ -94,7 +97,100 @@ export const project = query({
   },
 });
 
+/** The slug of the project an activity line belongs to, when it is about a project or one of its tasks. */
+async function projectOf(ctx: QueryCtx, ref: Doc<"activityEvents">["entityRef"]): Promise<string | undefined> {
+  if (!ref) return undefined;
+  let projectId: Id<"projects"> | null | undefined;
+  if (ref.entityType === "project") projectId = ctx.db.normalizeId("projects", ref.entityId);
+  else if (ref.entityType === "task") {
+    const id = ctx.db.normalizeId("tasks", ref.entityId);
+    projectId = id ? (await ctx.db.get(id))?.projectId : undefined;
+  } else if (ref.entityType === "phase") {
+    const id = ctx.db.normalizeId("phases", ref.entityId);
+    projectId = id ? (await ctx.db.get(id))?.projectId : undefined;
+  }
+  return projectId ? (await ctx.db.get(projectId))?.slug : undefined;
+}
+
+const UNSEEN_LIMIT = 40;
+
+/**
+ * What agents recorded since the owner last marked the log as read, newest
+ * first. The owner's own changes are left out: they already know about those.
+ */
+export const sinceLastLook = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireOwner(ctx);
+    const seenAt = (await ctx.db.query("viewerState").first())?.activitySeenAt ?? 0;
+    const rows = await ctx.db
+      .query("activityEvents")
+      .withIndex("by_at", (q) => q.gt("at", seenAt))
+      .order("desc")
+      .take(500);
+    const fromAgents = rows.filter((event) => event.actor.kind === "agent");
+    const shown = fromAgents.slice(0, UNSEEN_LIMIT);
+    return {
+      seenAt: seenAt === 0 ? undefined : iso(seenAt),
+      /** Pass this to `markSeen` to clear the list. */
+      newestAt: fromAgents[0]?.at,
+      count: fromAgents.length,
+      events: await Promise.all(
+        shown.map(async (event) => ({
+          id: event._id,
+          at: new Date(event.at).toISOString(),
+          by: actorLabel(event.actor),
+          type: event.activityType,
+          summary: event.summary,
+          project: await projectOf(ctx, event.entityRef),
+        })),
+      ),
+    };
+  },
+});
+
+/** One task with what the details view needs: its project's phases and its own history. */
+export const task = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const id = ctx.db.normalizeId("tasks", args.id);
+    const found = id ? await ctx.db.get(id) : null;
+    if (!found) return null;
+    const settings = await getSettings(ctx);
+    const project = found.projectId ? await ctx.db.get(found.projectId) : null;
+    const history = await ctx.db
+      .query("activityEvents")
+      .withIndex("by_entity", (q) => q.eq("entityRef.entityId", found._id))
+      .order("desc")
+      .take(10);
+    return {
+      task: presentTask(found, project?.slug, settings.timeZone),
+      projectTitle: project?.title,
+      history: history.map((event) => ({
+        id: event._id,
+        at: new Date(event.at).toISOString(),
+        by: actorLabel(event.actor),
+        summary: event.summary,
+      })),
+    };
+  },
+});
+
 // Changes. The owner is the actor on each one.
+
+/** Marks the activity log as read up to a point. It never moves backwards. */
+export const markSeen = mutation({
+  args: { through: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const through = Math.min(args.through, Date.now());
+    const row = await ctx.db.query("viewerState").first();
+    if (!row) await ctx.db.insert("viewerState", { activitySeenAt: through });
+    else if (through > row.activitySeenAt) await ctx.db.patch(row._id, { activitySeenAt: through });
+    return null;
+  },
+});
 
 const OWNER: Actor = { kind: "user" };
 const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
@@ -107,6 +203,7 @@ export const saveTask = mutation({
     description: nullable(v.string()),
     status: v.optional(taskStatus),
     project: nullable(v.string()),
+    phaseId: nullable(v.string()),
     commitment: nullable(commitment),
     dueAt: nullable(v.string()),
     scheduledFor: nullable(v.string()),
