@@ -17,6 +17,7 @@ beforeEach(() => {
   process.env.SKIPPY_GATEWAY_SECRET = SECRET;
   process.env.SKIPPY_OWNER_CLERK_USER_ID = OWNER;
   process.env.SKIPPY_MCP_RESOURCE_URL = RESOURCE;
+  delete process.env.SKIPPY_MCP_RESOURCE_URL_PREVIOUS;
 });
 
 function principal(overrides: Partial<OAuthPrincipal> = {}): OAuthPrincipal {
@@ -95,6 +96,21 @@ describe("gateway.call", () => {
 
   it("refuses a token that was verified for another resource", async () => {
     const t = convexTest(schema, modules);
+    const elsewhere = principal({ resource: "https://example.com/api/mcp" });
+    expect(await refusal(t.action(api.gateway.call, await sign("whoami", {}, elsewhere)))).toBe("wrong_resource");
+  });
+
+  it("accepts the address the MCP is moving from, only while that address is set", async () => {
+    const t = convexTest(schema, modules);
+    const moved = "https://new.example.com/api/mcp";
+    process.env.SKIPPY_MCP_RESOURCE_URL = moved;
+    const old = principal();
+    const current = principal({ resource: moved });
+    expect(await refusal(t.action(api.gateway.call, await sign("whoami", {}, old)))).toBe("wrong_resource");
+
+    process.env.SKIPPY_MCP_RESOURCE_URL_PREVIOUS = RESOURCE;
+    expect(await refusal(t.action(api.gateway.call, await sign("whoami", {}, old)))).toBe("accepted");
+    expect(await refusal(t.action(api.gateway.call, await sign("whoami", {}, current)))).toBe("accepted");
     const elsewhere = principal({ resource: "https://example.com/api/mcp" });
     expect(await refusal(t.action(api.gateway.call, await sign("whoami", {}, elsewhere)))).toBe("wrong_resource");
   });

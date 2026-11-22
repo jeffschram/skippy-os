@@ -12,7 +12,24 @@ All three accounts exist and are configured, and the hosted site has every setti
 | Vercel | Project `skippy-os`, building from `main` on GitHub. Root directory `apps/web`. | Live at `skippy-os-two.vercel.app` (`skippy-os.vercel.app` belongs to someone else). Production variables set: `SKIPPY_MCP_RESOURCE_URL`, `CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_TELEMETRY_DISABLED`, `CLERK_SECRET_KEY`, `SKIPPY_GATEWAY_SECRET`. A made-up token is refused with `401 invalid_token`. |
 | Clerk | Application "Skippy OS", development instance. | MCP server `https://skippy-os-two.vercel.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. Convex integration on, so the web app's session is accepted by Convex. One user, the owner. |
 
-The hosted MCP address is `https://skippy-os-two.vercel.app/api/mcp`. Renaming the Vercel address later means registering the new address in Clerk and reconnecting every client.
+The hosted MCP address is `https://skippy-os-two.vercel.app/api/mcp` until the move below is finished, and `https://www.skippyos.app/api/mcp` after it.
+
+## Moving to skippyos.app (started 2026-11-22)
+
+The owner pointed `skippyos.app` at the Vercel project. The site answers at `https://www.skippyos.app`; the bare `skippyos.app` redirects there. Signing in to the site works on the new address with no change, because a Clerk development instance is not tied to one address. Convex does not care which address the browser is on.
+
+One setting names the address: the MCP endpoint's URL, `SKIPPY_MCP_RESOURCE_URL`. It is the OAuth audience, so it has to agree in three places: Clerk, Vercel and Convex. An MCP client does not follow a redirect, so the URL uses `www`, the host that answers directly. Keep `www` as the primary domain in Vercel.
+
+| Step | Who | State |
+| --- | --- | --- |
+| Convex production accepts both addresses: `SKIPPY_MCP_RESOURCE_URL` is the new one and `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` the old one. Nothing changes for clients. | Claude | done 2026-11-22 |
+| Clerk: Agents, MCP servers, Add MCP server, `https://www.skippyos.app/api/mcp`. Leave the old one in place for now. | Owner | to do |
+| Vercel: change `SKIPPY_MCP_RESOURCE_URL` (Production) to `https://www.skippyos.app/api/mcp`, then redeploy. This is the switch: from here the old connector is refused. | Owner | to do |
+| claude.ai: remove the Skippy OS connector and add it again at the new URL, with the same name, "Skippy OS". The jobs on the mini and the project instructions use that name. | Owner | to do |
+| Check a call through the new connector, then unset `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` in Convex and remove the old MCP server in Clerk. | Claude, then owner | to do |
+| On each device: open the new address, sign in, turn notifications on, and add it to the Home Screen. Turn notifications off in the old Home Screen app before deleting it, or each notification arrives twice. | Owner | to do |
+
+Avoid the switch at the top of an hour: the ingestion passes, the sweep and the review all use the connector, and one that starts between the Vercel change and the new connector fails and says so on Home.
 
 ### What is left before the first test
 
@@ -63,7 +80,7 @@ The main risk this step tests: whether Clerk grants the two custom scopes to a c
 Those clients connect from the internet, so they need the public address.
 
 1. Create a Convex project and deploy to it. Set the same three values there as locally: `SKIPPY_GATEWAY_SECRET`, `SKIPPY_OWNER_CLERK_USER_ID` and `SKIPPY_MCP_RESOURCE_URL`.
-2. Create a Vercel project from this repo with `apps/web` as its root directory. Set the variables from `apps/web/.env.example`, with `SKIPPY_MCP_RESOURCE_URL` set to `https://<project>.vercel.app/api/mcp`. Use the stable production address, never a per-deploy preview address.
+2. Create a Vercel project from this repo with `apps/web` as its root directory. Set the variables from `apps/web/.env.example`, with `SKIPPY_MCP_RESOURCE_URL` set to the site's public address followed by `/api/mcp`. Use the host that answers without a redirect, never a per-deploy preview address.
 3. In Clerk, add that same URL as an MCP server.
 4. So that a push to `main` also deploys Convex: in the Convex dashboard, open the project's production deployment, go to Settings, and generate a production deploy key. In Vercel, add it to the project as `CONVEX_DEPLOY_KEY`, for the Production environment only. The key can change production data, so it goes nowhere else: not in the repo, not in a local file.
 
@@ -72,6 +89,7 @@ Those clients connect from the internet, so they need the public address.
 | Name | Where | What it is |
 | --- | --- | --- |
 | `SKIPPY_MCP_RESOURCE_URL` | Web app and Convex | The MCP endpoint's public URL. Must be identical in both, and in Clerk. |
+| `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` | Convex, only during a move | The address the MCP endpoint is moving from. Convex accepts it as well as the current one. Unset it when the move is done. |
 | `SKIPPY_GATEWAY_SECRET` | Web app and Convex | Signs calls from the MCP endpoint to Convex. At least 32 characters. |
 | `SKIPPY_OWNER_CLERK_USER_ID` | Convex | The one Clerk user allowed in. Anyone else is refused, never created. |
 | `CONVEX_URL` | Web app | The Convex deployment's address. Public: the browser connects to it. |

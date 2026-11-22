@@ -88,7 +88,11 @@ async function verifyCaller(args: { payload: string; signature: string }): Promi
   if (!owner || !resource) throw new ConvexError({ code: "gateway_not_configured" });
   // One owner. An account that is not the owner is refused, never created.
   if (envelope.principal.subject !== owner) throw new ConvexError({ code: "account_not_authorized" });
-  if (envelope.principal.resource !== resource) throw new ConvexError({ code: "wrong_resource" });
+  // While the MCP address is moving, the address it is moving from is accepted
+  // too, so Convex can be set ahead of the web app. Unset it once the move is done.
+  const previous = process.env.SKIPPY_MCP_RESOURCE_URL_PREVIOUS;
+  const accepted = previous ? [resource, previous] : [resource];
+  if (!accepted.includes(envelope.principal.resource)) throw new ConvexError({ code: "wrong_resource" });
   if (!scopesAllow(envelope.principal.scopes, envelope.operation)) {
     throw new ConvexError({ code: "insufficient_scope" });
   }
