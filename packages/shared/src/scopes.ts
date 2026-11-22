@@ -37,6 +37,7 @@ export const OPERATIONS = {
   advance_source_cursor: { scope: SCOPE_WRITE },
   sync_calendar: { scope: SCOPE_WRITE },
   ingest_objects: { scope: SCOPE_WRITE },
+  record_briefing: { scope: SCOPE_WRITE },
   // Read.
   search: { scope: SCOPE_READ },
   get_context_bundle: { scope: SCOPE_READ },

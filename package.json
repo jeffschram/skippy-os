@@ -17,11 +17,13 @@
   },
   "dependencies": {
     "@skippy/shared": "workspace:*",
-    "convex": "latest"
+    "convex": "latest",
+    "web-push": "^4.0.0"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^22",
+    "@types/web-push": "^3.6.4",
     "convex-test": "^0.0.73",
     "typescript": "^5",
     "vite": "^8.3.8",

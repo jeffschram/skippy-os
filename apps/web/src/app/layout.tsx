@@ -6,6 +6,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Skippy OS",
   description: "Second brain, project manager and life task manager.",
+  // Lets an iPhone keep it on the Home Screen as an app, which is also what allows notifications there.
+  appleWebApp: { capable: true, title: "Skippy OS", statusBarStyle: "default" },
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -326,12 +326,12 @@ describe("phases, new projects, the agenda and settings", () => {
     const t = start();
     await asClaude(t, "upsert_project", { title: "Garden Shed" });
     const owner = t.withIdentity({ subject: OWNER });
-    expect(await owner.query(api.viewer.settings, {})).toEqual({ timeZone: "America/New_York", stalenessDays: 7 });
+    expect(await owner.query(api.viewer.settings, {})).toEqual({ timeZone: "America/New_York", stalenessDays: 7, quietFrom: 22, quietTo: 8 });
     expect(await refusal(owner.mutation(api.viewer.saveSettings, { timeZone: "Mars/Olympus" }))).toBe("invalid_arguments");
     expect(await refusal(owner.mutation(api.viewer.saveSettings, { stalenessDays: 0 }))).toBe("invalid_arguments");
 
     await owner.mutation(api.viewer.saveSettings, { stalenessDays: 2, timeZone: "Asia/Tokyo" });
-    expect(await owner.query(api.viewer.settings, {})).toEqual({ timeZone: "Asia/Tokyo", stalenessDays: 2 });
+    expect(await owner.query(api.viewer.settings, {})).toEqual({ timeZone: "Asia/Tokyo", stalenessDays: 2, quietFrom: 22, quietTo: 8 });
     expect((await owner.query(api.viewer.openTasks, { now: NOW })).today).toBe("2026-11-26");
     const later = NOW + 3 * 86_400_000;
     expect((await owner.query(api.viewer.board, { now: later })).projects[0].stale).toBe(true);

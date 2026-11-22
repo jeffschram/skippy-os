@@ -12,12 +12,13 @@ import { Panel, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts"
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
-/** Home: the inbox, today's tasks, the live projects and the latest activity. Each panel is its own live query. */
+/** Home: the morning briefing, the inbox, today's tasks, the live projects and the latest activity. Each panel is its own live query. */
 
 export function Home() {
   return (
     <OwnerPage>
       <div className="space-y-12">
+        <Briefing />
         <InboxPanel />
         <Today />
         <SinceLastLook />
@@ -26,6 +27,20 @@ export function Home() {
         <Activity />
       </div>
     </OwnerPage>
+  );
+}
+
+/** The morning note. Shown once one has been written; an older one says which day it is from. */
+function Briefing() {
+  const briefing = useQuery(api.viewer.briefing, { now: useNow() });
+  if (!briefing) return null;
+  return (
+    <Panel title="Briefing" note={briefing.isToday ? showDay(briefing.date) : `from ${showDay(briefing.date)}`}>
+      <p className={`text-base leading-7 whitespace-pre-wrap ${briefing.isToday ? "" : "text-foreground/70"}`}>{briefing.text}</p>
+      <p className="mt-3 text-xs text-foreground/60">
+        {briefing.by} · {showTime(briefing.writtenAt)}
+      </p>
+    </Panel>
   );
 }
 

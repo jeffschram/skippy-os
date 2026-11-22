@@ -9,6 +9,7 @@
  */
 
 import type * as agenda from "../agenda.js";
+import type * as briefing from "../briefing.js";
 import type * as captures from "../captures.js";
 import type * as crons from "../crons.js";
 import type * as files from "../files.js";
@@ -27,6 +28,8 @@ import type * as maintenance from "../maintenance.js";
 import type * as operations from "../operations.js";
 import type * as people from "../people.js";
 import type * as projects from "../projects.js";
+import type * as push from "../push.js";
+import type * as pushNode from "../pushNode.js";
 import type * as read from "../read.js";
 import type * as tasks from "../tasks.js";
 import type * as viewer from "../viewer.js";
@@ -40,6 +43,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agenda: typeof agenda;
+  briefing: typeof briefing;
   captures: typeof captures;
   crons: typeof crons;
   files: typeof files;
@@ -58,6 +62,8 @@ declare const fullApi: ApiFromModules<{
   operations: typeof operations;
   people: typeof people;
   projects: typeof projects;
+  push: typeof push;
+  pushNode: typeof pushNode;
   read: typeof read;
   tasks: typeof tasks;
   viewer: typeof viewer;

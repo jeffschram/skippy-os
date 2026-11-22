@@ -82,6 +82,12 @@ export const rubric = internalQuery({
       blockList: rules.filter((rule) => rule.kind === "block").map(presentRule),
       /** Where each source was left. null means it has never been read: look back `firstRunLookbackDays`. */
       cursors,
+      /** Whether today's briefing has been written. The first pass of the day writes it. */
+      briefingWritten:
+        (await ctx.db
+          .query("briefings")
+          .withIndex("by_date", (q) => q.eq("date", localDate(now, settings.timeZone)))
+          .first()) !== null,
       firstRunLookbackDays: LOOKBACK_DAYS,
     };
   },

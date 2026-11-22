@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { CaptureDock } from "./capture";
 import { ItemDetails } from "./item-details";
+import { ServiceWorker } from "./notifications";
 import { button } from "./parts";
 import { TaskDetails } from "./task-details";
 
@@ -98,6 +99,7 @@ function ForOwner({ wide, children }: { wide?: boolean; children: ReactNode }) {
         <UserButton />
       </header>
       <main className="mt-10">{children}</main>
+      <ServiceWorker />
       <CaptureDock />
       <TaskDetails />
       <ItemDetails />

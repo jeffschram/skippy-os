@@ -8,12 +8,21 @@ export function refuse(code: string, message: string): ConvexError<{ code: strin
   return new ConvexError({ code, message });
 }
 
-export const DEFAULT_SETTINGS = { timeZone: "America/New_York", stalenessDays: 7 };
+export const DEFAULT_SETTINGS = { timeZone: "America/New_York", stalenessDays: 7, quietFrom: 22, quietTo: 8 };
 
 /** The owner's settings, or the defaults until the settings page writes a row. */
-export async function getSettings(ctx: QueryCtx): Promise<{ timeZone: string; stalenessDays: number }> {
+export async function getSettings(
+  ctx: QueryCtx,
+): Promise<{ timeZone: string; stalenessDays: number; quietFrom: number; quietTo: number }> {
   const row = await ctx.db.query("settings").first();
-  return row ? { timeZone: row.timeZone, stalenessDays: row.stalenessDays } : DEFAULT_SETTINGS;
+  return row
+    ? {
+        timeZone: row.timeZone,
+        stalenessDays: row.stalenessDays,
+        quietFrom: row.quietFrom ?? DEFAULT_SETTINGS.quietFrom,
+        quietTo: row.quietTo ?? DEFAULT_SETTINGS.quietTo,
+      }
+    : DEFAULT_SETTINGS;
 }
 
 type EntityType = NonNullable<Doc<"activityEvents">["entityRef"]>["entityType"];

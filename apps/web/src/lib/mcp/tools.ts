@@ -318,7 +318,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   get_importance_rubric: {
     title: "Ingestion rubric",
     description:
-      "For an ingestion pass. Returns how to judge what is read (the rubric), the owner's own rules, the block list of senders, conversations and calendars to leave out, where each source was left (its cursor, or null when it has never been read), today's date and the owner's time zone. Read it at the start of every pass.",
+      "For an ingestion pass. Returns how to judge what is read (the rubric), the owner's own rules, the block list of senders, conversations and calendars to leave out, where each source was left (its cursor, or null when it has never been read), whether today's briefing is written yet, today's date and the owner's time zone. Read it at the start of every pass.",
     input: {},
     kind: "read",
   },
@@ -426,6 +426,18 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
         )
         .min(1)
         .max(50),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  record_briefing: {
+    title: "Record briefing",
+    description:
+      "Saves the owner's morning note for a day. The first ingestion pass of the day writes it, when get_importance_rubric says it is not written yet. Plain text: short sentences and lines that start with a hyphen, no headings or other markup, about 200 words at most. Writing a day's briefing again replaces it. Saving today's sends the owner one notification.",
+    input: {
+      text: z.string().trim().min(1).max(6000).describe("The note, written to the owner."),
+      date: z.string().optional().describe("The day it is for, like 2026-11-25. Defaults to today."),
+      runId: z.string().optional().describe("The ingestion run that wrote it, when one did."),
     },
     kind: "write",
     idempotent: true,

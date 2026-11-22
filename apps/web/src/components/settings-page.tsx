@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useState, type FormEvent } from "react";
 import { OwnerPage } from "./owner-page";
 import { IngestionRules } from "./ingested";
+import { NotificationSettings } from "./notifications";
 import { button, Panel, problem, Quiet } from "./parts";
 
 /** The owner-wide settings: the time zone dates are read in, and when a quiet project is flagged. */
@@ -17,12 +18,24 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold">Settings</h1>
       <Loaded />
       <div className="mt-12">
+        <Panel title="Notifications">
+          <NotificationsPanel />
+        </Panel>
+      </div>
+      <div className="mt-12">
         <Panel title="Ingestion">
           <IngestionRules />
         </Panel>
       </div>
     </OwnerPage>
   );
+}
+
+/** Notifications need the saved quiet hours, so they wait for the settings to load. */
+function NotificationsPanel() {
+  const settings = useQuery(api.viewer.settings);
+  if (settings === undefined) return <Quiet>Loading…</Quiet>;
+  return <NotificationSettings quietFrom={settings.quietFrom} quietTo={settings.quietTo} />;
 }
 
 function Loaded() {

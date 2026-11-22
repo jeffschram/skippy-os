@@ -365,8 +365,48 @@ export default defineSchema({
     timeZone: v.string(),
     /** Days without a status update before an active project is flagged stale. */
     stalenessDays: v.number(),
+    /** No notifications from this hour to that one, by the owner's clock (0 to 23). */
+    quietFrom: v.optional(v.number()),
+    quietTo: v.optional(v.number()),
     updatedAt: v.number(),
   }),
+
+  // The morning note, one a day, written by the day's first ingestion pass.
+  briefings: defineTable({
+    /** The day it is for, as YYYY-MM-DD in the owner's zone. */
+    date: v.string(),
+    text: v.string(),
+    runId: v.optional(v.id("ingestionRuns")),
+    ...authored,
+  }).index("by_date", ["date"]),
+
+  // A browser or an installed app that asked for notifications.
+  pushSubscriptions: defineTable({
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    userAgent: v.optional(v.string()),
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    lastSentAt: v.optional(v.number()),
+  }).index("by_endpoint", ["endpoint"]),
+
+  // Every notification that was meant to go out, and what became of it. The
+  // key stops the same one going twice: "briefing:2026-11-21".
+  notificationDeliveries: defineTable({
+    dedupeKey: v.string(),
+    type: v.string(),
+    title: v.string(),
+    body: v.string(),
+    url: v.string(),
+    status: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed"), v.literal("skipped")),
+    /** Why it was skipped or failed, in words. */
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+    sentAt: v.optional(v.number()),
+  })
+    .index("by_key", ["dedupeKey"])
+    .index("by_created", ["createdAt"]),
 
   // One row. How far down the activity log the owner has read on the dashboard.
   viewerState: defineTable({

@@ -16,7 +16,7 @@ An ingestion pass reads what is new in the owner's calendar, mail or messages an
 
 ## Which tools
 
-- Skippy OS, through the connector named **Skippy OS**: `get_importance_rubric`, `record_ingestion_run`, `sync_calendar`, `ingest_objects`, `advance_source_cursor`. An older connector named just "Skippy" is a retired system; never use it.
+- Skippy OS, through the connector named **Skippy OS**: `get_importance_rubric`, `record_ingestion_run`, `sync_calendar`, `ingest_objects`, `advance_source_cursor`, and for the briefing `get_today` and `record_briefing`. An older connector named just "Skippy" is a retired system; never use it.
 - The owner's Google Calendar and Gmail, through Claude's own connectors for them.
 
 If the Skippy OS tools are missing, stop: there is nowhere to record anything.
@@ -30,8 +30,9 @@ Read the sources the prompt names. If it names none, read Google Calendar only.
 1. Call `get_importance_rubric`. It returns the rubric, the owner's own rules, the block list, each source's cursor, today's date and the owner's time zone. The owner's rules win over the rubric where they differ.
 2. Call `record_ingestion_run` with `status: "started"` and a `pass` label (the hour, such as "11am", or "manual"). Keep the `runId`. If it answers that another run is in progress, stop and say so.
 3. Read each source as described below. A source that fails does not stop the others: note its error and leave its cursor where it was.
-4. Call `record_ingestion_run` with the `runId`, `status: "finished"`, and one entry per source read: how many things you read and how many you left out. Use `status: "failed"` only when nothing could be read at all. Put anything the owner should know in `note`, in a sentence or two.
-5. Reply with two or three lines: what was read, what was made, and any problem.
+4. If the rubric said `briefingWritten` is false, write the day's briefing as described below.
+5. Call `record_ingestion_run` with the `runId`, `status: "finished"`, and one entry per source read: how many things you read and how many you left out. Use `status: "failed"` only when nothing could be read at all. Put anything the owner should know in `note`, in a sentence or two.
+6. Reply with two or three lines: what was read, what was made, and any problem.
 
 ## Google Calendar
 
@@ -60,6 +61,18 @@ Only when the prompt names it.
    - One message can make more than one record. Use `part` to tell apart two of the same kind.
 5. Read each result. "already" and "undone" mean Skippy OS has seen that message before; that is expected. "refused" comes with a reason: fix the item and send it again once, or leave it out.
 6. Call `advance_source_cursor` for `gmail` with the time of the newest message you read, whether or not it made anything.
+
+## The briefing
+
+The first pass of the day writes the owner's morning note. They read it on their dashboard, and their phone tells them it is ready.
+
+1. Call `get_today`. It lists the day's events, the recurring things that are due, the tasks that are overdue, due or planned for today, and what is waiting on someone.
+2. Write the note to the owner, as "you". Lead with what the day holds: what is at a fixed time, what is due, what is overdue. Then anything this pass read that is worth knowing and made no record. Leave out what is not happening: do not list empty categories.
+3. Keep it short: about 200 words at most. Plain text only: short sentences, and lines that start with a hyphen for a list. No headings, no bold, no links.
+4. Say only what the tools told you or what you read in this pass. Do not guess at how the owner feels about their day or what they should prioritise.
+5. Call `record_briefing` with the text and the `runId`. It answers whether a notification went out; that needs nothing from you.
+
+If the rubric said the briefing is already written, do not write another.
 
 ## If a pass is interrupted
 

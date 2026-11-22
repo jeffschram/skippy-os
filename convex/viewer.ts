@@ -4,9 +4,11 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { eventsBetween, liveRecurrences } from "./agenda";
+import { latestBriefing } from "./briefing";
 import { listCaptures } from "./captures";
 import { fileOnCapture, filesOn, presentFile } from "./files";
 import { readIngestion } from "./ingestion";
+import { notify } from "./push";
 import { findEntity } from "./lib/entities";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
@@ -593,6 +595,87 @@ export const discardCapture = mutation({
   },
 });
 
+// The briefing, and notifications.
+
+/** The latest morning note, or null before the first one. `isToday` says whether it is today's. */
+export const briefing = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    return await latestBriefing(ctx, args.now);
+  },
+});
+
+/** What the Settings page needs to turn notifications on: the public key, the devices, and what was sent lately. */
+export const notifications = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireOwner(ctx);
+    const devices = await ctx.db.query("pushSubscriptions").collect();
+    const recent = await ctx.db.query("notificationDeliveries").withIndex("by_created").order("desc").take(6);
+    return {
+      /** Missing until the push keys are set on the server. */
+      publicKey: process.env.VAPID_PUBLIC_KEY ?? null,
+      devices: devices.filter((device) => device.enabled).map((device) => ({ endpoint: device.endpoint, userAgent: device.userAgent })),
+      recent: recent.map((delivery) => ({
+        id: delivery._id,
+        title: delivery.title,
+        body: delivery.body,
+        status: delivery.status,
+        reason: delivery.reason,
+        at: new Date(delivery.createdAt).toISOString(),
+      })),
+    };
+  },
+});
+
+/** Remembers a device that asked for notifications. The same device asking again is one device. */
+export const savePushSubscription = mutation({
+  args: { endpoint: v.string(), p256dh: v.string(), auth: v.string(), userAgent: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    if (!/^https:\/\//.test(args.endpoint)) throw refuse("invalid_arguments", "That is not a push address.");
+    const existing = await ctx.db
+      .query("pushSubscriptions")
+      .withIndex("by_endpoint", (q) => q.eq("endpoint", args.endpoint))
+      .first();
+    const userAgent = args.userAgent?.slice(0, 300);
+    if (existing) await ctx.db.patch(existing._id, { p256dh: args.p256dh, auth: args.auth, enabled: true, ...(userAgent ? { userAgent } : {}) });
+    else await ctx.db.insert("pushSubscriptions", { endpoint: args.endpoint, p256dh: args.p256dh, auth: args.auth, enabled: true, createdAt: Date.now(), ...(userAgent ? { userAgent } : {}) });
+    return null;
+  },
+});
+
+/** Forgets a device, when notifications are turned off on it. */
+export const removePushSubscription = mutation({
+  args: { endpoint: v.string() },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    const existing = await ctx.db
+      .query("pushSubscriptions")
+      .withIndex("by_endpoint", (q) => q.eq("endpoint", args.endpoint))
+      .first();
+    if (existing) await ctx.db.delete(existing._id);
+    return null;
+  },
+});
+
+/** Sends a test notification to every device, quiet hours or not. */
+export const sendTestNotification = mutation({
+  args: {},
+  handler: async (ctx): Promise<{ status: string; reason?: string }> => {
+    await requireOwner(ctx);
+    return await notify(ctx, {
+      dedupeKey: `test:${Date.now()}`,
+      type: "test",
+      title: "Skippy OS",
+      body: "Notifications work on this device.",
+      url: "/settings",
+      evenInQuietHours: true,
+    });
+  },
+});
+
 // Ingestion: what each pass made, the way to take it back, and the rules passes follow.
 
 /** The latest ingestion passes with what each made, when each source was last read, and the rules. */
@@ -651,7 +734,12 @@ export const removeIngestionRule = mutation({
 
 /** Changes the owner-wide settings. Only the fields passed change. */
 export const saveSettings = mutation({
-  args: { timeZone: v.optional(v.string()), stalenessDays: v.optional(v.number()) },
+  args: {
+    timeZone: v.optional(v.string()),
+    stalenessDays: v.optional(v.number()),
+    quietFrom: v.optional(v.number()),
+    quietTo: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     const timeZone = args.timeZone?.trim();
@@ -666,14 +754,21 @@ export const saveSettings = mutation({
     if (days !== undefined && (!Number.isInteger(days) || days < 1 || days > 90)) {
       throw refuse("invalid_arguments", "The stale flag takes a whole number of days from 1 to 90.");
     }
+    for (const hour of [args.quietFrom, args.quietTo]) {
+      if (hour !== undefined && (!Number.isInteger(hour) || hour < 0 || hour > 23)) {
+        throw refuse("invalid_arguments", "Quiet hours are whole hours from 0 to 23.");
+      }
+    }
     const row = await ctx.db.query("settings").first();
     const next = {
       timeZone: timeZone || row?.timeZone || DEFAULT_SETTINGS.timeZone,
       stalenessDays: days ?? row?.stalenessDays ?? DEFAULT_SETTINGS.stalenessDays,
+      quietFrom: args.quietFrom ?? row?.quietFrom ?? DEFAULT_SETTINGS.quietFrom,
+      quietTo: args.quietTo ?? row?.quietTo ?? DEFAULT_SETTINGS.quietTo,
       updatedAt: Date.now(),
     };
     if (row) await ctx.db.patch(row._id, next);
     else await ctx.db.insert("settings", next);
-    return { timeZone: next.timeZone, stalenessDays: next.stalenessDays };
+    return { timeZone: next.timeZone, stalenessDays: next.stalenessDays, quietFrom: next.quietFrom, quietTo: next.quietTo };
   },
 });

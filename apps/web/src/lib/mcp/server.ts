@@ -14,7 +14,7 @@ const INSTRUCTIONS = [
   "The inbox holds quick captures waiting to be filed: capture adds one, list_captures reads them, and resolve_capture marks one as filed or discarded.",
   "When you work on a Skippy project, call record_project_status when a milestone is reached, a decision is made, something gets blocked, or the session ends.",
   "When instructions say to follow the skippy-status, skippy-capture or skippy-ingest skill and you do not already have its text, call get_skill for it and follow what it returns.",
-  "An ingestion pass uses get_importance_rubric, record_ingestion_run, sync_calendar, ingest_objects and advance_source_cursor; leave those alone outside a pass.",
+  "An ingestion pass uses get_importance_rubric, record_ingestion_run, sync_calendar, ingest_objects, advance_source_cursor and record_briefing; leave those alone outside a pass.",
   "Every write is logged with you as its author.",
 ].join(" ");
 
