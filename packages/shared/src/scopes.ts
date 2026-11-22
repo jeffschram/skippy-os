@@ -28,10 +28,14 @@ export const OPERATIONS = {
   upsert_person: { scope: SCOPE_WRITE },
   upsert_knowledge: { scope: SCOPE_WRITE },
   link_entities: { scope: SCOPE_WRITE },
+  upsert_event: { scope: SCOPE_WRITE },
+  upsert_recurrence: { scope: SCOPE_WRITE },
+  complete_recurrence: { scope: SCOPE_WRITE },
   // Read.
   search: { scope: SCOPE_READ },
   get_context_bundle: { scope: SCOPE_READ },
   get_today: { scope: SCOPE_READ },
+  get_agenda: { scope: SCOPE_READ },
   get_changes_since: { scope: SCOPE_READ },
 } as const satisfies Record<string, { scope: Scope }>;
 

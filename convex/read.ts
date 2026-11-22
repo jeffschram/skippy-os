@@ -2,6 +2,7 @@ import { actorLabel, dayBounds, localDate, WhenError, type EntityType, type Sear
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, type QueryCtx } from "./_generated/server";
+import { eventsBetween, liveRecurrences, presentEvent, presentRecurrence } from "./agenda";
 import { searchCaptures } from "./captures";
 import { getSettings, refuse, requireText, when } from "./lib/common";
 import { findEntity, mention, requireEntity, type Found } from "./lib/entities";
@@ -62,6 +63,10 @@ export async function readToday(ctx: QueryCtx, args: { date?: string; now: numbe
   return {
     date,
     timeZone: settings.timeZone,
+    /** What is on that day, soonest first. */
+    events: await eventsBetween(ctx, bounds.start, bounds.end, settings.timeZone, 50),
+    /** Recurring things that are due, overdue, or inside their lead time. Complete one with complete_recurrence. */
+    recurrences: (await liveRecurrences(ctx, date)).filter((item) => item.comingUp),
     overdue: await Promise.all(overdue.map(show)),
     dueToday: await Promise.all(dueToday.map(show)),
     scheduled: await Promise.all(scheduled.map(show)),
@@ -185,6 +190,13 @@ async function presentRecord(ctx: QueryCtx, entity: Found, now: number) {
       return presentCompany((await ctx.db.get(entityId as Id<"companies">))!);
     case "knowledge":
       return presentKnowledge((await ctx.db.get(entityId as Id<"knowledge">))!, settings.timeZone);
+    case "event": {
+      const doc = (await ctx.db.get(entityId as Id<"calendarEvents">))!;
+      const slug = doc.projectId ? (await ctx.db.get(doc.projectId))?.slug : undefined;
+      return presentEvent(doc, slug, settings.timeZone);
+    }
+    case "recurrence":
+      return presentRecurrence((await ctx.db.get(entityId as Id<"recurrences">))!, localDate(now, settings.timeZone));
     case "goal": {
       const doc = (await ctx.db.get(entityId as Id<"goals">))!;
       return {

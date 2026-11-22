@@ -1,12 +1,25 @@
-import { actorLabel, localDate, type Actor } from "@skippy/shared";
+import { actorLabel, dayBounds, localDate, type Actor } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { eventsBetween, liveRecurrences } from "./agenda";
 import { listCaptures } from "./captures";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
-import { captureIntent, claudeHome, commitment, phaseStatus, projectHealth, projectKind, projectStatus, taskStatus } from "./schema";
+import {
+  captureIntent,
+  claudeHome,
+  commitment,
+  eventStatus,
+  phaseStatus,
+  projectHealth,
+  projectKind,
+  projectStatus,
+  recurrenceRule,
+  recurrenceStatus,
+  taskStatus,
+} from "./schema";
 import { presentTask } from "./tasks";
 import { DEFAULT_SETTINGS, getSettings, iso, refuse } from "./lib/common";
 
@@ -363,6 +376,71 @@ export const deleteTask = mutation({
     await requireOwner(ctx);
     await ctx.runMutation(internal.tasks.remove, { actor: OWNER, id: args.id });
     return null;
+  },
+});
+
+/** Events from today on and every recurrence that is not retired, for the Agenda page. */
+export const calendar = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const settings = await getSettings(ctx);
+    const today = localDate(args.now, settings.timeZone);
+    const start = dayBounds(today, settings.timeZone).start;
+    return {
+      today,
+      events: await eventsBetween(ctx, start, start + 366 * 86_400_000, settings.timeZone),
+      recurrences: await liveRecurrences(ctx, today),
+    };
+  },
+});
+
+/** Adds an event, or changes one when `id` is given. Only the fields passed change; null clears one. */
+export const saveEvent = mutation({
+  args: {
+    id: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: nullable(v.string()),
+    location: nullable(v.string()),
+    startAt: v.optional(v.string()),
+    endAt: nullable(v.string()),
+    allDay: v.optional(v.boolean()),
+    status: v.optional(eventStatus),
+    project: nullable(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ id: string; changed: boolean }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.agenda.upsertEvent, { actor: OWNER, ...args });
+    return { id: result.event.id, changed: result.changed };
+  },
+});
+
+/** Adds something that recurs, or changes one when `id` is given. */
+export const saveRecurrence = mutation({
+  args: {
+    id: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: nullable(v.string()),
+    rule: v.optional(recurrenceRule),
+    anchor: v.optional(v.union(v.literal("schedule"), v.literal("completion"))),
+    leadTimeDays: nullable(v.number()),
+    status: v.optional(recurrenceStatus),
+    nextDue: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ id: string; changed: boolean }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.agenda.upsertRecurrence, { actor: OWNER, ...args });
+    return { id: result.recurrence.id, changed: result.changed };
+  },
+});
+
+/** Marks one round of a recurrence done or skipped. `due` is the round the page was showing. */
+export const completeRecurrence = mutation({
+  args: { id: v.string(), due: v.string(), skip: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<{ changed: boolean; nextDue: string }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.agenda.completeRecurrence, { actor: OWNER, ...args });
+    return { changed: result.changed, nextDue: result.recurrence.nextDue };
   },
 });
 

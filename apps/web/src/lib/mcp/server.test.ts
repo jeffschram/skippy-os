@@ -36,8 +36,10 @@ describe("the MCP server", () => {
   it("lists every tool to a caller with both scopes", async () => {
     expect(await toolNames(BOTH)).toEqual([
       "capture",
+      "complete_recurrence",
       "complete_task",
       "create_phase",
+      "get_agenda",
       "get_changes_since",
       "get_context_bundle",
       "get_project",
@@ -50,9 +52,11 @@ describe("the MCP server", () => {
       "resolve_capture",
       "search",
       "update_phase",
+      "upsert_event",
       "upsert_knowledge",
       "upsert_person",
       "upsert_project",
+      "upsert_recurrence",
       "upsert_task",
       "whoami",
     ]);
@@ -60,6 +64,7 @@ describe("the MCP server", () => {
 
   it("never lists a write tool to a read-only caller", async () => {
     expect(await toolNames(READ)).toEqual([
+      "get_agenda",
       "get_changes_since",
       "get_context_bundle",
       "get_project",

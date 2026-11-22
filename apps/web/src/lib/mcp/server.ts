@@ -8,8 +8,8 @@ import { TOOLS } from "./tools";
 const INSTRUCTIONS = [
   "Skippy OS is the owner's personal system for projects, tasks and what is worth remembering.",
   "Projects are named by slug; every other record by its id.",
-  "Read with search, get_context_bundle, list_projects, get_project, get_today and get_changes_since.",
-  "Write with upsert_project, create_phase, update_phase, upsert_task, complete_task, upsert_person, upsert_knowledge and link_entities.",
+  "Read with search, get_context_bundle, list_projects, get_project, get_today, get_agenda and get_changes_since.",
+  "Write with upsert_project, create_phase, update_phase, upsert_task, complete_task, upsert_person, upsert_knowledge, upsert_event, upsert_recurrence, complete_recurrence and link_entities.",
   "Before saving a person or something to remember, search for it, so the same thing is not saved twice.",
   "The inbox holds quick captures waiting to be filed: capture adds one, list_captures reads them, and resolve_capture marks one as filed or discarded.",
   "When you work on a Skippy project, call record_project_status when a milestone is reached, a decision is made, something gets blocked, or the session ends.",

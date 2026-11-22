@@ -24,6 +24,8 @@ export const LOAD_ORDER = [
   "people",
   "companies",
   "knowledge",
+  "recurrences",
+  "events",
   "sources",
   "attachments",
   "links",
@@ -157,6 +159,15 @@ const time = (value: unknown): number | undefined => (typeof value === "number" 
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
 const titleCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
+/** The calendar day an instant falls on in a time zone, as YYYY-MM-DD. */
+function dayIn(at: number, timeZone: string | undefined): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timeZone || "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
+  } catch {
+    return new Date(at).toISOString().slice(0, 10);
+  }
+}
 
 /** Leaves out keys whose value is undefined, so the loaders' validators see only what is there. */
 function compact<T extends Record<string, unknown>>(record: T): T {
@@ -312,6 +323,11 @@ export function transform(snapshot: Snapshot): Plan {
     );
   }
   // Areas were a word on each task. They become records, one per word.
+  // A recurrence can name an area no task does.
+  for (const recurrence of table("recurrences")) {
+    const area = text(recurrence.area)?.toLowerCase();
+    if (area && !areaNames.has(area)) areaNames.set(area, recurrence);
+  }
   for (const [name, firstTask] of [...areaNames].sort(([a], [b]) => a.localeCompare(b))) {
     batches.areas.push({ oldId: name, name: titleCase(name), ...stamps(firstTask) });
   }
@@ -492,11 +508,89 @@ export function transform(snapshot: Snapshot): Plan {
     );
   }
 
-  // Planned for import, but their tables arrive in Phase 4.
-  for (let n = table("recurrences").length; n > 0; n--) defer("recurrences", PHASE_4);
+  // Things that come round again. The old app could spawn a task for each round; the new one ticks the recurrence itself.
+  for (const recurrence of table("recurrences")) {
+    const old = recurrence.rule ?? {};
+    const rule =
+      old.kind === "interval" && typeof old.everyDays === "number"
+        ? { kind: "interval", everyDays: Math.max(1, Math.round(old.everyDays)) }
+        : old.kind === "calendar" && text(old.rrule)
+          ? { kind: "calendar", rrule: text(old.rrule) }
+          : undefined;
+    const nextDueAt = time(recurrence.nextDueAt);
+    if (!rule || nextDueAt === undefined) {
+      skip("recurrences", "has no rule or no next day the new system can read");
+      continue;
+    }
+    keep("recurrences");
+    if (recurrence.spawnTask) note("recurrences: no longer spawn a task for each round; the recurrence itself is ticked off");
+    const zone = text(recurrence.timeZone);
+    const history = (Array.isArray(recurrence.history) ? recurrence.history : [])
+      .map((entry: OldDoc) => {
+        const at = time(entry.completedAt) ?? time(entry.occurredAt);
+        const due = time(entry.scheduledFor);
+        if (at === undefined) return undefined;
+        return compact({ at, outcome: entry.outcome === "skipped" ? "skipped" : "completed", due: due === undefined ? undefined : dayIn(due, zone) });
+      })
+      .filter(Boolean);
+    batches.recurrences.push(
+      compact({
+        oldId: recurrence._id,
+        title: text(recurrence.title) ?? "Untitled",
+        description: text(recurrence.description),
+        rule,
+        anchor: recurrence.anchor === "completion" ? "completion" : "schedule",
+        leadTimeDays: typeof recurrence.leadTimeDays === "number" && recurrence.leadTimeDays > 0 ? Math.round(recurrence.leadTimeDays) : undefined,
+        status: ["active", "paused", "retired"].includes(recurrence.status) ? recurrence.status : "paused",
+        nextDue: dayIn(nextDueAt, zone),
+        lastCompletedAt: time(recurrence.lastCompletedAt),
+        history: history.length > 0 ? history : undefined,
+        areaOldId: text(recurrence.area)?.toLowerCase(),
+        ...stamps(recurrence),
+      }),
+    );
+  }
+
+  // Events the old Skippy made come across, cancelled ones included, as history. Google's own are read again in Phase 5.
   for (const event of table("calendarEvents")) {
-    if (event.origin === "skippy") defer("calendarEvents", PHASE_4);
-    else skip("calendarEvents", "synced again from Google");
+    if (event.origin !== "skippy") {
+      skip("calendarEvents", "synced again from Google");
+      continue;
+    }
+    const startAt = time(event.startAt);
+    if (startAt === undefined) {
+      skip("calendarEvents", "has no start time");
+      continue;
+    }
+    keep("calendarEvents");
+    batches.events.push(
+      compact({
+        oldId: event._id,
+        title: text(event.title) ?? "Untitled",
+        description: text(event.description),
+        location: text(event.location),
+        startAt,
+        endAt: time(event.endAt),
+        allDay: event.isAllDay === true ? true : undefined,
+        status: event.status === "cancelled" ? "cancelled" : "confirmed",
+        externalId: text(event.externalId),
+        calendarId: text(event.calendarId),
+        htmlLink: text(event.htmlLink),
+        ...stamps(event),
+      }),
+    );
+    const related = Array.isArray(event.relatedEntityRefs) ? event.relatedEntityRefs : [];
+    related.forEach((ref: { entityType?: string; entityId?: string }, index: number) => {
+      const to = follow(ref);
+      if (!to) return note("events: a record an event was about did not come across");
+      batches.links.push({
+        oldId: `${event._id}:about:${index}`,
+        from: { table: "calendarEvents", id: event._id },
+        to,
+        type: "related_to",
+        createdAt: stamps(event).createdAt,
+      });
+    });
   }
   for (const file of table("projectFiles")) {
     if (codeProjects.has(file.projectId)) skip("projectFiles", "in a code project");

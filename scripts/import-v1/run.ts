@@ -181,7 +181,7 @@ function load(plan: Plan, target: Target, reportFile: string) {
 
   const imported = (name: BatchName) => totals[name].imported;
   if (LOAD_ORDER.some((name) => imported(name) > 0)) {
-    const parts = (["projects", "tasks", "people", "companies", "goals", "knowledge"] as const)
+    const parts = (["projects", "tasks", "people", "companies", "goals", "knowledge", "recurrences", "events"] as const)
       .filter((name) => imported(name) > 0)
       .map((name) => `${imported(name)} ${name}`);
     convexRun(target, "finish", { summary: `Imported from the old Skippy: ${parts.join(", ") || "links and sources"}` });

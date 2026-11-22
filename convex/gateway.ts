@@ -24,6 +24,7 @@ const READS: Partial<Record<Phase1Operation, FunctionReference<"query", "interna
   get_today: internal.read.today as never,
   get_changes_since: internal.read.changesSince as never,
   list_captures: internal.captures.list as never,
+  get_agenda: internal.agenda.agenda as never,
 };
 
 /** Operations that write. Each gets the caller's arguments plus the actor, which the caller cannot set. */
@@ -37,6 +38,9 @@ const WRITES: Partial<Record<Phase1Operation, FunctionReference<"mutation", "int
   upsert_person: internal.people.upsert as never,
   upsert_knowledge: internal.knowledge.upsert as never,
   link_entities: internal.links.link as never,
+  upsert_event: internal.agenda.upsertEvent as never,
+  upsert_recurrence: internal.agenda.upsertRecurrence as never,
+  complete_recurrence: internal.agenda.completeRecurrence as never,
   capture: internal.captures.add as never,
   resolve_capture: internal.captures.resolve as never,
 };

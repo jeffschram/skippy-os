@@ -314,9 +314,81 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   get_today: {
     title: "Today",
     description:
-      "Shows what needs attention on a day: overdue tasks, tasks due that day, tasks planned for that day or earlier and still open, and tasks waiting on someone.",
+      "Shows what needs attention on a day: that day's events, recurring things that are due or coming up, overdue tasks, tasks due that day, tasks planned for that day or earlier and still open, and tasks waiting on someone.",
     input: { date: z.string().optional().describe("A date like 2026-11-25. Defaults to today in the owner's time zone.") },
     kind: "read",
+  },
+  get_agenda: {
+    title: "Agenda",
+    description:
+      "Shows what is on over a run of days: events, recurring things falling due, and tasks with a deadline or a planned day in it. Use it to see what is coming, to find an event's or a recurrence's id, or to check for a clash before adding an event.",
+    input: {
+      from: z.string().optional().describe("The first day, like 2026-11-25. Defaults to today in the owner's time zone."),
+      days: z.number().int().min(1).max(120).optional().describe("How many days to cover. Defaults to 14."),
+    },
+    kind: "read",
+  },
+  upsert_event: {
+    title: "Create or update event",
+    description:
+      "Adds an event to the owner's Skippy calendar, or changes one when `id` is given: an appointment, a trip, a call, anything with a time. A start given as a bare date makes an all-day event. To call an event off, set status to \"cancelled\". Events copied from the owner's Google calendar cannot be changed here. Use get_agenda first so the same event is not added twice.",
+    input: {
+      id: z.string().optional().describe("The event to change."),
+      title: z.string().max(300).optional().describe("Required for a new event."),
+      startAt: when("When it starts. Required for a new event.").optional(),
+      endAt: clearable(when("When it ends.")),
+      allDay: z.boolean().optional().describe("Defaults to true when startAt is a bare date."),
+      location: clearable(z.string().max(500)),
+      description: clearable(z.string().max(4000)),
+      status: z.enum(["confirmed", "cancelled"]).optional(),
+      project: clearable(projectSlug),
+      about: z
+        .array(record("A person, project or other record this event concerns."))
+        .max(10)
+        .optional()
+        .describe("Links the event to these records."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  upsert_recurrence: {
+    title: "Create or update recurrence",
+    description:
+      "Adds something that comes round again (a bill, a filter change, a check-in with someone), or changes one when `id` is given. The rule is either every N days, or a calendar rule written as an RRULE using FREQ (DAILY, WEEKLY, MONTHLY, YEARLY), INTERVAL, BYDAY (with WEEKLY), BYMONTHDAY and BYMONTH: for example FREQ=MONTHLY;BYMONTHDAY=22. To stop one, set status to \"paused\" or \"retired\".",
+    input: {
+      id: z.string().optional().describe("The recurrence to change."),
+      title: z.string().max(300).optional().describe("Required for a new recurrence. Starts with a verb, like a task."),
+      description: clearable(z.string().max(4000)),
+      rule: z
+        .union([
+          z.object({ kind: z.literal("interval"), everyDays: z.number().int().min(1).max(3660) }),
+          z.object({ kind: z.literal("calendar"), rrule: z.string().max(200) }),
+        ])
+        .optional()
+        .describe("Required for a new recurrence."),
+      anchor: z
+        .enum(["schedule", "completion"])
+        .optional()
+        .describe('"schedule": the next one is counted from the day this one was due (a bill). "completion": from the day it was done (a filter change). Defaults to schedule for a calendar rule and completion for an interval.'),
+      leadTimeDays: clearable(z.number().int().min(0).max(365)).describe("How many days before it is due it starts to show under Today."),
+      status: z.enum(["active", "paused", "retired"]).optional(),
+      nextDue: z.string().optional().describe("The day it next falls due, like 2026-12-01. Defaults to the rule's next day."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  complete_recurrence: {
+    title: "Complete recurrence",
+    description:
+      "Marks one round of a recurrence done and moves it to its next day. Pass the `nextDue` day you read as `due`: if the recurrence has already moved on from that day, nothing changes, so the same round is never counted twice. Pass skip: true when this round was not done and will not be.",
+    input: {
+      id: z.string().describe("The recurrence's id, from get_today or get_agenda."),
+      due: z.string().describe("The round being completed: the recurrence's nextDue day, like 2026-11-22."),
+      skip: z.boolean().optional().describe("True to pass over this round without counting it as done."),
+      note: z.string().max(300).optional().describe("Anything worth saying about this round."),
+    },
+    kind: "write",
+    idempotent: true,
   },
   get_changes_since: {
     title: "Changes since",

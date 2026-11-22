@@ -19,7 +19,7 @@ import { OWNER, requireOwner } from "./viewer";
  */
 
 const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
-const MEMORY_TYPES = ["knowledge", "person", "company", "goal"] as const;
+const MEMORY_TYPES = ["knowledge", "person", "company", "goal", "event", "recurrence"] as const;
 const memoryType = v.union(...MEMORY_TYPES.map((type) => v.literal(type)));
 
 /** A few lines of a record's text, for a list. */
@@ -136,7 +136,7 @@ export const search = query({
   },
 });
 
-/** One record with its links, sources and history, or null when it is not there. */
+/** One record with its links, sources and history, or null when it is not there. Also serves events and recurrences. */
 export const item = query({
   args: { type: memoryType, id: v.string(), now: v.number() },
   handler: async (ctx, args) => {

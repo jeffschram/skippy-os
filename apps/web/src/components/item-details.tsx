@@ -8,17 +8,19 @@ import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { button, problem, Quiet, showTime, Tag, words } from "./parts";
+import { draftOfRule, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { button, problem, Quiet, showDay, showTime, Tag, words } from "./parts";
 import { useNow } from "./use-now";
 
 /**
  * The details of something in Memory (a note, link, memory, decision,
- * principle or question, a person, a company or a goal), opened over whatever
+ * principle or question, a person, a company or a goal) or on the Agenda (an
+ * event, or something that recurs), opened over whatever
  * page the owner is on by adding `?item=<type>:<id>` to the address. Below the
  * record's own fields are what it is linked to, where it came from and its history.
  */
 
-const TYPES = ["knowledge", "person", "company", "goal"] as const;
+const TYPES = ["knowledge", "person", "company", "goal", "event", "recurrence"] as const;
 type ItemType = (typeof TYPES)[number];
 type Bundle = NonNullable<FunctionReturnType<typeof api.viewerMemory.item>>;
 type Knowledge = ReturnType<typeof presentKnowledge>;
@@ -90,7 +92,9 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg font-semibold">{type === "knowledge" ? words((bundle.record as Knowledge).kind) : type}</h2>
+        <h2 className="text-lg font-semibold">
+          {type === "knowledge" ? words((bundle.record as Knowledge).kind) : type === "recurrence" ? "repeating" : type}
+        </h2>
         <button type="button" onClick={onClose} aria-label="Close" className="text-sm text-foreground/60 underline underline-offset-2">
           Close
         </button>
@@ -101,6 +105,10 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
         <PersonForm key={id} person={bundle.record as Person} onClose={onClose} />
       ) : type === "company" ? (
         <CompanyForm key={id} company={bundle.record as Company} onClose={onClose} />
+      ) : type === "event" ? (
+        <EventForm key={id} event={bundle.record as EventItem} onClose={onClose} />
+      ) : type === "recurrence" ? (
+        <RecurrenceForm key={id} item={bundle.record as RecurrenceItem} onClose={onClose} />
       ) : (
         <GoalView goal={bundle.record as Goal} />
       )}
@@ -400,6 +408,200 @@ function CompanyForm({ company, onClose }: { company: Company; onClose: () => vo
         Notes
         <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={5} className={`mt-1 ${field}`} />
       </label>
+      {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      <Buttons busy={busy} onClose={onClose} />
+    </form>
+  );
+}
+
+function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }) {
+  const save = useMutation(api.viewer.saveEvent);
+  const mine = event.origin === "skippy";
+  const [title, setTitle] = useState(event.title);
+  const [day, setDay] = useState(event.start.date);
+  const [from, setFrom] = useState(event.allDay ? "" : event.start.time);
+  const [endDay, setEndDay] = useState(event.end?.date ?? "");
+  const [to, setTo] = useState(event.allDay || !event.end ? "" : event.end.time);
+  const [location, setLocation] = useState(event.location ?? "");
+  const [description, setDescription] = useState(event.description ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function run(changes: Parameters<typeof save>[0]) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await save(changes);
+      onClose();
+    } catch (caught) {
+      setError(problem(caught));
+      setBusy(false);
+    }
+  }
+
+  function submit(submitted: FormEvent) {
+    submitted.preventDefault();
+    const changes: Parameters<typeof save>[0] = { id: event.id };
+    if (title !== event.title) changes.title = title;
+    if (location !== (event.location ?? "")) changes.location = text(location);
+    if (description !== (event.description ?? "")) changes.description = text(description);
+    // Times are sent together, and only when one of them was touched, so an untouched event keeps its exact times.
+    const was = [event.start.date, event.allDay ? "" : event.start.time, event.end?.date ?? "", event.allDay || !event.end ? "" : event.end.time];
+    if ([day, from, endDay, to].some((value, index) => value !== was[index])) {
+      changes.startAt = from ? `${day}T${from}` : day;
+      changes.allDay = !from;
+      const lastDay = endDay || day;
+      changes.endAt = from ? (to ? `${lastDay}T${to}` : null) : lastDay !== day ? lastDay : null;
+    }
+    if (Object.keys(changes).length === 1) return onClose();
+    void run(changes);
+  }
+
+  if (!mine) {
+    return (
+      <div className="space-y-2">
+        <p className="text-base font-medium">{event.title}</p>
+        <p className="text-sm text-foreground/70">
+          {showDay(event.start.date)}
+          {event.location ? ` · ${event.location}` : ""}
+        </p>
+        {event.description ? <p className="text-base whitespace-pre-wrap">{event.description}</p> : null}
+        <p className="text-sm text-foreground/60">This is a copy from your Google calendar. Change it there.</p>
+      </div>
+    );
+  }
+
+  const cancelled = event.status === "cancelled";
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      {cancelled ? <Tag>cancelled</Tag> : null}
+      <label className="block text-sm">
+        Title
+        <input value={title} onChange={(change) => setTitle(change.target.value)} required className={`mt-1 text-base ${field}`} />
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          Day
+          <input type="date" value={day} onChange={(change) => setDay(change.target.value)} required className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          Starts (empty for all day)
+          <input type="time" value={from} onChange={(change) => setFrom(change.target.value)} className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          Last day, if it runs over days
+          <input type="date" value={endDay} onChange={(change) => setEndDay(change.target.value)} className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          Ends
+          <input type="time" value={to} onChange={(change) => setTo(change.target.value)} disabled={!from} className={`mt-1 ${field}`} />
+        </label>
+      </div>
+      <label className="block text-sm">
+        Where
+        <input value={location} onChange={(change) => setLocation(change.target.value)} className={`mt-1 ${field}`} />
+      </label>
+      <label className="block text-sm">
+        Details
+        <textarea value={description} onChange={(change) => setDescription(change.target.value)} rows={5} className={`mt-1 ${field}`} />
+      </label>
+      {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      <Buttons busy={busy} onClose={onClose}>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => run({ id: event.id, status: cancelled ? "confirmed" : "cancelled" })}
+          className="ml-auto text-sm text-foreground/60 underline underline-offset-2"
+        >
+          {cancelled ? "Put it back on" : "Call it off"}
+        </button>
+      </Buttons>
+    </form>
+  );
+}
+
+function RecurrenceForm({ item, onClose }: { item: RecurrenceItem; onClose: () => void }) {
+  const save = useMutation(api.viewer.saveRecurrence);
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description ?? "");
+  const [draft, setDraft] = useState(draftOfRule(item.rule));
+  const [anchor, setAnchor] = useState(item.anchor);
+  const [lead, setLead] = useState(String(item.leadTimeDays));
+  const [nextDue, setNextDue] = useState(item.nextDue);
+  const [status, setStatus] = useState(item.status);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function submit(submitted: FormEvent) {
+    submitted.preventDefault();
+    const changes: Parameters<typeof save>[0] = { id: item.id };
+    if (title !== item.title) changes.title = title;
+    if (description !== (item.description ?? "")) changes.description = text(description);
+    const rule = ruleOfDraft(draft);
+    if (JSON.stringify(rule) !== JSON.stringify(ruleOfDraft(draftOfRule(item.rule)))) changes.rule = rule;
+    if (anchor !== item.anchor) changes.anchor = anchor;
+    if (Number(lead) !== item.leadTimeDays) changes.leadTimeDays = Number(lead) || 0;
+    if (nextDue !== item.nextDue) changes.nextDue = nextDue;
+    if (status !== item.status) changes.status = status;
+    if (Object.keys(changes).length === 1) return onClose();
+    setBusy(true);
+    setError(undefined);
+    try {
+      await save(changes);
+      onClose();
+    } catch (caught) {
+      setError(problem(caught));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <label className="block text-sm">
+        Title
+        <input value={title} onChange={(change) => setTitle(change.target.value)} required className={`mt-1 text-base ${field}`} />
+      </label>
+      <div className="text-sm">
+        <p className="mb-1">Repeats</p>
+        <RuleFields draft={draft} onChange={setDraft} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          Next due
+          <input type="date" value={nextDue} onChange={(change) => setNextDue(change.target.value)} required className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          Show it this many days ahead
+          <input type="number" min={0} max={365} value={lead} onChange={(change) => setLead(change.target.value)} className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm">
+          The next one is counted from
+          <select value={anchor} onChange={(change) => setAnchor(change.target.value as typeof anchor)} className={`mt-1 ${field}`}>
+            <option value="schedule">the day this one was due</option>
+            <option value="completion">the day this one was done</option>
+          </select>
+        </label>
+        <label className="block text-sm">
+          Status
+          <select value={status} onChange={(change) => setStatus(change.target.value as typeof status)} className={`mt-1 ${field}`}>
+            <option value="active">active</option>
+            <option value="paused">paused</option>
+            <option value="retired">retired</option>
+          </select>
+        </label>
+      </div>
+      <label className="block text-sm">
+        Details
+        <textarea value={description} onChange={(change) => setDescription(change.target.value)} rows={5} className={`mt-1 ${field}`} />
+      </label>
+      {item.history.length > 0 ? (
+        <p className="text-xs text-foreground/60">
+          Last rounds:{" "}
+          {item.history
+            .map((entry) => `${entry.outcome}${entry.due ? ` for ${showDay(entry.due)}` : ` ${showTime(entry.at)}`}`)
+            .join("; ")}
+        </p>
+      ) : null}
       {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       <Buttons busy={busy} onClose={onClose} />
     </form>

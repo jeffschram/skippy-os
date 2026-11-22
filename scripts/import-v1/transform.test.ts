@@ -58,10 +58,36 @@ function snapshot(): Snapshot {
       { _id: "e1", entityRef: ref("note", "k-note"), sourceRefId: "s-mail", relationship: "created_from", ...at },
       { _id: "e2", entityRef: ref("task", "t-bug"), sourceRefId: "s-code", relationship: "created_from", ...at },
     ],
-    recurrences: [{ _id: "rec1", title: "Water plants", ...at }],
+    recurrences: [
+      {
+        _id: "rec1",
+        title: "Pay the water bill",
+        rule: { kind: "calendar", rrule: "FREQ=MONTHLY;BYMONTHDAY=31" },
+        anchor: "schedule",
+        leadTimeDays: 3,
+        status: "active",
+        spawnTask: true,
+        timeZone: "America/New_York",
+        // 23:59 on November 30 in New York.
+        nextDueAt: Date.parse("2026-12-01T04:59:00Z"),
+        history: [{ completedAt: 1000 }, { completedAt: 2000, outcome: "completed", scheduledFor: Date.parse("2026-10-31T04:00:00Z") }],
+        ...at,
+      },
+      { _id: "rec2", title: "No rule", status: "active", ...at },
+    ],
     calendarEvents: [
       { _id: "cal1", origin: "google", title: "Dentist", ...at },
-      { _id: "cal2", origin: "skippy", title: "Shed day", ...at },
+      {
+        _id: "cal2",
+        origin: "skippy",
+        title: "Shed day",
+        startAt: 5000,
+        endAt: 9000,
+        status: "cancelled",
+        externalId: "skp1",
+        relatedEntityRefs: [ref("note", "k-note"), ref("person", "nobody")],
+        ...at,
+      },
     ],
     projectFiles: [
       { _id: "f1", projectId: "p-shed", fileName: "plan.pdf", status: "ready", ...at },
@@ -127,7 +153,7 @@ describe("the import plan", () => {
   });
 
   it("keeps only links between records that both came across", () => {
-    expect(ids(plan.batches.links)).toEqual(["r1", "r3", "r4", "r6", "r7", "r8"]);
+    expect(ids(plan.batches.links)).toEqual(["r1", "r3", "r4", "r6", "r7", "r8", "cal2:about:0"]);
     expect(plan.batches.links[1]).toMatchObject({ from: { table: "knowledge", id: "k-note" }, to: { table: "projects", id: "p-shed" } });
     // "t-quotes unblocks t-paint" becomes "t-paint is blocked by t-quotes".
     expect(plan.batches.links[3]).toMatchObject({ type: "blocked_by", from: { id: "t-paint" }, to: { id: "t-quotes" } });
@@ -149,11 +175,7 @@ describe("the import plan", () => {
   });
 
   it("holds back what has no table yet, and says why the rest stays behind", () => {
-    expect(plan.report.recurrences.deferred).toEqual({ "waits for its table in Phase 4": 1 });
-    expect(plan.report.calendarEvents).toMatchObject({
-      deferred: { "waits for its table in Phase 4": 1 },
-      skipped: { "synced again from Google": 1 },
-    });
+    expect(plan.report.calendarEvents).toMatchObject({ toImport: 1, skipped: { "synced again from Google": 1 } });
     expect(plan.report.projectFiles).toMatchObject({
       deferred: { "waits for its table in Phase 4": 1 },
       skipped: { "in a code project": 1 },
@@ -166,5 +188,44 @@ describe("the import plan", () => {
     for (const records of Object.values(plan.batches)) {
       for (const record of records) expect(Object.values(record)).not.toContain(undefined);
     }
+  });
+});
+
+describe("recurrences and events", () => {
+  const plan = transform(snapshot());
+
+  it("brings a recurrence across with its rule, its next day in its own time zone, and its history", () => {
+    expect(plan.report.recurrences).toMatchObject({ exported: 2, toImport: 1 });
+    expect(plan.report.recurrences.skipped).toEqual({ "has no rule or no next day the new system can read": 1 });
+    expect(plan.batches.recurrences).toEqual([
+      expect.objectContaining({
+        oldId: "rec1",
+        title: "Pay the water bill",
+        rule: { kind: "calendar", rrule: "FREQ=MONTHLY;BYMONTHDAY=31" },
+        anchor: "schedule",
+        leadTimeDays: 3,
+        status: "active",
+        nextDue: "2026-11-30",
+        history: [
+          { at: 1000, outcome: "completed" },
+          { at: 2000, outcome: "completed", due: "2026-10-31" },
+        ],
+      }),
+    ]);
+    expect(plan.batches.recurrences[0]).not.toHaveProperty("spawnTask");
+  });
+
+  it("brings Skippy's own events across, with a link to each record they were about", () => {
+    expect(plan.batches.events).toEqual([
+      expect.objectContaining({ oldId: "cal2", title: "Shed day", startAt: 5000, endAt: 9000, status: "cancelled", externalId: "skp1" }),
+    ]);
+    expect(plan.batches.links).toContainEqual({
+      oldId: "cal2:about:0",
+      from: { table: "calendarEvents", id: "cal2" },
+      to: { table: "knowledge", id: "k-note" },
+      type: "related_to",
+      createdAt: expect.any(Number),
+    });
+    expect(plan.notes["events: a record an event was about did not come across"]).toBe(1);
   });
 });

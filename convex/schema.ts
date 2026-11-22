@@ -54,6 +54,12 @@ export const taskStatus = v.union(
   v.literal("cancelled"),
 );
 export const commitment = v.union(v.literal("must"), v.literal("want"));
+export const recurrenceRule = v.union(
+  v.object({ kind: v.literal("interval"), everyDays: v.number() }),
+  v.object({ kind: v.literal("calendar"), rrule: v.string() }),
+);
+export const recurrenceStatus = v.union(v.literal("active"), v.literal("paused"), v.literal("retired"));
+export const eventStatus = v.union(v.literal("confirmed"), v.literal("cancelled"));
 /** "remember": to be filed. "hold": a private hand-off between devices that lapses. */
 export const captureIntent = v.union(v.literal("remember"), v.literal("hold"));
 
@@ -166,6 +172,54 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_status", ["status"]),
+
+  // Things that come round again: a bill, a filter change, a check-in.
+  recurrences: defineTable({
+    title: v.string(),
+    description: v.optional(v.string()),
+    rule: recurrenceRule,
+    /** "schedule": the next one is counted from the day this one was due. "completion": from the day it was done. */
+    anchor: v.union(v.literal("schedule"), v.literal("completion")),
+    /** How many days before it is due it starts to show under Today. */
+    leadTimeDays: v.optional(v.number()),
+    status: recurrenceStatus,
+    /** The day it next falls due, as YYYY-MM-DD in the owner's zone. */
+    nextDue: v.string(),
+    lastCompletedAt: v.optional(v.number()),
+    /** The latest times it was done or skipped, oldest first. */
+    history: v.optional(
+      v.array(
+        v.object({
+          at: v.number(),
+          outcome: v.union(v.literal("completed"), v.literal("skipped")),
+          due: v.optional(v.string()),
+        }),
+      ),
+    ),
+    areaId: v.optional(v.id("areas")),
+    ...authored,
+  }).index("by_status", ["status", "nextDue"]),
+
+  // Appointments and other things with a time. Skippy's own events live here;
+  // Google's calendar joins as a read-only mirror in Phase 5.
+  calendarEvents: defineTable({
+    title: v.string(),
+    description: v.optional(v.string()),
+    location: v.optional(v.string()),
+    startAt: v.number(),
+    endAt: v.optional(v.number()),
+    allDay: v.optional(v.boolean()),
+    status: eventStatus,
+    origin: v.union(v.literal("skippy"), v.literal("google")),
+    /** How the same event is known in a calendar outside Skippy. */
+    externalId: v.optional(v.string()),
+    calendarId: v.optional(v.string()),
+    htmlLink: v.optional(v.string()),
+    projectId: v.optional(v.id("projects")),
+    ...authored,
+  })
+    .index("by_start", ["startAt"])
+    .index("by_external", ["externalId"]),
 
   // A light address book. Emails and phone numbers are also kept in
   // personHandles, where one can be looked up to find its person.

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agenda from "../agenda.js";
 import type * as captures from "../captures.js";
 import type * as crons from "../crons.js";
 import type * as gateway from "../gateway.js";
@@ -36,6 +37,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agenda: typeof agenda;
   captures: typeof captures;
   crons: typeof crons;
   gateway: typeof gateway;

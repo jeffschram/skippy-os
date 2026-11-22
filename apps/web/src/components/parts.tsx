@@ -27,6 +27,12 @@ export function showTime(at: string): string {
   return new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+/** A clock time such as 15:00, shown as "3:00 PM" or "15:00" as the browser's language prefers. */
+export function showClock(time: string): string {
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 export const words = (value: string) => value.replaceAll("_", " ");
 
 /** "no status update in 9 days", or nothing when the project is not stale. */

@@ -65,4 +65,4 @@ Each batch ends as four numbers that add up to what was sent:
 
 ## What is held for Phase 4
 
-Recurrences, calendar events that Skippy made, and files on non-code projects have no table yet. The dry run counts them under "later". Keep the snapshot and `importMap` until they have come across.
+Recurrences and the calendar events that Skippy made came across on 2026-11-22, by running the import again: it loads the two new batches and reports everything else as already there. Files on non-code projects still have no table. The dry run counts them under "later". Keep the snapshot and `importMap` until they have come across.

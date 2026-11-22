@@ -3,6 +3,7 @@
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
+import { EventRow, RecurrenceRow } from "./calendar-parts";
 import { CaptureBox, InboxPanel } from "./capture";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
@@ -45,10 +46,30 @@ function Today() {
   const shown = groups.filter(([, tasks]) => tasks.length > 0);
   return (
     <Panel title="Today" note={showDay(today.date)}>
-      {shown.length === 0 ? (
+      {shown.length + today.events.length + today.recurrences.length === 0 ? (
         <Quiet>Nothing needs you today.</Quiet>
       ) : (
         <div className="space-y-6">
+          {today.events.length > 0 ? (
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-foreground/60">On today</h3>
+              <ul className="space-y-2">
+                {today.events.map((event) => (
+                  <EventRow key={event.id} event={event} />
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {today.recurrences.length > 0 ? (
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-foreground/60">Coming round</h3>
+              <ul className="space-y-2">
+                {today.recurrences.map((item) => (
+                  <RecurrenceRow key={item.id} item={item} showDue />
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {shown.map(([label, tasks]) => (
             <div key={label}>
               <h3 className="mb-2 text-sm font-medium text-foreground/60">{label}</h3>

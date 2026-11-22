@@ -2,11 +2,22 @@
  * The kinds of record that can be pointed at, linked together and found by
  * search. Convex and the MCP tools both read these lists.
  */
-export const ENTITY_TYPES = ["project", "phase", "task", "goal", "area", "person", "company", "knowledge"] as const;
+export const ENTITY_TYPES = [
+  "project",
+  "phase",
+  "task",
+  "goal",
+  "area",
+  "person",
+  "company",
+  "knowledge",
+  "event",
+  "recurrence",
+] as const;
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
 /** The kinds that search covers. */
-export const SEARCHABLE_TYPES = ["project", "task", "person", "company", "knowledge"] as const;
+export const SEARCHABLE_TYPES = ["project", "task", "person", "company", "knowledge", "event", "recurrence"] as const;
 export type SearchableType = (typeof SEARCHABLE_TYPES)[number];
 
 export const KNOWLEDGE_KINDS = ["note", "link", "memory", "decision", "principle", "question"] as const;

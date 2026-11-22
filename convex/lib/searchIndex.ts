@@ -47,6 +47,12 @@ export const indexPerson = (ctx: MutationCtx, doc: Doc<"people">) =>
 export const indexCompany = (ctx: MutationCtx, doc: Doc<"companies">) =>
   index(ctx, "company", doc._id, doc.name, [doc.domain, doc.website, doc.notes]);
 
+export const indexEvent = (ctx: MutationCtx, doc: Doc<"calendarEvents">) =>
+  index(ctx, "event", doc._id, doc.title, [doc.description, doc.location]);
+
+export const indexRecurrence = (ctx: MutationCtx, doc: Doc<"recurrences">) =>
+  index(ctx, "recurrence", doc._id, doc.title, [doc.description]);
+
 export const indexKnowledge = (ctx: MutationCtx, doc: Doc<"knowledge">) =>
   index(ctx, "knowledge", doc._id, knowledgeTitle(doc), [
     doc.summary,

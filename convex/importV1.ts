@@ -1,11 +1,40 @@
-import { IdentityError, normalizeEmail, normalizePhone, normalizeUrl, type Actor, type EntityType } from "@skippy/shared";
+import {
+  checkRule,
+  IdentityError,
+  normalizeEmail,
+  normalizePhone,
+  normalizeUrl,
+  RuleError,
+  type Actor,
+  type EntityType,
+} from "@skippy/shared";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findLink } from "./lib/links";
-import { indexCompany, indexKnowledge, indexPerson, indexProject, indexTask } from "./lib/searchIndex";
+import {
+  indexCompany,
+  indexEvent,
+  indexKnowledge,
+  indexPerson,
+  indexProject,
+  indexRecurrence,
+  indexTask,
+} from "./lib/searchIndex";
 import { slugify } from "./projects";
-import { commitment, companyLabel, lifecycle, projectStatus, readState, relation, sourceLink, taskStatus } from "./schema";
+import {
+  commitment,
+  companyLabel,
+  eventStatus,
+  lifecycle,
+  projectStatus,
+  readState,
+  recurrenceRule,
+  recurrenceStatus,
+  relation,
+  sourceLink,
+  taskStatus,
+} from "./schema";
 
 /**
  * Loads the one-time import from the old project (spec §10). Temporary: it goes
@@ -43,6 +72,8 @@ const TYPES: Record<string, EntityType> = {
   companies: "company",
   goals: "goal",
   knowledge: "knowledge",
+  calendarEvents: "event",
+  recurrences: "recurrence",
 };
 
 const oldRef = v.object({ table: v.string(), id: v.string() });
@@ -64,7 +95,9 @@ async function resolve(ctx: QueryCtx, ref: { table: string; id: string }) {
   const entityType = TYPES[ref.table];
   if (!entityType) return null;
   const entityId = await mapped(ctx, ref.table, ref.id);
-  return entityId ? { entityType, entityId } : null;
+  // The map outlives the records: one imported earlier may have been deleted from the dashboard since.
+  if (!entityId || !(await ctx.db.get(entityId as Id<"tasks">))) return null;
+  return { entityType, entityId };
 }
 
 const authored = (record: { createdAt: number; updatedAt: number }) => ({
@@ -74,7 +107,103 @@ const authored = (record: { createdAt: number; updatedAt: number }) => ({
   updatedAt: record.updatedAt,
 });
 
-const NOT_IMPORTED = "points at a record that was not imported";
+const NOT_IMPORTED = "points at a record that was not imported, or has been deleted since";
+
+export const recurrences = internalMutation({
+  args: {
+    records: v.array(
+      v.object({
+        oldId: v.string(),
+        title: v.string(),
+        description: v.optional(v.string()),
+        rule: recurrenceRule,
+        anchor: v.union(v.literal("schedule"), v.literal("completion")),
+        leadTimeDays: v.optional(v.number()),
+        status: recurrenceStatus,
+        nextDue: v.string(),
+        lastCompletedAt: v.optional(v.number()),
+        history: v.optional(
+          v.array(
+            v.object({
+              at: v.number(),
+              outcome: v.union(v.literal("completed"), v.literal("skipped")),
+              due: v.optional(v.string()),
+            }),
+          ),
+        ),
+        areaOldId: v.optional(v.string()),
+        ...stamps,
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const result = outcome();
+    for (const { oldId, areaOldId, ...record } of args.records) {
+      if (await mapped(ctx, "recurrences", oldId)) {
+        result.already++;
+        continue;
+      }
+      try {
+        checkRule(record.rule);
+      } catch (error) {
+        if (!(error instanceof RuleError)) throw error;
+        result.skipped.push({ oldId, reason: `its rule cannot be followed: ${error.message}` });
+        continue;
+      }
+      const areaId = areaOldId ? await mapped(ctx, "areas", areaOldId) : null;
+      const { createdAt, updatedAt, ...fields } = record;
+      const id = await ctx.db.insert("recurrences", {
+        ...fields,
+        ...(areaId ? { areaId: areaId as Id<"areas"> } : {}),
+        ...authored({ createdAt, updatedAt }),
+      });
+      await indexRecurrence(ctx, (await ctx.db.get(id))!);
+      await remember(ctx, "recurrences", oldId, "recurrences", id);
+      result.imported++;
+    }
+    return result;
+  },
+});
+
+export const events = internalMutation({
+  args: {
+    records: v.array(
+      v.object({
+        oldId: v.string(),
+        title: v.string(),
+        description: v.optional(v.string()),
+        location: v.optional(v.string()),
+        startAt: v.number(),
+        endAt: v.optional(v.number()),
+        allDay: v.optional(v.boolean()),
+        status: eventStatus,
+        externalId: v.optional(v.string()),
+        calendarId: v.optional(v.string()),
+        htmlLink: v.optional(v.string()),
+        ...stamps,
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const result = outcome();
+    for (const { oldId, createdAt, updatedAt, ...record } of args.records) {
+      if (await mapped(ctx, "calendarEvents", oldId)) {
+        result.already++;
+        continue;
+      }
+      const id = await ctx.db.insert("calendarEvents", {
+        ...record,
+        ...(record.endAt !== undefined && record.endAt < record.startAt ? { endAt: record.startAt } : {}),
+        origin: "skippy",
+        ...authored({ createdAt, updatedAt }),
+      });
+      await indexEvent(ctx, (await ctx.db.get(id))!);
+      await remember(ctx, "calendarEvents", oldId, "calendarEvents", id);
+      result.imported++;
+    }
+    return result;
+  },
+});
 
 export const areas = internalMutation({
   args: { records: v.array(v.object({ oldId: v.string(), name: v.string(), ...stamps })) },
@@ -614,6 +743,8 @@ const RECORD_TABLES = [
   "captures",
   "areas",
   "goals",
+  "recurrences",
+  "calendarEvents",
 ] as const;
 
 /** More rows than this in any one table means real data, not a handful of test records. */

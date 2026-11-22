@@ -74,6 +74,14 @@ export async function findEntity(ctx: QueryCtx, entityType: EntityType, id: stri
       const doc = await byId(ctx, "knowledge", id);
       return doc && found(doc._id, knowledgeTitle(doc), doc.lifecycle);
     }
+    case "event": {
+      const doc = await byId(ctx, "calendarEvents", id);
+      return doc && found(doc._id, doc.title, doc.status);
+    }
+    case "recurrence": {
+      const doc = await byId(ctx, "recurrences", id);
+      return doc && found(doc._id, doc.title, doc.status);
+    }
   }
 }
 

@@ -1,5 +1,13 @@
 import { internalMutation } from "./_generated/server";
-import { indexCompany, indexKnowledge, indexPerson, indexProject, indexTask } from "./lib/searchIndex";
+import {
+  indexCompany,
+  indexEvent,
+  indexKnowledge,
+  indexPerson,
+  indexProject,
+  indexRecurrence,
+  indexTask,
+} from "./lib/searchIndex";
 
 /**
  * Rebuilds the search rows for every record. Run it by hand after a change to
@@ -9,7 +17,7 @@ import { indexCompany, indexKnowledge, indexPerson, indexProject, indexTask } fr
 export const reindexSearch = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const counts = { project: 0, task: 0, person: 0, company: 0, knowledge: 0 };
+    const counts = { project: 0, task: 0, person: 0, company: 0, knowledge: 0, event: 0, recurrence: 0 };
     for (const doc of await ctx.db.query("projects").collect()) {
       await indexProject(ctx, doc);
       counts.project++;
@@ -29,6 +37,14 @@ export const reindexSearch = internalMutation({
     for (const doc of await ctx.db.query("knowledge").collect()) {
       await indexKnowledge(ctx, doc);
       counts.knowledge++;
+    }
+    for (const doc of await ctx.db.query("calendarEvents").collect()) {
+      await indexEvent(ctx, doc);
+      counts.event++;
+    }
+    for (const doc of await ctx.db.query("recurrences").collect()) {
+      await indexRecurrence(ctx, doc);
+      counts.recurrence++;
     }
     return counts;
   },

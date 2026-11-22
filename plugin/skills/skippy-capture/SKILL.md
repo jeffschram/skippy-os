@@ -24,6 +24,8 @@ Save when the owner asks. Without being asked, you may offer once, in a few word
 | The thing | Tool | How |
 | --- | --- | --- |
 | Something to do | `upsert_task` | Title starts with a verb. Add `dueAt` only for a real deadline, and `project` when it belongs to one. |
+| An appointment, a trip, anything with a time | `upsert_event` | Call `get_agenda` first, so it is not added twice and a clash is seen. A bare date makes it all day. |
+| Something that comes round again | `upsert_recurrence` | A bill, a renewal, a regular check-in. Use this, not a task, when it has no end. Tick a round off with `complete_recurrence`, passing the `nextDue` day you read. |
 | A web page | `upsert_knowledge`, kind "link" | Give the `url`, a title, and one line on why it was saved. |
 | A fact about the owner or their world | `upsert_knowledge`, kind "memory" | One fact per record, as a full sentence. |
 | A decision | `upsert_knowledge`, kind "decision" | Fill `decision` with what was chosen and why, and what else was considered. |
