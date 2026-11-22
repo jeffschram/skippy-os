@@ -56,7 +56,7 @@ Only when the prompt names it. Use the Gmail connector's `search_threads` to lis
 
 1. The cursor is the time of the newest message seen on the last pass. Take the day it falls on. With no cursor, take the day 14 days before today.
 2. List the threads from that day on with `search_threads`: the query `after:YYYY/MM/DD -category:promotions -category:social -category:forums`, 50 at a time, following the next-page token until there are no more. Each thread comes with its sender, subject, a snippet and the date of its messages. Sent mail is included on purpose: what the owner promised someone is in it.
-3. Leave out messages dated at or before the cursor's time, and anything the block list names.
+3. Leave out messages dated at or before the cursor's time, and anything the block list names. The list gives each message's date: do not open a thread to learn when it was sent.
 4. Judge each thread from its sender, subject and snippet, by the rubric and the owner's rules. Most mail makes nothing: newsletters, notices with nothing to do, receipts, shipping updates, verification codes, calendar invitations that are already on the calendar. When unsure whether something matters, leave it out.
 5. Open a thread with `get_thread` only when its snippet suggests it matters and you need more to say correctly what it asks, by when, or who wrote it. Do not open everything.
 6. Before making a record, check that Skippy OS does not have it already. Mail often repeats what is on file: a booking confirmation for something already on the calendar, a second reminder about a bill.
