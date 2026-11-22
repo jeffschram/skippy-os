@@ -12,13 +12,6 @@ export default defineConfig({
       },
       {
         test: {
-          name: "scripts",
-          include: ["scripts/**/*.test.ts"],
-          environment: "node",
-        },
-      },
-      {
-        test: {
           name: "convex",
           include: ["convex/**/*.test.ts"],
           environment: "edge-runtime",

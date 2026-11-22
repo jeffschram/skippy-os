@@ -405,15 +405,6 @@ export default defineSchema({
     .index("by_status", ["status", "createdAt"])
     .index("by_expiry", ["expiresAt"]),
 
-  // Temporary. Where each imported record came from in the old project, so the
-  // import can be re-run and checked. Dropped once the import is verified.
-  importMap: defineTable({
-    oldTable: v.string(),
-    oldId: v.string(),
-    newTable: v.string(),
-    newId: v.string(),
-  }).index("by_old", ["oldTable", "oldId"]),
-
   // Nonces of gateway envelopes already used, kept until the envelope expires.
   gatewayNonces: defineTable({
     nonce: v.string(),
