@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import { signEnvelope, type OperationName } from "@skippy/shared";
 import { convexTest } from "convex-test";
 import { ConvexError } from "convex/values";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +13,8 @@ const OWNER = "user_owner";
 const NOW = new Date("2026-11-25T17:00:00Z").getTime();
 const TOKEN = "test-runner-token";
 const mini = { token: TOKEN, host: "mini" };
+const SECRET = "test-secret-".repeat(4);
+const RESOURCE = "http://localhost:3000/api/mcp";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -20,6 +23,8 @@ async function sha256(text: string): Promise<string> {
 
 beforeEach(async () => {
   process.env.SKIPPY_OWNER_CLERK_USER_ID = OWNER;
+  process.env.SKIPPY_GATEWAY_SECRET = SECRET;
+  process.env.SKIPPY_MCP_RESOURCE_URL = RESOURCE;
   process.env.SKIPPY_RUNNER_TOKEN_SHA256 = await sha256(TOKEN);
   vi.useFakeTimers();
   vi.setSystemTime(new Date(NOW));
@@ -27,6 +32,19 @@ beforeEach(async () => {
 afterEach(() => vi.useRealTimers());
 
 const start = () => convexTest(schema, modules);
+type Harness = ReturnType<typeof start>;
+
+/** A call the way the chat's session makes it: through the MCP gateway. */
+async function asClaude<T = Record<string, never>>(t: Harness, operation: OperationName, args: Record<string, unknown>): Promise<T> {
+  const principal = {
+    kind: "oauth" as const,
+    subject: OWNER,
+    clientId: "https://claude.ai/oauth/mcp-oauth-client-metadata",
+    resource: RESOURCE,
+    scopes: ["skippy:read", "skippy:write"],
+  };
+  return (await t.action(api.gateway.call, await signEnvelope({ operation, args, principal }, SECRET))) as T;
+}
 
 async function refusal(run: Promise<unknown>): Promise<string> {
   try {
@@ -138,5 +156,65 @@ describe("a chat", () => {
     expect(await refusal(t.mutation(api.runner.heartbeat, { token: "", host: "mini" }))).toBe("bad_runner_token");
     delete process.env.SKIPPY_RUNNER_TOKEN_SHA256;
     expect(await refusal(t.mutation(api.runner.claim, mini))).toBe("runner_not_configured");
+  });
+});
+
+describe("promotion cards", () => {
+  it("turn an idea into a project with two tasks, by the owner's clicks alone", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const { chatId } = await owner.mutation(api.viewerChat.start, { text: "I want to build a garden shed." });
+    // No card can be offered before the mini is answering.
+    expect(await refusal(asClaude(t, "propose_promotion", { chatId, kind: "task", draft: { title: "Too early" } }))).toBe("invalid_arguments");
+
+    const claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    const offer = (kind: string, draft: Record<string, unknown>) =>
+      asClaude<{ cardId: string; offered: boolean }>(t, "propose_promotion", { chatId, kind, draft });
+    const project = await offer("project", { title: "Garden Shed", summary: "A shed for the tools.", notes: "8x10, on a slab, by spring." });
+    const first = await offer("task", { title: "Measure the corner of the garden" });
+    await offer("task", { title: "Get three quotes for the slab", dueAt: "2026-12-05" });
+    const spare = await offer("note", { title: "Shed ideas", body: "Green roof?" });
+    // The same card offered twice is one card, and a card missing what it needs is refused.
+    expect((await offer("task", { title: "Measure the corner of the garden" })).offered).toBe(false);
+    expect(await refusal(offer("event", { title: "No time" }))).toBe("invalid_arguments");
+    expect(await refusal(asClaude(t, "propose_promotion", { chatId: "nope", kind: "task", draft: { title: "x" } }))).toBe("not_found");
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "I have offered a project and two tasks." });
+
+    let chat = (await owner.query(api.viewerChat.chat, { id: chatId }))!;
+    const reply = chat.messages[1];
+    expect(reply.cards.map((card) => [card.kind, card.state])).toEqual([
+      ["project", "offered"],
+      ["task", "offered"],
+      ["task", "offered"],
+      ["note", "offered"],
+    ]);
+    // Nothing exists yet.
+    expect((await owner.query(api.viewer.board, { now: NOW })).projects).toEqual([]);
+
+    expect(await owner.mutation(api.viewerChat.acceptCard, { messageId: reply.id, cardId: project.cardId })).toEqual({ type: "project", id: "garden-shed" });
+    // The owner changed the first task's words before accepting it.
+    await owner.mutation(api.viewerChat.acceptCard, { messageId: reply.id, cardId: first.cardId, draft: { title: "Measure the back corner" } });
+    await owner.mutation(api.viewerChat.acceptCard, { messageId: reply.id, cardId: reply.cards[2].cardId });
+    await owner.mutation(api.viewerChat.dismissCard, { messageId: reply.id, cardId: spare.cardId });
+    expect(await refusal(owner.mutation(api.viewerChat.acceptCard, { messageId: reply.id, cardId: project.cardId }))).toBe("invalid_arguments");
+
+    const page = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    expect(page.project).toMatchObject({ title: "Garden Shed", summary: "A shed for the tools.", notesPad: "8x10, on a slab, by spring." });
+    expect(page.openTasks.map((task) => [task.title, task.due?.date]).sort()).toEqual([
+      ["Get three quotes for the slab", "2026-12-05"],
+      ["Measure the back corner", undefined],
+    ]);
+    // The idea chat is now the project's chat, and the cards remember what they made.
+    chat = (await owner.query(api.viewerChat.chat, { id: chatId }))!;
+    expect(chat).toMatchObject({ state: "promoted", scope: { kind: "item", record: { type: "project", id: "garden-shed" } } });
+    expect(chat.messages[1].cards.map((card) => [card.state, card.result?.type])).toEqual([
+      ["accepted", "project"],
+      ["accepted", "task"],
+      ["accepted", "task"],
+      ["dismissed", undefined],
+    ]);
+    const { events } = await owner.query(api.viewer.activityLog, { who: "owner" });
+    expect(events.map((event) => event.type).sort()).toEqual(["project.created", "task.created", "task.created"]);
+    expect(await refusal(t.mutation(api.viewerChat.acceptCard, { messageId: reply.id, cardId: spare.cardId }))).toBe("not_signed_in");
   });
 });

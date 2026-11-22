@@ -92,6 +92,50 @@ export const sourceLink = v.union(
  */
 const authored = { createdBy: actor, updatedBy: actor, updatedAt: v.number(), createdAt: v.optional(v.number()) };
 
+export const cardKind = v.union(
+  v.literal("task"),
+  v.literal("event"),
+  v.literal("project"),
+  v.literal("note"),
+  v.literal("person"),
+  v.literal("recurrence"),
+);
+
+/** What a card would create. The fields for its kind are filled and the rest left out. */
+export const cardDraft = v.object({
+  /** A task, an event, a project, a note or a recurrence. */
+  title: v.optional(v.string()),
+  description: v.optional(v.string()),
+  // A task
+  dueAt: v.optional(v.string()),
+  project: v.optional(v.string()),
+  // An event
+  startAt: v.optional(v.string()),
+  endAt: v.optional(v.string()),
+  location: v.optional(v.string()),
+  // A project
+  summary: v.optional(v.string()),
+  notes: v.optional(v.string()),
+  // A note
+  body: v.optional(v.string()),
+  // A person
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  company: v.optional(v.string()),
+  // A recurrence
+  rule: v.optional(recurrenceRule),
+  nextDue: v.optional(v.string()),
+});
+
+export const promotionCard = v.object({
+  cardId: v.string(),
+  kind: cardKind,
+  draft: cardDraft,
+  state: v.union(v.literal("offered"), v.literal("accepted"), v.literal("dismissed")),
+  resultRef: v.optional(entityRef),
+});
+
 export default defineSchema({
   // Areas of life, such as Home or Work. Data, not a fixed list.
   areas: defineTable({
@@ -394,6 +438,8 @@ export default defineSchema({
     content: v.string(),
     /** An assistant message is "waiting" until the mini starts on it, "writing" while it does. */
     status: v.union(v.literal("done"), v.literal("waiting"), v.literal("writing"), v.literal("failed")),
+    /** Records Claude offered to make while writing this message. They live here and nowhere else. */
+    cards: v.optional(v.array(promotionCard)),
     createdAt: v.number(),
   }).index("by_chat", ["chatId", "createdAt"]),
 

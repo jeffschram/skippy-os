@@ -1,8 +1,10 @@
 import type { EntityType } from "@skippy/shared";
+import { v, type Infer } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention } from "./lib/entities";
 import { refuse, requireText } from "./lib/common";
+import { actor, cardDraft, cardKind } from "./schema";
 
 /**
  * Chats in the dashboard. A chat is a Claude Code session on the mini. The
@@ -95,5 +97,50 @@ export const reapStalled = internalMutation({
       }
     }
     return { reaped };
+  },
+});
+
+const MAX_CARDS = 8;
+
+/** What must be on a card of each kind for it to be worth offering. */
+const NEEDS: Record<Infer<typeof cardKind>, (draft: Infer<typeof cardDraft>) => string | null> = {
+  task: (draft) => (draft.title ? null : "A task card needs a title."),
+  event: (draft) => (draft.title && draft.startAt ? null : "An event card needs a title and startAt."),
+  project: (draft) => (draft.title ? null : "A project card needs a title."),
+  note: (draft) => (draft.title || draft.body ? null : "A note card needs a title or a body."),
+  person: (draft) => (draft.name ? null : "A person card needs a name."),
+  recurrence: (draft) => (draft.title && draft.rule ? null : "A recurrence card needs a title and a rule."),
+};
+
+/**
+ * Offers the owner a record to create, as a card under the reply being
+ * written. Nothing is created until the owner accepts it. Only works while a
+ * dashboard chat's turn is running, and only for that chat.
+ */
+export const proposePromotion = internalMutation({
+  args: { actor, chatId: v.string(), kind: cardKind, draft: cardDraft },
+  handler: async (ctx, args) => {
+    const id = ctx.db.normalizeId("chats", args.chatId);
+    const chat = id ? await ctx.db.get(id) : null;
+    if (!chat) throw refuse("not_found", `There is no chat with the id "${args.chatId}". Cards can only be offered in a dashboard chat.`);
+    const turn = await ctx.db
+      .query("chatTurns")
+      .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+      .order("desc")
+      .first();
+    if (!turn || (turn.status !== "claimed" && turn.status !== "running")) {
+      throw refuse("invalid_arguments", "A card can only be offered while you are answering in that chat.");
+    }
+    const missing = NEEDS[args.kind](args.draft);
+    if (missing) throw refuse("invalid_arguments", missing);
+    const message = (await ctx.db.get(turn.assistantMessageId))!;
+    const cards = message.cards ?? [];
+    if (cards.length >= MAX_CARDS) throw refuse("invalid_arguments", `A reply can offer up to ${MAX_CARDS} cards.`);
+    // Offering the same thing twice in one reply is one card.
+    const same = cards.find((card) => card.kind === args.kind && JSON.stringify(card.draft) === JSON.stringify(args.draft));
+    if (same) return { cardId: same.cardId, offered: false };
+    const cardId = crypto.randomUUID();
+    await ctx.db.patch(message._id, { cards: [...cards, { cardId, kind: args.kind, draft: args.draft, state: "offered" }] });
+    return { cardId, offered: true };
   },
 });

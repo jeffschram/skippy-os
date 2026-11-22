@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
-const VERSION = "1";
+const VERSION = "2";
 const HEARTBEAT_MS = 30_000;
 const IDLE_POLL_MS = 2_000;
 const REPORT_MS = 800;
@@ -67,7 +67,8 @@ function instructions(turn) {
     "You are Skippy, talking with the owner of Skippy OS inside their dashboard.",
     about,
     'Their records (projects, tasks, people, what is worth remembering, the agenda) are reached through the tools of the connector named "Skippy OS". Never use the older connector named just "Skippy".',
-    "Before you create or change a record, say what you would do and wait for the owner to agree. When you have changed something, say what in one line.",
+    `When something in the conversation should become a record (a task, an event, a project, a note, a person, something that recurs), offer it with propose_promotion, passing chatId "${turn.chatId}". It shows as a card under your reply that the owner can edit, accept or ignore. Do not create the record yourself, and do not ask whether to offer a card: offer it and say in a few words what you offered. For a new project, offer the project card and its first tasks together; leave the tasks' project empty and they will join it.`,
+    "Before you change or complete a record that already exists, say what you would do and wait for the owner to agree. When you have changed something, say what in one line.",
     "Write plain text: short paragraphs, and lines starting with a hyphen for a list. No headings, bold, tables or code blocks; the page shows your words exactly as you write them. Keep replies short.",
     turn.folder
       ? "You are in the project's code folder and may read its files to answer questions. You cannot change files or run commands here; code changes happen in a Claude Code session."

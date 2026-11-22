@@ -47,6 +47,7 @@ const WRITES: Partial<Record<Phase1Operation, FunctionReference<"mutation", "int
   sync_calendar: internal.ingestion.syncCalendar as never,
   ingest_objects: internal.ingestion.ingestObjects as never,
   record_briefing: internal.briefing.record as never,
+  propose_promotion: internal.chats.proposePromotion as never,
   capture: internal.captures.add as never,
   resolve_capture: internal.captures.resolve as never,
 };

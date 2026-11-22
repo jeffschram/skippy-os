@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@convex/_generated/api";
+import { describeRule } from "@skippy/shared";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
@@ -8,7 +9,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { itemHref } from "./item-details";
 import { OwnerPage } from "./owner-page";
-import { button, problem, Quiet, showTime } from "./parts";
+import { button, problem, Quiet, showTime, Tag } from "./parts";
 
 /**
  * One chat. The owner's message is saved at once; the reply is written by a
@@ -127,6 +128,13 @@ function Conversation({ chat }: { chat: Chat }) {
               <p className={`mt-1 text-base leading-7 whitespace-pre-wrap ${message.role === "user" ? "" : "text-foreground/90"}`}>{message.content}</p>
             ) : null}
             {message.role === "assistant" && message.id === last?.id ? <Status chat={chat} away={away} /> : null}
+            {message.cards.length > 0 ? (
+              <ul className="mt-3 space-y-3">
+                {message.cards.map((card) => (
+                  <CardView key={card.cardId} messageId={message.id} card={card} />
+                ))}
+              </ul>
+            ) : null}
           </li>
         ))}
       </ol>
@@ -182,4 +190,118 @@ function Status({ chat, away }: { chat: Chat; away: boolean }) {
     return <p className="mt-1 text-sm text-red-700 dark:text-red-300">{turn.error ?? "This one did not get an answer."}</p>;
   }
   return null;
+}
+
+type Card = Chat["messages"][number]["cards"][number];
+type Draft = Card["draft"];
+const small = "w-full rounded-md border border-foreground/20 bg-transparent px-2 py-1.5 text-sm";
+const KIND_WORDS: Record<Card["kind"], string> = {
+  task: "task",
+  event: "event",
+  project: "project",
+  note: "note",
+  person: "person",
+  recurrence: "repeating item",
+};
+
+/**
+ * Something Claude offered to create. The owner can change it, create it with
+ * one click, or put it aside. A card lives only in the chat it came from.
+ */
+function CardView({ messageId, card }: { messageId: string; card: Card }) {
+  const accept = useMutation(api.viewerChat.acceptCard);
+  const dismiss = useMutation(api.viewerChat.dismissCard);
+  const [draft, setDraft] = useState<Draft>(card.draft);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const set = (change: Partial<Draft>) => setDraft({ ...draft, ...change });
+  const words = KIND_WORDS[card.kind];
+
+  if (card.state === "accepted") {
+    const href = card.result ? itemHref(card.result.type, card.result.id) : undefined;
+    return (
+      <li className="rounded-md border border-foreground/15 px-3 py-2 text-sm">
+        <Tag>{words}</Tag>{" "}
+        {card.result && href ? (
+          <Link href={href} scroll={false} className="underline underline-offset-2">
+            {card.result.title}
+          </Link>
+        ) : (
+          (card.result?.title ?? card.draft.title ?? card.draft.name)
+        )}
+        <span className="text-foreground/60"> · created</span>
+      </li>
+    );
+  }
+  if (card.state === "dismissed") {
+    return (
+      <li className="rounded-md border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
+        <Tag>{words}</Tag> {card.draft.title ?? card.draft.name} · put aside
+      </li>
+    );
+  }
+
+  async function run(change: () => Promise<unknown>) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await change();
+    } catch (caught) {
+      setError(problem(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Empty boxes are left out, so a cleared field is not sent as an empty one.
+  const cleaned = () => Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== "" && value !== undefined)) as Draft;
+
+  return (
+    <li className="space-y-2 rounded-md border border-foreground/25 p-3">
+      <p className="text-xs text-foreground/60">Create a {words}?</p>
+      {card.kind === "person" ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input value={draft.name ?? ""} onChange={(event) => set({ name: event.target.value })} aria-label="Name" placeholder="Name" className={small} />
+          <input value={draft.email ?? ""} onChange={(event) => set({ email: event.target.value })} aria-label="Email" placeholder="Email (optional)" className={small} />
+        </div>
+      ) : (
+        <input value={draft.title ?? ""} onChange={(event) => set({ title: event.target.value })} aria-label="Title" className={`font-medium ${small}`} />
+      )}
+      {card.kind === "task" ? (
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          Due
+          <input type="date" value={draft.dueAt?.slice(0, 10) ?? ""} onChange={(event) => set({ dueAt: event.target.value })} className={`w-auto ${small}`} />
+          {draft.project ? <span className="text-foreground/60">in {draft.project}</span> : null}
+        </label>
+      ) : null}
+      {card.kind === "event" ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input value={draft.startAt ?? ""} onChange={(event) => set({ startAt: event.target.value })} aria-label="Starts" placeholder="2026-11-25 or 2026-11-25T15:00" className={small} />
+          <input value={draft.location ?? ""} onChange={(event) => set({ location: event.target.value })} aria-label="Where" placeholder="Where (optional)" className={small} />
+        </div>
+      ) : null}
+      {card.kind === "project" ? (
+        <textarea value={draft.summary ?? ""} onChange={(event) => set({ summary: event.target.value })} rows={2} aria-label="Summary" placeholder="What it is, in a sentence or two" className={small} />
+      ) : null}
+      {card.kind === "note" ? (
+        <textarea value={draft.body ?? ""} onChange={(event) => set({ body: event.target.value })} rows={3} aria-label="Text" className={small} />
+      ) : null}
+      {card.kind === "recurrence" && draft.rule ? (
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          {describeRule(draft.rule)}, first due
+          <input type="date" value={draft.nextDue ?? ""} onChange={(event) => set({ nextDue: event.target.value })} className={`w-auto ${small}`} />
+        </label>
+      ) : null}
+      {(card.kind === "task" || card.kind === "event") && draft.description ? <p className="text-sm text-foreground/70">{draft.description}</p> : null}
+      {card.kind === "project" && draft.notes ? <p className="line-clamp-3 text-sm text-foreground/70">Notes to start it with: {draft.notes}</p> : null}
+      {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      <div className="flex gap-2">
+        <button type="button" disabled={busy} onClick={() => run(() => accept({ messageId, cardId: card.cardId, draft: cleaned() }))} className={button}>
+          {busy ? "Creating…" : `Create ${words}`}
+        </button>
+        <button type="button" disabled={busy} onClick={() => run(() => dismiss({ messageId, cardId: card.cardId }))} className={button}>
+          Not now
+        </button>
+      </div>
+    </li>
+  );
 }

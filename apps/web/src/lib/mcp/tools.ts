@@ -430,6 +430,43 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
     kind: "write",
     idempotent: true,
   },
+  propose_promotion: {
+    title: "Propose promotion",
+    description:
+      "Only inside a chat in the owner's Skippy OS dashboard, where your instructions give you a chatId. Offers the owner a record to create, shown as a card under your reply that they can edit, accept or ignore. Nothing is created until they accept. Use it whenever something in the conversation should become a task, an event, a project, a note, a person or a recurrence, rather than creating the record yourself. Fill the draft's fields for its kind and leave the rest out.",
+    input: {
+      chatId: z.string().describe("The id of the dashboard chat you are answering in, from your instructions."),
+      kind: z.enum(["task", "event", "project", "note", "person", "recurrence"]),
+      draft: z
+        .object({
+          title: z.string().max(300).optional().describe("For everything but a person. A task's title starts with a verb."),
+          description: z.string().max(2000).optional().describe("For a task, an event or a recurrence."),
+          dueAt: z.string().optional().describe("For a task with a real deadline: a date like 2026-11-25."),
+          project: z.string().optional().describe("For a task: the slug of an existing project it belongs to. Leave out for a task of a project offered in this same chat; it joins that project when the owner accepts both."),
+          startAt: z.string().optional().describe("For an event: a date, or a local time like 2026-11-25T15:00."),
+          endAt: z.string().optional().describe("For an event."),
+          location: z.string().max(500).optional().describe("For an event."),
+          summary: z.string().max(1000).optional().describe("For a project: one or two sentences on what it is."),
+          notes: z.string().max(6000).optional().describe("For a project: the idea as worked out in this chat, to seed the project's notes."),
+          body: z.string().max(6000).optional().describe("For a note."),
+          name: z.string().max(200).optional().describe("For a person."),
+          email: z.string().max(320).optional().describe("For a person."),
+          phone: z.string().max(40).optional().describe("For a person."),
+          company: z.string().max(200).optional().describe("For a person."),
+          rule: z
+            .union([
+              z.object({ kind: z.literal("interval"), everyDays: z.number().int().min(1).max(3660) }),
+              z.object({ kind: z.literal("calendar"), rrule: z.string().max(200) }),
+            ])
+            .optional()
+            .describe("For a recurrence: every N days, or an RRULE such as FREQ=MONTHLY;BYMONTHDAY=1."),
+          nextDue: z.string().optional().describe("For a recurrence: the day it first falls due."),
+        })
+        .describe("What the card would create."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
   record_briefing: {
     title: "Record briefing",
     description:

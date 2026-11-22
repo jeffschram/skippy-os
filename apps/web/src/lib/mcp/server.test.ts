@@ -51,6 +51,7 @@ describe("the MCP server", () => {
       "link_entities",
       "list_captures",
       "list_projects",
+      "propose_promotion",
       "record_briefing",
       "record_ingestion_run",
       "record_project_status",
