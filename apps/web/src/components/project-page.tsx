@@ -1,5 +1,6 @@
 "use client";
 
+import { ChatsCircle, CheckSquare, Files as FilesIcon, Flag, NotePencil, Steps } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
@@ -65,7 +66,7 @@ function Loaded() {
         <Settings project={project} />
       </div>
 
-      <Panel title="Status">
+      <Panel title="Status" icon={Flag}>
         {page.recentUpdates.length === 0 ? (
           <Quiet>No status reports yet. Claude adds one when it works on this project.</Quiet>
         ) : (
@@ -88,7 +89,7 @@ function Loaded() {
 
       <Phases project={project.slug} phases={page.phases} />
 
-      <Panel title="Tasks" note={`${page.openTasks.length} open`}>
+      <Panel title="Tasks" icon={CheckSquare} note={`${page.openTasks.length} open`}>
         {page.openTasks.length === 0 ? <Quiet>Nothing open.</Quiet> : <ByPhase tasks={page.openTasks} phases={page.phases} />}
         <AddTask project={project.slug} />
         {page.recentlyClosedTasks.length > 0 ? (
@@ -104,11 +105,11 @@ function Loaded() {
         ) : null}
       </Panel>
 
-      <Panel title="Chats">
+      <Panel title="Chats" icon={ChatsCircle}>
         <ChatsAbout type="project" id={project.slug} />
       </Panel>
 
-      <Panel title="Files">
+      <Panel title="Files" icon={FilesIcon}>
         <Files type="project" id={project.slug} />
       </Panel>
 
@@ -330,7 +331,7 @@ function Phases({ project, phases }: { project: string; phases: Page["phases"] }
   }
 
   return (
-    <Panel title="Phases">
+    <Panel title="Phases" icon={Steps}>
       {phases.length === 0 ? <Quiet>No phases. Add one to lay out a plan.</Quiet> : null}
       <ol className="space-y-2">
         {phases.map((phase, index) => (
@@ -505,7 +506,7 @@ function Notes({ project }: { project: Project & { notesPad: string } }) {
   }
 
   return (
-    <Panel title="Notes">
+    <Panel title="Notes" icon={NotePencil}>
       <form onSubmit={submit}>
         <textarea
           value={text}

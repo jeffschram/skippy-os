@@ -1,5 +1,6 @@
 "use client";
 
+import { TrayArrowDown } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
@@ -29,7 +30,7 @@ export function IngestedPanel() {
   if (!data || data.runs.length === 0) return null;
   const withSomething = data.runs.filter((run) => run.made.length > 0 || run.status !== "finished" || run.sources.some((source) => source.error));
   return (
-    <Panel title="Ingested" note={<Health health={data.health} />}>
+    <Panel title="Ingested" icon={TrayArrowDown} note={<Health health={data.health} />}>
       {withSomething.length === 0 ? (
         <Quiet>The latest passes read everything and made nothing new.</Quiet>
       ) : (

@@ -1,14 +1,18 @@
+import type { Icon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
 /** Small pieces the dashboard pages share. */
 
 export const button = "rounded-md border border-foreground/20 px-3 py-1.5 text-sm font-medium hover:bg-foreground/5";
 
-export function Panel({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
+export function Panel({ title, icon: TitleIcon, note, children }: { title: string; icon: Icon; note?: ReactNode; children: ReactNode }) {
   return (
     <section>
       <div className="flex items-baseline justify-between gap-4 border-b border-foreground/15 pb-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <h2 className="text-lg font-semibold">
+          <TitleIcon aria-hidden size="1.15em" className="mr-2 inline-block align-[-0.2em] text-foreground/60" />
+          {title}
+        </h2>
         {note ? <div className="text-sm text-foreground/60">{note}</div> : null}
       </div>
       <div className="mt-4">{children}</div>

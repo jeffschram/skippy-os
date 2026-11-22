@@ -1,5 +1,6 @@
 "use client";
 
+import { Tray } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
@@ -179,7 +180,7 @@ export function InboxPanel() {
   const inbox = useQuery(api.viewer.captures, { now: useNow() });
   if (!inbox || (inbox.pending.length === 0 && inbox.held.length === 0 && inbox.recent.length === 0)) return null;
   return (
-    <Panel title="Inbox" note={inbox.pending.length > 0 ? `${inbox.pending.length}${inbox.morePending ? "+" : ""} to file` : "nothing to file"}>
+    <Panel title="Inbox" icon={Tray} note={inbox.pending.length > 0 ? `${inbox.pending.length}${inbox.morePending ? "+" : ""} to file` : "nothing to file"}>
       {inbox.pending.length > 0 ? (
         <ul className="space-y-4">
           {inbox.pending.map((capture) => (

@@ -1,5 +1,6 @@
 "use client";
 
+import { Bell, Funnel } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useState, type FormEvent } from "react";
@@ -18,12 +19,12 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold">Settings</h1>
       <Loaded />
       <div className="mt-12">
-        <Panel title="Notifications">
+        <Panel title="Notifications" icon={Bell}>
           <NotificationsPanel />
         </Panel>
       </div>
       <div className="mt-12">
-        <Panel title="Ingestion">
+        <Panel title="Ingestion" icon={Funnel}>
           <IngestionRules />
         </Panel>
       </div>

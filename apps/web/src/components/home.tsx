@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarDot, ChatsCircle, Eye, Kanban, NewspaperClipping, Pulse } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
@@ -37,7 +38,7 @@ function Briefing() {
   const briefing = useQuery(api.viewer.briefing, { now: useNow() });
   if (!briefing) return null;
   return (
-    <Panel title="Briefing" note={briefing.isToday ? showDay(briefing.date) : `from ${showDay(briefing.date)}`}>
+    <Panel title="Briefing" icon={NewspaperClipping} note={briefing.isToday ? showDay(briefing.date) : `from ${showDay(briefing.date)}`}>
       <p className={`text-base leading-7 whitespace-pre-wrap ${briefing.isToday ? "" : "text-foreground/70"}`}>{briefing.text}</p>
       <p className="mt-3 text-xs text-foreground/60">
         {briefing.by} · {showTime(briefing.writtenAt)}
@@ -68,7 +69,7 @@ function Chats() {
   const data = useQuery(api.viewerChat.chats, { limit: 5 });
   if (!data || data.chats.length === 0) return null;
   return (
-    <Panel title="Chats">
+    <Panel title="Chats" icon={ChatsCircle}>
       <ul className="space-y-2">
         {data.chats.map((chat) => (
           <li key={chat.id} className="flex flex-wrap items-baseline gap-x-3">
@@ -90,7 +91,7 @@ function Today() {
   const today = useQuery(api.viewer.today, { now: useNow() });
   if (today === undefined) {
     return (
-      <Panel title="Today">
+      <Panel title="Today" icon={CalendarDot}>
         <Quiet>Loading…</Quiet>
       </Panel>
     );
@@ -103,7 +104,7 @@ function Today() {
   ];
   const shown = groups.filter(([, tasks]) => tasks.length > 0);
   return (
-    <Panel title="Today" note={showDay(today.date)}>
+    <Panel title="Today" icon={CalendarDot} note={showDay(today.date)}>
       {shown.length + today.events.length + today.recurrences.length === 0 ? (
         <Quiet>Nothing needs you today.</Quiet>
       ) : (
@@ -147,7 +148,7 @@ function SinceLastLook() {
   const markSeen = useMutation(api.viewer.markSeen);
   if (data === undefined) {
     return (
-      <Panel title="Since you last looked">
+      <Panel title="Since you last looked" icon={Eye}>
         <Quiet>Loading…</Quiet>
       </Panel>
     );
@@ -156,6 +157,7 @@ function SinceLastLook() {
   return (
     <Panel
       title="Since you last looked"
+      icon={Eye}
       note={data.count > 0 ? `${data.count} from Claude` : data.seenAt ? `cleared ${showTime(data.seenAt)}` : undefined}
     >
       {data.events.length === 0 || newest === undefined ? (
@@ -196,7 +198,7 @@ function Projects() {
   const data = useQuery(api.viewer.projects, { now: useNow() });
   const live = data?.projects.filter((project) => project.status === "active");
   return (
-    <Panel title="Projects" note={<Link href="/projects" className="underline underline-offset-2">All projects</Link>}>
+    <Panel title="Projects" icon={Kanban} note={<Link href="/projects" className="underline underline-offset-2">All projects</Link>}>
       {live === undefined ? (
         <Quiet>Loading…</Quiet>
       ) : live.length === 0 ? (
@@ -224,7 +226,7 @@ function Projects() {
 function Activity() {
   const data = useQuery(api.viewer.activity, { limit: 20 });
   return (
-    <Panel title="Recent activity">
+    <Panel title="Recent activity" icon={Pulse}>
       {data === undefined ? (
         <Quiet>Loading…</Quiet>
       ) : data.events.length === 0 ? (

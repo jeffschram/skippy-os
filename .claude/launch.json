@@ -4,7 +4,21 @@
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@skippy/web", "start"],
+      "runtimeArgs": [
+        "--filter",
+        "@skippy/web",
+        "start"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "web-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@skippy/web",
+        "dev"
+      ],
       "port": 3000
     }
   ]
