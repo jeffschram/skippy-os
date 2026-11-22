@@ -51,9 +51,9 @@ describe("gateway.call", () => {
   it("captures a note and reads it back, recording who wrote it", async () => {
     const t = convexTest(schema, modules);
     const saved = (await t.action(api.gateway.call, await sign("capture", { text: "  Call the plumber  " }))) as {
-      text: string;
+      capture: { text: string; status: string; intent: string };
     };
-    expect(saved.text).toBe("Call the plumber");
+    expect(saved.capture).toMatchObject({ text: "Call the plumber", status: "pending", intent: "remember" });
 
     const me = (await t.action(api.gateway.call, await sign("whoami", {}))) as WhoAmI;
     expect(me.owner).toBe(OWNER);
@@ -62,7 +62,7 @@ describe("gateway.call", () => {
 
     const rows = await t.run((ctx) => ctx.db.query("captures").collect());
     expect(rows).toHaveLength(1);
-    expect(rows[0].actor).toEqual({ kind: "oauth", subject: OWNER, clientId: "client_claude" });
+    expect(rows[0].createdBy).toMatchObject({ kind: "agent", clientId: "client_claude" });
   });
 
   it("refuses the same envelope a second time", async () => {

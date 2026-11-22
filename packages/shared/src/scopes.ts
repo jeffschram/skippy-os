@@ -10,9 +10,11 @@ export type Scope = (typeof SCOPES)[number];
  * reach Convex with a weaker scope than the one listed here.
  */
 export const OPERATIONS = {
-  // Phase 0 test tools.
   whoami: { scope: SCOPE_READ },
+  // The inbox.
   capture: { scope: SCOPE_WRITE },
+  list_captures: { scope: SCOPE_READ },
+  resolve_capture: { scope: SCOPE_WRITE },
   // Status.
   record_project_status: { scope: SCOPE_WRITE },
   get_project: { scope: SCOPE_READ },

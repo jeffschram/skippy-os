@@ -3,7 +3,7 @@ import { signEnvelope, type OperationName } from "@skippy/shared";
 import { convexTest } from "convex-test";
 import { ConvexError } from "convex/values";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
@@ -445,5 +445,83 @@ describe("reordering and removing phases, deleting a task, and a project's Claud
     await owner.mutation(api.viewer.saveProject, { slug: "garden-shed", claudeHome: null, targetDate: null });
     page = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
     expect([page.project.claudeHome, page.project.targetDate]).toEqual([undefined, undefined]);
+  });
+});
+
+describe("the inbox", () => {
+  it("takes a capture from the owner or Claude, and either can file it", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.addCapture, { text: "Ask Sam about the lease\nBefore the end of the month." });
+    await owner.mutation(api.viewer.addCapture, { text: "https://example.com/article" });
+    await asClaude(t, "capture", { text: "Jeff prefers aisle seats" });
+
+    let inbox = await owner.query(api.viewer.captures, { now: NOW });
+    expect(inbox.pending.map((item) => [item.text, item.url, item.by])).toEqual([
+      ["Ask Sam about the lease\nBefore the end of the month.", undefined, "You"],
+      [undefined, "https://example.com/article", "You"],
+      ["Jeff prefers aisle seats", undefined, "Claude"],
+    ]);
+
+    // Search finds a capture nobody has filed yet.
+    const found = (await asClaude(t, "search", { query: "aisle seats" })) as { results: { type: string; title: string }[] };
+    expect(found.results).toEqual([expect.objectContaining({ type: "capture", title: "Jeff prefers aisle seats" })]);
+
+    const task = await owner.mutation(api.viewer.fileCapture, { id: inbox.pending[0].id, as: "task" });
+    const link = await owner.mutation(api.viewer.fileCapture, { id: inbox.pending[1].id, as: "link" });
+    expect([task.type, link.type]).toEqual(["task", "knowledge"]);
+    expect((await owner.query(api.viewer.task, { id: task.id }))!.task).toMatchObject({
+      title: "Ask Sam about the lease",
+      description: "Before the end of the month.",
+    });
+    expect(await refusal(owner.mutation(api.viewer.fileCapture, { id: inbox.pending[2].id, as: "link" }))).toBe("invalid_arguments");
+
+    // Claude files the last one the way the skill says: save the record, then resolve the capture.
+    const listed = (await asClaude(t, "list_captures", {})) as { captures: { id: string; text: string }[] };
+    expect(listed.captures.map((item) => item.text)).toEqual(["Jeff prefers aisle seats"]);
+    const memory = (await asClaude(t, "upsert_knowledge", { kind: "memory", title: "Jeff prefers aisle seats" })) as {
+      knowledge: { id: string };
+    };
+    const resolve = { id: listed.captures[0].id, outcome: "processed", results: [{ type: "knowledge", id: memory.knowledge.id }] };
+    expect(await asClaude(t, "resolve_capture", resolve)).toMatchObject({ changed: true });
+    expect(await asClaude(t, "resolve_capture", resolve)).toMatchObject({ changed: false });
+    expect(await refusal(asClaude(t, "resolve_capture", { id: "nope", outcome: "discarded" }))).toBe("not_found");
+
+    inbox = await owner.query(api.viewer.captures, { now: NOW });
+    expect(inbox.pending).toEqual([]);
+    expect(inbox.recent.map((item) => item.results?.[0].type).sort()).toEqual(["knowledge", "knowledge", "task"]);
+    // Once filed, the capture itself is no longer a search result; the record it became is.
+    const after = (await asClaude(t, "search", { query: "aisle seats" })) as { results: { type: string }[] };
+    expect(after.results.map((result) => result.type)).toEqual(["knowledge"]);
+  });
+
+  it("keeps a held capture private, unfiled, and only for seven days", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.addCapture, { text: "door code 4417", intent: "hold" });
+    const inbox = await owner.query(api.viewer.captures, { now: NOW });
+    expect(inbox.pending).toEqual([]);
+    expect(inbox.held.map((item) => item.text)).toEqual(["door code 4417"]);
+
+    expect(((await asClaude(t, "list_captures", {})) as { captures: unknown[] }).captures).toEqual([]);
+    expect(((await asClaude(t, "search", { query: "door code" })) as { results: unknown[] }).results).toEqual([]);
+    expect(await refusal(owner.mutation(api.viewer.fileCapture, { id: inbox.held[0].id, as: "note" }))).toBe("invalid_arguments");
+    const { events } = await owner.query(api.viewer.activityLog, {});
+    expect(events.map((event) => event.summary)).toEqual(["Held something for seven days"]);
+
+    const later = NOW + 8 * 86_400_000;
+    expect((await owner.query(api.viewer.captures, { now: later })).held).toEqual([]);
+    vi.setSystemTime(new Date(later));
+    expect(await t.mutation(internal.captures.expireHolds, {})).toEqual({ removed: 1 });
+    expect(await t.run((ctx) => ctx.db.query("captures").collect())).toEqual([]);
+  });
+
+  it("is closed to everyone but the owner, and refuses an empty capture", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    expect(await refusal(t.query(api.viewer.captures, { now: NOW }))).toBe("not_signed_in");
+    expect(await refusal(t.mutation(api.viewer.addCapture, { text: "x" }))).toBe("not_signed_in");
+    expect(await refusal(owner.mutation(api.viewer.addCapture, { text: "   " }))).toBe("invalid_arguments");
+    expect(await refusal(owner.mutation(api.viewer.discardCapture, { id: "nope" }))).toBe("not_found");
   });
 });

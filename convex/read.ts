@@ -2,6 +2,7 @@ import { actorLabel, dayBounds, localDate, WhenError, type EntityType, type Sear
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, type QueryCtx } from "./_generated/server";
+import { searchCaptures } from "./captures";
 import { getSettings, refuse, requireText, when } from "./lib/common";
 import { findEntity, mention, requireEntity, type Found } from "./lib/entities";
 import { LINK_LIMIT } from "./lib/links";
@@ -145,13 +146,16 @@ export async function runSearch(
         type ? q.search("text", query).eq("entityType", type) : q.search("text", query),
       )
       .take(limit);
-    const results = [];
+    const results: { type: EntityType | "capture"; id: string; title: string; state?: string; snippet?: string }[] = [];
     for (const row of rows) {
       const entity = await findEntity(ctx, row.entityType, row.entityId);
       if (!entity) continue;
       results.push({ ...mention(entity), snippet: snippet(row.text, row.title, query) });
     }
-    // Best match first. Call get_context_bundle with a result's type and id to read it in full.
+    // Captures that nobody has filed yet are found too, so nothing dropped in is lost to search.
+    if (!type) results.push(...(await searchCaptures(ctx, query, Math.max(limit - results.length, 3))));
+    // Best match first. Call get_context_bundle with a result's type and id to read it in full;
+    // a result of type "capture" is read with list_captures.
     return { query, results };
   }
 }

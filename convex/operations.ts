@@ -1,40 +1,27 @@
-import { ConvexError, v } from "convex/values";
-import { internalMutation, internalQuery } from "./_generated/server";
-import { phase0Actor as actor } from "./schema";
-
-/** Longest capture accepted, in characters. */
-const MAX_CAPTURE_LENGTH = 4000;
+import { v } from "convex/values";
+import { internalQuery } from "./_generated/server";
+import { captureTitle } from "./captures";
 
 /**
- * Operations run only through `gateway.call`, which has already checked the
- * caller. They are internal: nothing outside Convex can call them directly.
+ * Run only through `gateway.call`, which has already checked the caller.
+ * Internal: nothing outside Convex can call it directly.
  */
 
+/** Who the connection acts as, and the latest captures, so a client can check a write by reading it back. */
 export const whoami = internalQuery({
-  args: { actor, scopes: v.array(v.string()) },
+  args: { subject: v.string(), clientId: v.string(), scopes: v.array(v.string()) },
   handler: async (ctx, args) => {
-    const recent = await ctx.db.query("captures").withIndex("by_created").order("desc").take(5);
+    const recent = (await ctx.db.query("captures").order("desc").take(20)).filter((row) => row.intent === "remember");
     return {
-      owner: args.actor.subject,
-      client: args.actor.clientId,
+      owner: args.subject,
+      client: args.clientId,
       scopes: args.scopes,
-      recentCaptures: recent.map((capture) => ({
+      recentCaptures: recent.slice(0, 5).map((capture) => ({
         id: capture._id,
-        text: capture.text,
+        text: captureTitle(capture),
         createdAt: capture.createdAt,
-        client: capture.actor.clientId,
+        client: capture.createdBy.kind === "agent" ? capture.createdBy.clientId : capture.createdBy.kind,
       })),
     };
-  },
-});
-
-export const capture = internalMutation({
-  args: { actor, text: v.string() },
-  handler: async (ctx, args) => {
-    const text = args.text.trim();
-    if (text === "" || text.length > MAX_CAPTURE_LENGTH) throw new ConvexError({ code: "invalid_arguments" });
-    const createdAt = Date.now();
-    const id = await ctx.db.insert("captures", { text, actor: args.actor, createdAt });
-    return { id, text, createdAt };
   },
 });

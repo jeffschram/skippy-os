@@ -11,6 +11,7 @@ const INSTRUCTIONS = [
   "Read with search, get_context_bundle, list_projects, get_project, get_today and get_changes_since.",
   "Write with upsert_project, create_phase, update_phase, upsert_task, complete_task, upsert_person, upsert_knowledge and link_entities.",
   "Before saving a person or something to remember, search for it, so the same thing is not saved twice.",
+  "The inbox holds quick captures waiting to be filed: capture adds one, list_captures reads them, and resolve_capture marks one as filed or discarded.",
   "When you work on a Skippy project, call record_project_status when a milestone is reached, a decision is made, something gets blocked, or the session ends.",
   "When instructions say to follow the skippy-status or skippy-capture skill and you do not already have its text, call get_skill for it and follow what it returns.",
   "Every write is logged with you as its author.",

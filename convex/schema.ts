@@ -2,15 +2,6 @@ import { ENTITY_TYPES, KNOWLEDGE_KINDS, RELATIONS, SEARCHABLE_TYPES } from "@ski
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-/** The Phase 0 actor, kept only for the `captures` test table until Phase 4 reshapes it. */
-export const phase0Actor = v.object({
-  kind: v.literal("oauth"),
-  /** The Clerk user id of the owner the client acted for. */
-  subject: v.string(),
-  /** The OAuth client that made the call, for example Claude or ChatGPT. */
-  clientId: v.string(),
-});
-
 /** Who made a write. Mirrors `Actor` in @skippy/shared. */
 export const actor = v.union(
   v.object({ kind: v.literal("user") }),
@@ -63,6 +54,8 @@ export const taskStatus = v.union(
   v.literal("cancelled"),
 );
 export const commitment = v.union(v.literal("must"), v.literal("want"));
+/** "remember": to be filed. "hold": a private hand-off between devices that lapses. */
+export const captureIntent = v.union(v.literal("remember"), v.literal("hold"));
 
 export const knowledgeKind = oneOf(KNOWLEDGE_KINDS);
 export const readState = v.union(v.literal("saved"), v.literal("unread"), v.literal("read"));
@@ -322,12 +315,25 @@ export default defineSchema({
     activitySeenAt: v.number(),
   }),
 
-  // Phase 0 only. Phase 4 replaces it with the real captures table.
+  // The inbox: things dropped in quickly, to be filed later. See captures.ts.
   captures: defineTable({
-    text: v.string(),
-    actor: phase0Actor,
+    text: v.optional(v.string()),
+    url: v.optional(v.string()),
+    intent: captureIntent,
+    status: v.union(v.literal("pending"), v.literal("processed"), v.literal("discarded")),
+    createdBy: actor,
     createdAt: v.number(),
-  }).index("by_created", ["createdAt"]),
+    processedBy: v.optional(actor),
+    processedAt: v.optional(v.number()),
+    /** What it was filed as. */
+    resultRefs: v.optional(v.array(entityRef)),
+    /** What was done with it, in words. */
+    outcome: v.optional(v.string()),
+    /** Held captures only: when the hand-off lapses. */
+    expiresAt: v.optional(v.number()),
+  })
+    .index("by_status", ["status", "createdAt"])
+    .index("by_expiry", ["expiresAt"]),
 
   // Temporary. Where each imported record came from in the old project, so the
   // import can be re-run and checked. Dropped once the import is verified.

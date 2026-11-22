@@ -12,7 +12,7 @@ import type { FunctionReference } from "convex/server";
 import { internal } from "./_generated/api";
 import { action, internalMutation } from "./_generated/server";
 
-type Phase1Operation = Exclude<OperationName, "whoami" | "capture">;
+type Phase1Operation = Exclude<OperationName, "whoami">;
 type AnyArgs = Record<string, unknown>;
 
 /** Operations that only read. Each gets the caller's arguments and nothing else. */
@@ -23,6 +23,7 @@ const READS: Partial<Record<Phase1Operation, FunctionReference<"query", "interna
   get_context_bundle: internal.read.contextBundle as never,
   get_today: internal.read.today as never,
   get_changes_since: internal.read.changesSince as never,
+  list_captures: internal.captures.list as never,
 };
 
 /** Operations that write. Each gets the caller's arguments plus the actor, which the caller cannot set. */
@@ -36,6 +37,8 @@ const WRITES: Partial<Record<Phase1Operation, FunctionReference<"mutation", "int
   upsert_person: internal.people.upsert as never,
   upsert_knowledge: internal.knowledge.upsert as never,
   link_entities: internal.links.link as never,
+  capture: internal.captures.add as never,
+  resolve_capture: internal.captures.resolve as never,
 };
 
 /**
@@ -90,19 +93,12 @@ export const call = action({
   handler: async (ctx, args): Promise<unknown> => {
     const envelope = await verifyCaller(args);
     await ctx.runMutation(internal.gateway.useNonce, args);
-    const actor = {
-      kind: "oauth" as const,
-      subject: envelope.principal.subject,
-      clientId: envelope.principal.clientId,
-    };
-    switch (envelope.operation) {
-      case "whoami":
-        return await ctx.runQuery(internal.operations.whoami, { actor, scopes: envelope.principal.scopes });
-      case "capture": {
-        const text = envelope.args.text;
-        if (typeof text !== "string") throw new ConvexError({ code: "invalid_arguments" });
-        return await ctx.runMutation(internal.operations.capture, { actor, text });
-      }
+    if (envelope.operation === "whoami") {
+      return await ctx.runQuery(internal.operations.whoami, {
+        subject: envelope.principal.subject,
+        clientId: envelope.principal.clientId,
+        scopes: envelope.principal.scopes,
+      });
     }
 
     const read = READS[envelope.operation];

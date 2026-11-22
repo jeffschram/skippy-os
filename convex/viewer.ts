@@ -3,9 +3,10 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { listCaptures } from "./captures";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
-import { claudeHome, commitment, phaseStatus, projectHealth, projectKind, projectStatus, taskStatus } from "./schema";
+import { captureIntent, claudeHome, commitment, phaseStatus, projectHealth, projectKind, projectStatus, taskStatus } from "./schema";
 import { presentTask } from "./tasks";
 import { DEFAULT_SETTINGS, getSettings, iso, refuse } from "./lib/common";
 
@@ -361,6 +362,83 @@ export const deleteTask = mutation({
   handler: async (ctx, args): Promise<null> => {
     await requireOwner(ctx);
     await ctx.runMutation(internal.tasks.remove, { actor: OWNER, id: args.id });
+    return null;
+  },
+});
+
+/** The inbox for Home: what waits to be filed, what is being held, and the last few dealt with. */
+export const captures = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const [pending, held, filed, discarded] = await Promise.all([
+      listCaptures(ctx, { now: args.now, limit: 50 }),
+      listCaptures(ctx, { now: args.now, intent: "hold", limit: 50 }),
+      listCaptures(ctx, { now: args.now, status: "processed", limit: 5 }),
+      listCaptures(ctx, { now: args.now, status: "discarded", limit: 5 }),
+    ]);
+    return {
+      pending: pending.captures,
+      morePending: pending.more,
+      held: held.captures,
+      recent: [...filed.captures, ...discarded.captures].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")).slice(0, 5),
+    };
+  },
+});
+
+/** Drops something into the inbox. Text that is only a web address is kept as a link. */
+export const addCapture = mutation({
+  args: { text: v.string(), intent: v.optional(captureIntent) },
+  handler: async (ctx, args): Promise<{ id: string }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.captures.add, { actor: OWNER, ...args });
+    return { id: result.capture.id };
+  },
+});
+
+/** Files a capture as a task, or as a note, link or memory, and marks it dealt with. */
+export const fileCapture = mutation({
+  args: { id: v.string(), as: v.union(v.literal("task"), v.literal("note"), v.literal("link"), v.literal("memory")) },
+  handler: async (ctx, args): Promise<{ type: "task" | "knowledge"; id: string }> => {
+    await requireOwner(ctx);
+    const id = ctx.db.normalizeId("captures", args.id);
+    const capture = id ? await ctx.db.get(id) : null;
+    if (!capture || capture.status !== "pending") throw refuse("not_found", "That capture is no longer waiting.");
+    if (capture.intent === "hold") throw refuse("invalid_arguments", "A held capture is not filed. Clear it when you are done with it.");
+    const lines = (capture.text ?? "").trim().split("\n");
+    const first = lines[0]?.trim() ?? "";
+    const rest = lines.slice(1).join("\n").trim();
+    let made: { type: "task" | "knowledge"; id: string };
+    if (args.as === "task") {
+      const description = [rest, capture.url].filter(Boolean).join("\n\n");
+      const result = await ctx.runMutation(internal.tasks.upsert, {
+        actor: OWNER,
+        title: (first || capture.url || "").slice(0, 200),
+        ...(description ? { description } : {}),
+      });
+      made = { type: "task", id: result.task.id };
+    } else {
+      if (args.as === "link" && !capture.url) throw refuse("invalid_arguments", "That capture has no web address, so it cannot be a link.");
+      // A one-line capture is all title; a longer one keeps its text whole and takes its title from the first line.
+      const result = await ctx.runMutation(internal.knowledge.upsert, {
+        actor: OWNER,
+        kind: args.as,
+        ...(rest || first.length > 120 ? { body: capture.text } : first ? { title: first } : {}),
+        ...(capture.url ? { url: capture.url } : {}),
+      });
+      made = { type: "knowledge", id: result.knowledge.id };
+    }
+    await ctx.runMutation(internal.captures.resolve, { actor: OWNER, id: args.id, outcome: "processed", results: [made] });
+    return made;
+  },
+});
+
+/** Discards a capture, or clears a held one. */
+export const discardCapture = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.captures.resolve, { actor: OWNER, id: args.id, outcome: "discarded" });
     return null;
   },
 });

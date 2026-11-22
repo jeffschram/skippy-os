@@ -72,15 +72,51 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   whoami: {
     title: "Who am I",
     description:
-      "Shows which Skippy owner and client this connection acts as, the scopes it was granted, and the five most recent test captures.",
+      "Shows which Skippy owner and client this connection acts as, the scopes it was granted, and the five most recent captures.",
     input: {},
     kind: "read",
   },
   capture: {
     title: "Capture",
-    description: "Saves a short note to Skippy. Use it for a thought, a link or a reminder worth keeping.",
-    input: { text: z.string().trim().min(1).max(4000).describe("The note to save, in plain text.") },
+    description:
+      "Drops something into the owner's inbox to be filed later. Use it when the owner says to capture or hold something and you cannot tell what kind of record it is, or have no time to file it. When you do know, save it directly instead: upsert_task for something to do, upsert_knowledge for something to remember, upsert_person for a person.",
+    input: {
+      text: z.string().trim().max(4000).optional().describe("What to capture, in the owner's words."),
+      url: z.string().trim().max(2000).optional().describe("A web address, when the capture is a link."),
+      intent: z
+        .enum(["remember", "hold"])
+        .optional()
+        .describe('"remember" (the default) is filed later. "hold" is a private hand-off between the owner\'s devices: never filed, gone after seven days.'),
+    },
     kind: "write",
+  },
+  list_captures: {
+    title: "List captures",
+    description:
+      "Lists what is waiting in the inbox, oldest first. To file one: save it as the right record (upsert_task, upsert_knowledge, upsert_person), then call resolve_capture with what it became. Held captures are listed only when intent is \"hold\", and are never filed.",
+    input: {
+      status: z.enum(["pending", "processed", "discarded"]).optional().describe('Defaults to "pending".'),
+      intent: z.enum(["remember", "hold"]).optional().describe('Defaults to "remember".'),
+      limit: z.number().int().min(1).max(100).optional().describe("How many to return. Defaults to 25."),
+    },
+    kind: "read",
+  },
+  resolve_capture: {
+    title: "Resolve capture",
+    description:
+      "Marks a capture as dealt with. Use outcome \"processed\" with the records it was filed as, or \"discarded\" with a short reason when it is a duplicate or not worth keeping. Resolving the same capture again changes nothing.",
+    input: {
+      id: z.string().describe("The capture's id, from list_captures."),
+      outcome: z.enum(["processed", "discarded"]),
+      results: z
+        .array(z.object({ type: z.enum(ENTITY_TYPES), id: z.string() }))
+        .max(10)
+        .optional()
+        .describe("What the capture became. Required when processed."),
+      note: z.string().max(300).optional().describe("Why it was discarded, or anything worth saying about how it was filed."),
+    },
+    kind: "write",
+    idempotent: true,
   },
 
   list_projects: {
@@ -257,7 +293,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   search: {
     title: "Search",
     description:
-      "Finds projects, tasks, people, companies and saved knowledge by the words in them, best match first. Each result has a type and an id; pass them to get_context_bundle to read the record in full. Search matches words, not meaning, so try the plainest words that would appear in the record.",
+      "Finds projects, tasks, people, companies and saved knowledge by the words in them, best match first. Each result has a type and an id; pass them to get_context_bundle to read the record in full. A result of type \"capture\" is something in the inbox that has not been filed yet; read those with list_captures. Search matches words, not meaning, so try the plainest words that would appear in the record.",
     input: {
       query: z.string().trim().min(1).max(200).describe("Words to look for."),
       type: z.enum(SEARCHABLE_TYPES).optional().describe("Only this kind of record."),

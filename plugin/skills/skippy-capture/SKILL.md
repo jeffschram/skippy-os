@@ -11,7 +11,7 @@ Skippy OS is the owner's long-term record: tasks, people, and the notes, links, 
 
 Use the tools of the connector named **Skippy OS**. An older connector named just "Skippy" may also be connected, with similar tool names. It is a different, retired system. Never write to it.
 
-Do not use the Skippy OS tool named `capture`. It is a test tool and what it saves is not kept with the rest.
+The tool named `capture` drops something into the owner's inbox to be filed later. Prefer filing it properly yourself, as below. Use `capture` only when the owner says to capture or hold something and you cannot tell what it is, or when they ask for a "hold" (`intent: "hold"`: a private seven-day hand-off between their devices that is never filed).
 
 If the Skippy OS tools are missing, tell the owner, and do not save the thing anywhere else instead.
 
@@ -33,6 +33,10 @@ Save when the owner asks. Without being asked, you may offer once, in a few word
 | A person | `upsert_person` | Give an email or phone number when you have one; that is how people are matched. |
 
 A to-do is always a task, never a note. A deadline belongs on a task only when it is the date the action must be done by.
+
+## Emptying the inbox
+
+When the owner asks you to go through their captures, or the inbox: call `list_captures`. For each one, decide what it is from the table above, search for a record that already covers it, save or update the record, then call `resolve_capture` with `outcome: "processed"` and what it became in `results`. A capture that is a duplicate or not worth keeping is resolved with `outcome: "discarded"` and a few words of why in `note`. Leave a capture alone when you cannot tell what the owner meant, and ask them. Never file a held capture.
 
 ## Before saving
 
