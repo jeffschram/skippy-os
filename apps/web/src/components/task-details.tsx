@@ -78,6 +78,7 @@ function Loaded({ id, onClose }: { id: string; onClose: () => void }) {
 function Form({ details, onClose }: { details: Details; onClose: () => void }) {
   const { task } = details;
   const save = useMutation(api.viewer.saveTask);
+  const remove = useMutation(api.viewer.deleteTask);
   const now = useNow();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
@@ -89,6 +90,7 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
   const [planned, setPlanned] = useState(task.scheduledFor?.date ?? "");
   const [waitingOn, setWaitingOn] = useState(task.waitingOn ?? "");
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string>();
 
   const projects = useQuery(api.viewer.projects, { now });
@@ -118,6 +120,18 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
     setError(undefined);
     try {
       await save(changes);
+      onClose();
+    } catch (caught) {
+      setError(problem(caught));
+      setBusy(false);
+    }
+  }
+
+  async function destroy() {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await remove({ id: task.id });
       onClose();
     } catch (caught) {
       setError(problem(caught));
@@ -209,14 +223,33 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
         </label>
       </div>
       {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
-      <div className="flex gap-2">
-        <button type="submit" disabled={busy} className={button}>
-          {busy ? "Saving…" : "Save"}
-        </button>
-        <button type="button" onClick={onClose} className={button}>
-          Cancel
-        </button>
-      </div>
+      {deleting ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="flex-1 text-sm">Delete this task for good? This cannot be undone. To keep a record, cancel it instead.</p>
+          <button type="button" disabled={busy} onClick={destroy} className={`${button} border-red-600/50 text-red-700 dark:text-red-300`}>
+            Delete task
+          </button>
+          <button type="button" onClick={() => setDeleting(false)} className={button}>
+            Keep
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button type="submit" disabled={busy} className={button}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+          <button type="button" onClick={onClose} className={button}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => setDeleting(true)}
+            className="ml-auto text-sm text-foreground/60 underline underline-offset-2"
+          >
+            Delete
+          </button>
+        </div>
+      )}
       {details.history.length > 0 ? (
         <div className="border-t border-foreground/15 pt-4">
           <h3 className="text-sm font-medium text-foreground/60">History</h3>

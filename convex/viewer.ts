@@ -5,7 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
-import { commitment, phaseStatus, projectHealth, projectKind, projectStatus, taskStatus } from "./schema";
+import { claudeHome, commitment, phaseStatus, projectHealth, projectKind, projectStatus, taskStatus } from "./schema";
 import { presentTask } from "./tasks";
 import { DEFAULT_SETTINGS, getSettings, iso, refuse } from "./lib/common";
 
@@ -281,6 +281,7 @@ export const saveProject = mutation({
     summary: nullable(v.string()),
     status: v.optional(projectStatus),
     health: nullable(projectHealth),
+    claudeHome: nullable(claudeHome),
     targetDate: nullable(v.string()),
     notesPad: v.optional(v.string()),
   },
@@ -330,6 +331,36 @@ export const savePhase = mutation({
       ...(status ? { status } : {}),
     });
     return { changed: true };
+  },
+});
+
+/** Moves a phase one place earlier or later in its project's plan. */
+export const movePhase = mutation({
+  args: { id: v.string(), direction: v.union(v.literal("up"), v.literal("down")) },
+  handler: async (ctx, args): Promise<{ changed: boolean }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.projects.movePhase, { actor: OWNER, ...args });
+    return { changed: result.changed };
+  },
+});
+
+/** Deletes a phase. Its tasks stay in the project. */
+export const removePhase = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<{ tasksKept: number }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.projects.removePhase, { actor: OWNER, id: args.id });
+    return { tasksKept: result.tasksKept };
+  },
+});
+
+/** Deletes a task for good. There is no agent tool for this: only the owner can. */
+export const deleteTask = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.tasks.remove, { actor: OWNER, id: args.id });
+    return null;
   },
 });
 

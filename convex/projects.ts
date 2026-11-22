@@ -13,6 +13,7 @@ import {
   showWhen,
   when,
 } from "./lib/common";
+import { detach } from "./lib/remove";
 import { indexProject } from "./lib/searchIndex";
 import { actor, claudeHome, phaseStatus, projectHealth, projectKind, projectStatus } from "./schema";
 import { presentTask } from "./tasks";
@@ -288,11 +289,7 @@ export const updatePhase = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const id = ctx.db.normalizeId("phases", args.id);
-    const phase = id ? await ctx.db.get(id) : null;
-    if (!phase) {
-      throw refuse("not_found", `There is no phase with the id "${args.id}". Use get_project to see a project's phases.`);
-    }
+    const phase = await phaseById(ctx, args.id);
     const project = (await ctx.db.get(phase.projectId))!;
     const show = (doc: Doc<"phases">) => ({
       id: doc._id,
@@ -327,15 +324,96 @@ export const updatePhase = internalMutation({
   },
 });
 
+/** A project's phases in plan order. Phases that share a number keep the order they were made in. */
+async function phasesInOrder(ctx: QueryCtx, projectId: Id<"projects">): Promise<Doc<"phases">[]> {
+  const phases = await ctx.db
+    .query("phases")
+    .withIndex("by_project", (q) => q.eq("projectId", projectId))
+    .collect();
+  return phases.sort((a, b) => a.order - b.order || a._creationTime - b._creationTime);
+}
+
+async function phaseById(ctx: QueryCtx, given: string): Promise<Doc<"phases">> {
+  const id = ctx.db.normalizeId("phases", given);
+  const phase = id ? await ctx.db.get(id) : null;
+  if (!phase) {
+    throw refuse("not_found", `There is no phase with the id "${given}". Use get_project to see a project's phases.`);
+  }
+  return phase;
+}
+
+/** Moves a phase one place earlier or later in its project's plan, and numbers the plan 1, 2, 3 again. */
+export const movePhase = internalMutation({
+  args: { actor, id: v.string(), direction: v.union(v.literal("up"), v.literal("down")) },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const phase = await phaseById(ctx, args.id);
+    const project = (await ctx.db.get(phase.projectId))!;
+    const plan = await phasesInOrder(ctx, project._id);
+    const at = plan.findIndex((item) => item._id === phase._id);
+    const to = at + (args.direction === "up" ? -1 : 1);
+    // Already first or last: nothing to move, nothing to log.
+    if (to < 0 || to >= plan.length) return { changed: false, order: phase.order };
+    [plan[at], plan[to]] = [plan[to], plan[at]];
+    for (const [index, item] of plan.entries()) {
+      if (item.order === index + 1) continue;
+      await ctx.db.patch(item._id, {
+        order: index + 1,
+        ...(item._id === phase._id ? { updatedBy: args.actor, updatedAt: now } : {}),
+      });
+    }
+    await logActivity(ctx, {
+      entityType: "phase",
+      entityId: phase._id,
+      activityType: "phase.moved",
+      actor: args.actor,
+      at: now,
+      summary: `Moved phase "${phase.title}" of "${project.title}" to place ${to + 1}`,
+    });
+    return { changed: true, order: to + 1 };
+  },
+});
+
+/** Deletes a phase. Its tasks stay in the project, in no phase, and the rest of the plan closes up. */
+export const removePhase = internalMutation({
+  args: { actor, id: v.string() },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const phase = await phaseById(ctx, args.id);
+    const project = (await ctx.db.get(phase.projectId))!;
+    const tasks = (
+      await ctx.db
+        .query("tasks")
+        .withIndex("by_project", (q) => q.eq("projectId", project._id))
+        .collect()
+    ).filter((task) => task.phaseId === phase._id);
+    for (const task of tasks) await ctx.db.patch(task._id, { phaseId: undefined });
+    await detach(ctx, phase._id);
+    await ctx.db.delete(phase._id);
+    for (const [index, item] of (await phasesInOrder(ctx, project._id)).entries()) {
+      if (item.order !== index + 1) await ctx.db.patch(item._id, { order: index + 1 });
+    }
+    // Logged on the project, which is still there to link to.
+    await logActivity(ctx, {
+      entityType: "project",
+      entityId: project._id,
+      activityType: "phase.removed",
+      actor: args.actor,
+      at: now,
+      summary:
+        `Removed phase "${phase.title}" from "${project.title}"` +
+        (tasks.length > 0 ? `; its ${tasks.length === 1 ? "task stays" : `${tasks.length} tasks stay`} in the project` : ""),
+    });
+    return { removed: true, tasksKept: tasks.length };
+  },
+});
+
 /** One project in full: details, notes, phases, tasks and the latest status reports. */
 export async function readProject(ctx: QueryCtx, args: { project: string; now: number }) {
   const now = args.now;
   const settings = await getSettings(ctx);
   const project = await projectBySlug(ctx, args.project);
-  const phases = await ctx.db
-    .query("phases")
-    .withIndex("by_project", (q) => q.eq("projectId", project._id))
-    .collect();
+  const phases = await phasesInOrder(ctx, project._id);
   const tasks = await ctx.db
     .query("tasks")
     .withIndex("by_project", (q) => q.eq("projectId", project._id))

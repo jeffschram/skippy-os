@@ -14,6 +14,7 @@ import type * as knowledge from "../knowledge.js";
 import type * as lib_common from "../lib/common.js";
 import type * as lib_entities from "../lib/entities.js";
 import type * as lib_links from "../lib/links.js";
+import type * as lib_remove from "../lib/remove.js";
 import type * as lib_searchIndex from "../lib/searchIndex.js";
 import type * as lib_sources from "../lib/sources.js";
 import type * as links from "../links.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   "lib/common": typeof lib_common;
   "lib/entities": typeof lib_entities;
   "lib/links": typeof lib_links;
+  "lib/remove": typeof lib_remove;
   "lib/searchIndex": typeof lib_searchIndex;
   "lib/sources": typeof lib_sources;
   links: typeof links;

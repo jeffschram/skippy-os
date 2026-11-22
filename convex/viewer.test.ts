@@ -344,3 +344,106 @@ describe("phases, new projects, the agenda and settings", () => {
     expect(await refusal(stranger.mutation(api.viewer.createProject, { title: "X" }))).toBe("account_not_authorized");
   });
 });
+
+describe("reordering and removing phases, deleting a task, and a project's Claude home", () => {
+  it("moves a phase, renumbers the plan, and does nothing at either end", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Garden Shed" });
+    for (const title of ["Foundation", "Framing", "Roof"]) {
+      await owner.mutation(api.viewer.savePhase, { project: "garden-shed", title });
+    }
+    const plan = async () =>
+      (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!.phases.map((phase) => [phase.order, phase.title]);
+    const id = async (title: string) =>
+      (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!.phases.find((phase) => phase.title === title)!.id;
+
+    expect(await owner.mutation(api.viewer.movePhase, { id: await id("Roof"), direction: "up" })).toEqual({ changed: true });
+    expect(await plan()).toEqual([
+      [1, "Foundation"],
+      [2, "Roof"],
+      [3, "Framing"],
+    ]);
+    expect(await owner.mutation(api.viewer.movePhase, { id: await id("Foundation"), direction: "up" })).toEqual({ changed: false });
+    expect(await owner.mutation(api.viewer.movePhase, { id: await id("Framing"), direction: "down" })).toEqual({ changed: false });
+    const { events } = await owner.query(api.viewer.activityLog, {});
+    expect(events.filter((event) => event.type === "phase.moved")).toHaveLength(1);
+    expect(await refusal(t.mutation(api.viewer.movePhase, { id: await id("Roof"), direction: "up" }))).toBe("not_signed_in");
+  });
+
+  it("removes a phase, keeps its tasks in the project and closes the gap", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Garden Shed" });
+    for (const title of ["Foundation", "Framing", "Roof"]) {
+      await owner.mutation(api.viewer.savePhase, { project: "garden-shed", title });
+    }
+    const before = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    const framing = before.phases[1].id;
+    await owner.mutation(api.viewer.saveTask, { title: "Buy studs", project: "garden-shed", phaseId: framing });
+
+    expect(await owner.mutation(api.viewer.removePhase, { id: framing })).toEqual({ tasksKept: 1 });
+    const after = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    expect(after.phases.map((phase) => [phase.order, phase.title])).toEqual([
+      [1, "Foundation"],
+      [2, "Roof"],
+    ]);
+    expect(after.openTasks.map((task) => [task.title, task.phaseId])).toEqual([["Buy studs", undefined]]);
+    const { events } = await owner.query(api.viewer.activityLog, {});
+    expect(events[0]).toMatchObject({ type: "phase.removed", project: "garden-shed" });
+    expect(await refusal(owner.mutation(api.viewer.removePhase, { id: framing }))).toBe("not_found");
+    expect(await refusal(t.mutation(api.viewer.removePhase, { id: before.phases[0].id }))).toBe("not_signed_in");
+  });
+
+  it("deletes a task with its search entry and links, and keeps its history", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await asClaude(t, "upsert_project", { title: "Garden Shed" });
+    const made = (await asClaude(t, "upsert_task", { title: "Buy purple paint", project: "garden-shed" })) as {
+      task: { id: string };
+    };
+    const person = (await asClaude(t, "upsert_person", { name: "Pat Painter" })) as { person: { id: string } };
+    await asClaude(t, "link_entities", {
+      from: { type: "task", id: made.task.id },
+      relation: "waiting_on",
+      to: { type: "person", id: person.person.id },
+    });
+    const found = (await asClaude(t, "search", { query: "purple" })) as { results: unknown[] };
+    expect(found.results).toHaveLength(1);
+
+    expect(await refusal(t.mutation(api.viewer.deleteTask, { id: made.task.id }))).toBe("not_signed_in");
+    await owner.mutation(api.viewer.deleteTask, { id: made.task.id });
+
+    expect(await owner.query(api.viewer.task, { id: made.task.id })).toBeNull();
+    expect((await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!.openTasks).toEqual([]);
+    expect(((await asClaude(t, "search", { query: "purple" })) as { results: unknown[] }).results).toEqual([]);
+    const rows = await t.run(async (ctx) => ({
+      links: await ctx.db.query("relationships").collect(),
+      searchDocs: (await ctx.db.query("searchDocs").collect()).map((doc) => doc.entityType),
+    }));
+    expect(rows.links).toEqual([]);
+    expect(rows.searchDocs.sort()).toEqual(["person", "project"]);
+    const { events } = await owner.query(api.viewer.activityLog, { who: "owner" });
+    expect(events.map((event) => [event.type, event.summary])).toEqual([
+      ["task.deleted", 'Deleted task "Buy purple paint" from "Garden Shed"'],
+    ]);
+    expect(await refusal(owner.mutation(api.viewer.deleteTask, { id: made.task.id }))).toBe("not_found");
+  });
+
+  it("sets and clears a project's Claude home and target date", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Garden Shed" });
+    await owner.mutation(api.viewer.saveProject, {
+      slug: "garden-shed",
+      claudeHome: { kind: "claude_project", name: "Garden Shed", url: "https://claude.ai/project/abc" },
+      targetDate: "2026-12-24",
+    });
+    let page = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    expect(page.project.claudeHome).toEqual({ kind: "claude_project", name: "Garden Shed", url: "https://claude.ai/project/abc" });
+    expect(page.project.targetDate).toBe("2026-12-24");
+    await owner.mutation(api.viewer.saveProject, { slug: "garden-shed", claudeHome: null, targetDate: null });
+    page = (await owner.query(api.viewer.project, { slug: "garden-shed", now: NOW }))!;
+    expect([page.project.claudeHome, page.project.targetDate]).toEqual([undefined, undefined]);
+  });
+});

@@ -8,7 +8,7 @@ import { useParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
-import { Panel, problem, Quiet, showTime, staleNote, Tag, words } from "./parts";
+import { Panel, problem, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
 import { ClaudeHome } from "./projects-board";
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
@@ -56,6 +56,7 @@ function Loaded() {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {stale ? <Tag kind="at_risk">{stale}</Tag> : null}
           <Tag>{project.kind === "code" ? "code project" : "general project"}</Tag>
+          {project.targetDate ? <Tag>target {showDay(project.targetDate)}</Tag> : null}
           <span className="font-mono text-xs text-foreground/60">{project.slug}</span>
         </div>
         <ClaudeHome home={project.claudeHome} />
@@ -111,6 +112,8 @@ function Header({ project }: { project: Project }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(project.title);
   const [summary, setSummary] = useState(project.summary ?? "");
+  const [target, setTarget] = useState(project.targetDate ?? "");
+  const [home, setHome] = useState<HomeDraft>(draftOf(project.claudeHome));
   const [error, setError] = useState<string>();
 
   if (!editing) {
@@ -123,6 +126,8 @@ function Header({ project }: { project: Project }) {
             onClick={() => {
               setTitle(project.title);
               setSummary(project.summary ?? "");
+              setTarget(project.targetDate ?? "");
+              setHome(draftOf(project.claudeHome));
               setEditing(true);
             }}
             className="mt-1 text-sm text-foreground/60 underline underline-offset-2"
@@ -139,7 +144,13 @@ function Header({ project }: { project: Project }) {
     event.preventDefault();
     setError(undefined);
     try {
-      await save({ slug: project.slug, title, summary: summary.trim() ? summary : null });
+      await save({
+        slug: project.slug,
+        title,
+        summary: summary.trim() ? summary : null,
+        targetDate: target || null,
+        claudeHome: homeOf(home),
+      });
       setEditing(false);
     } catch (caught) {
       setError(problem(caught));
@@ -156,6 +167,47 @@ function Header({ project }: { project: Project }) {
         Summary
         <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} className={`mt-1 w-full ${field}`} />
       </label>
+      <label className="block text-sm">
+        Target date
+        <input type="date" value={target} onChange={(event) => setTarget(event.target.value)} className={`mt-1 block ${field}`} />
+      </label>
+      <fieldset className="space-y-2">
+        <legend className="text-sm">Where this project is worked on in Claude</legend>
+        <select
+          value={home.kind}
+          onChange={(event) => setHome({ ...home, kind: event.target.value as HomeDraft["kind"] })}
+          aria-label="Kind of Claude home"
+          className={field}
+        >
+          <option value="none">Not set</option>
+          <option value="claude_project">A Claude Project</option>
+          <option value="code_folder">A code folder</option>
+        </select>
+        {home.kind !== "none" ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block text-sm">
+              {home.kind === "claude_project" ? "Project name" : "Folder path"}
+              <input
+                value={home.where}
+                onChange={(event) => setHome({ ...home, where: event.target.value })}
+                required
+                placeholder={home.kind === "claude_project" ? "As it is named in Claude" : "/Users/me/src/project"}
+                className={`mt-1 w-full ${field}`}
+              />
+            </label>
+            <label className="block text-sm">
+              {home.kind === "claude_project" ? "Link to it in Claude" : "Link to the repository"}
+              <input
+                type="url"
+                value={home.link}
+                onChange={(event) => setHome({ ...home, link: event.target.value })}
+                placeholder="https://… (optional)"
+                className={`mt-1 w-full ${field}`}
+              />
+            </label>
+          </div>
+        ) : null}
+      </fieldset>
       {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       <div className="flex gap-2">
         <button type="submit" className={button}>
@@ -167,6 +219,25 @@ function Header({ project }: { project: Project }) {
       </div>
     </form>
   );
+}
+
+/** The Claude home as the edit form holds it: one name-or-path box and one link box, whichever kind is chosen. */
+type HomeDraft = { kind: "none" | "claude_project" | "code_folder"; where: string; link: string };
+
+function draftOf(home: Project["claudeHome"]): HomeDraft {
+  if (!home) return { kind: "none", where: "", link: "" };
+  return home.kind === "claude_project"
+    ? { kind: home.kind, where: home.name, link: home.url ?? "" }
+    : { kind: home.kind, where: home.path, link: home.repoUrl ?? "" };
+}
+
+function homeOf(draft: HomeDraft): NonNullable<Project["claudeHome"]> | null {
+  const where = draft.where.trim();
+  const link = draft.link.trim();
+  if (draft.kind === "none" || !where) return null;
+  return draft.kind === "claude_project"
+    ? { kind: "claude_project", name: where, ...(link ? { url: link } : {}) }
+    : { kind: "code_folder", path: where, ...(link ? { repoUrl: link } : {}) };
 }
 
 /** A long summary is cut to a few lines until asked for. */
@@ -214,23 +285,28 @@ function ByPhase({ tasks, phases }: { tasks: Task[]; phases: Page["phases"] }) {
 
 const PHASE_STATUSES = ["planned", "active", "done"] as const;
 
-/** The plan: each phase's status can be changed in place, and a phase can be renamed or added. */
+/** The plan: a phase can be added, renamed, moved up or down and removed, and its status changed in place. */
 function Phases({ project, phases }: { project: string; phases: Page["phases"] }) {
   const save = useMutation(api.viewer.savePhase);
+  const move = useMutation(api.viewer.movePhase);
+  const remove = useMutation(api.viewer.removePhase);
   const [title, setTitle] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; title: string }>();
+  const [removing, setRemoving] = useState<string>();
   const [error, setError] = useState<string>();
 
-  async function run(change: Parameters<typeof save>[0]) {
+  async function attempt(change: () => Promise<unknown>) {
     setError(undefined);
     try {
-      await save(change);
+      await change();
       return true;
     } catch (caught) {
       setError(problem(caught));
       return false;
     }
   }
+  const run = (change: Parameters<typeof save>[0]) => attempt(() => save(change));
+  const quiet = "text-sm text-foreground/60 underline underline-offset-2 disabled:no-underline disabled:opacity-40";
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -246,9 +322,28 @@ function Phases({ project, phases }: { project: string; phases: Page["phases"] }
     <Panel title="Phases">
       {phases.length === 0 ? <Quiet>No phases. Add one to lay out a plan.</Quiet> : null}
       <ol className="space-y-2">
-        {phases.map((phase) => (
-          <li key={phase.id} className="flex flex-wrap items-center gap-2">
-            {renaming?.id === phase.id ? (
+        {phases.map((phase, index) => (
+          <li key={phase.id} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {removing === phase.id ? (
+              <>
+                <span className="flex-1 text-base">
+                  Remove “{phase.title}”? Its tasks stay in the project. This cannot be undone.
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await attempt(() => remove({ id: phase.id }));
+                    setRemoving(undefined);
+                  }}
+                  className={button}
+                >
+                  Remove phase
+                </button>
+                <button type="button" onClick={() => setRemoving(undefined)} className={button}>
+                  Keep
+                </button>
+              </>
+            ) : renaming?.id === phase.id ? (
               <form onSubmit={rename} className="flex flex-1 flex-wrap gap-2">
                 <input
                   value={renaming.title}
@@ -271,10 +366,27 @@ function Phases({ project, phases }: { project: string; phases: Page["phases"] }
                 </span>
                 <button
                   type="button"
-                  onClick={() => setRenaming({ id: phase.id, title: phase.title })}
-                  className="text-sm text-foreground/60 underline underline-offset-2"
+                  disabled={index === 0}
+                  onClick={() => attempt(() => move({ id: phase.id, direction: "up" }))}
+                  aria-label={`Move phase ${phase.title} up`}
+                  className={quiet}
                 >
+                  Up
+                </button>
+                <button
+                  type="button"
+                  disabled={index === phases.length - 1}
+                  onClick={() => attempt(() => move({ id: phase.id, direction: "down" }))}
+                  aria-label={`Move phase ${phase.title} down`}
+                  className={quiet}
+                >
+                  Down
+                </button>
+                <button type="button" onClick={() => setRenaming({ id: phase.id, title: phase.title })} className={quiet}>
                   Rename
+                </button>
+                <button type="button" onClick={() => setRemoving(phase.id)} aria-label={`Remove phase ${phase.title}`} className={quiet}>
+                  Remove
                 </button>
                 <select
                   value={phase.status}

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { buildPatch, cleanText, getSettings, iso, logActivity, refuse, requireText, showWhen, when } from "./lib/common";
+import { detach } from "./lib/remove";
 import { indexTask } from "./lib/searchIndex";
 import { actor, commitment, taskStatus } from "./schema";
 
@@ -180,5 +181,31 @@ export const complete = internalMutation({
       diff: { status: { from: task.status, to: "done" } },
     });
     return { changed: true, task: presentTask((await ctx.db.get(task._id))!, slug, settings.timeZone) };
+  },
+});
+
+/**
+ * Deletes a task for good, with its search entry and its links. Its lines in
+ * the activity log stay. Only the owner's dashboard runs this: no agent tool does.
+ */
+export const remove = internalMutation({
+  args: { actor, id: v.string() },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const id = ctx.db.normalizeId("tasks", args.id);
+    const task = id ? await ctx.db.get(id) : null;
+    if (!task) throw refuse("not_found", `There is no task with the id "${args.id}".`);
+    const project = task.projectId ? await ctx.db.get(task.projectId) : null;
+    await detach(ctx, task._id);
+    await ctx.db.delete(task._id);
+    await logActivity(ctx, {
+      entityType: "task",
+      entityId: task._id,
+      activityType: "task.deleted",
+      actor: args.actor,
+      at: now,
+      summary: `Deleted task "${task.title}"${project ? ` from "${project.title}"` : ""}`,
+    });
+    return { deleted: true };
   },
 });
