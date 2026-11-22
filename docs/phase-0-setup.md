@@ -28,8 +28,8 @@ One setting names the address: the MCP endpoint's URL, `SKIPPY_MCP_RESOURCE_URL`
 | Vercel: `SKIPPY_MCP_RESOURCE_URL` (Production) changed to `https://www.skippyos.app/api/mcp`, and a redeploy. This is the switch: from here the old connector is refused. | Owner | done |
 | claude.ai: the Skippy OS connector removed and added again at the new URL under the same name, "Skippy OS", then connected (sign in and consent). The jobs on the mini and the project instructions use that name. | Owner | done |
 | A call through the new connector from a fresh session on the mini, then `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` unset in Convex. | Claude | done |
-| Clerk: remove the old MCP server, `https://skippy-os-two.vercel.app/api/mcp`. | Owner | to do |
-| On each device: open the new address, sign in, turn notifications on, and add it to the Home Screen. Turn notifications off in the old Home Screen app before deleting it, or each notification arrives twice. | Owner | to do |
+| Clerk: the check re-run on the new MCP server (all green), and the old MCP server, `https://skippy-os-two.vercel.app/api/mcp`, removed. | Owner | done |
+| On each device: open the new address, sign in, turn notifications on, and add it to the Home Screen. Turn notifications off in the old Home Screen app before deleting it, or each notification arrives twice. | Owner | reported done; at 5:12pm on 2026-11-22 the only device with notifications on was still the one registered on the old address |
 
 Two things learned on the way:
 
