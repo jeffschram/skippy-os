@@ -833,7 +833,7 @@
 <details open>
   <summary>After Phase 7: closing the gaps, and what is left</summary>
   <p>On 2026-11-22 the spec was read against the build from end to end, and what the spec promised and the build lacked was added.</p>
-  <h4>Added</h4>
+  <h3>Added</h3>
   <ul>
     <li><strong>Needs you, on Home:</strong> a short list under the briefing of what will not move until the owner does something: an active project that is blocked or at risk, with its latest report; an active project gone quiet, with a button to pause it; an ingestion pass that failed in the last day; and the Mac mini not having checked in for five minutes. Worked out from what is stored, with no model. It is not shown when empty. Tasks are left to Today, which already lists the overdue and the waiting.</li>
     <li><strong>Areas:</strong> the imported tasks and recurrences carried an area (Household, Work and so on) that nothing showed. A task or a recurrence can now sit in one, set on its details view, and the Agenda can be narrowed to an area. Areas are the owner's list, managed in Settings: add, rename, reorder, remove (what sat in a removed area stays, with no area). Agents set an area by name with <code>upsert_task</code> and <code>upsert_recurrence</code>; a name that is not on the list is refused with the list. Projects and goals have no area for now.</li>
@@ -843,7 +843,7 @@
     <li><strong>Cards in any order:</strong> tasks, events and notes a chat made before its project card was accepted join the project when it is created.</li>
     <li><strong>The local site:</strong> <code>pnpm dev</code> runs on the test database and says so; <code>pnpm dev:live</code> runs the local pages on the live data.</li>
   </ul>
-  <h4>Left out on purpose</h4>
+  <h3>Left out on purpose</h3>
   <ul>
     <li><strong>Project and area on a card.</strong> §5.2 lists them as fields a card can change. A card shows a title and, for a task, a due date; the owner asked for less on the cards, and a task joins the chat's project by itself.</li>
     <li><strong>Meaning-based search</strong> waits until word search is seen to miss something.</li>
@@ -851,7 +851,7 @@
     <li><strong>Agents reading a file's contents</strong> waits for a decided way to do it.</li>
     <li><strong>The visual style round</strong> is its own piece of work, kept apart from this build.</li>
   </ul>
-  <h4>Left, and whose it is</h4>
+  <h3>Left, and whose it is</h3>
   <ul>
     <li><strong>Time:</strong> the seven-day unattended test of Phase 5. The first unattended pass ran at 5pm on 2026-11-22.</li>
     <li><strong>The owner's own tests:</strong> an idea becoming a project with two tasks from the phone (begun on 2026-11-22 with the Florida Christmas chat); Continue in Claude; a file uploaded through the browser; an undo with a reason, and the rule it leaves; a change made on the dashboard being picked up by Claude's next session; and the plugin's skills inside a Claude Project chat on iOS.</li>
