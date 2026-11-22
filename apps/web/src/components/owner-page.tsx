@@ -1,12 +1,11 @@
 "use client";
 
-import { Brain, CalendarBlank, GearSix, House, Kanban, Pulse } from "@phosphor-icons/react";
 import { SignInButton, SignOutButton, UserButton, useAuth } from "@clerk/nextjs";
 import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CaptureDock } from "./capture";
 import { ItemDetails } from "./item-details";
 import { ServiceWorker } from "./notifications";
@@ -26,12 +25,12 @@ import { TaskDetails } from "./task-details";
 
 
 const NAV = [
-  { href: "/", label: "Home", icon: House },
-  { href: "/projects", label: "Projects", icon: Kanban },
-  { href: "/agenda", label: "Agenda", icon: CalendarBlank },
-  { href: "/memory", label: "Memory", icon: Brain },
-  { href: "/activity", label: "Activity", icon: Pulse },
-  { href: "/settings", label: "Settings", icon: GearSix },
+  { href: "/", label: "Home" },
+  { href: "/projects", label: "Projects" },
+  { href: "/agenda", label: "Agenda" },
+  { href: "/memory", label: "Memory" },
+  { href: "/activity", label: "Activity" },
+  { href: "/settings", label: "Settings" },
 ];
 
 /** `wide` is for list pages; reading pages use the narrower column. A page with its own input turns the capture `dock` off. */
@@ -70,7 +69,6 @@ export function OwnerPage({ wide, dock = true, children }: { wide?: boolean; doc
 
 function ForOwner({ wide, dock, children }: { wide?: boolean; dock: boolean; children: ReactNode }) {
   const me = useQuery(api.viewer.me);
-  const path = usePathname();
   if (me === undefined) return <Wall>Loading…</Wall>;
   if (me.viewer !== "owner") {
     return (
@@ -80,35 +78,9 @@ function ForOwner({ wide, dock, children }: { wide?: boolean; dock: boolean; chi
       </Wall>
     );
   }
-  const here = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   return (
     <div className={`mx-auto w-full px-6 pt-8 ${dock ? "pb-44" : "pb-8"} ${wide ? "max-w-5xl" : "max-w-3xl"}`}>
-      <header className="flex items-start justify-between gap-6">
-        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-          <Link href="/" className="text-xl font-semibold">
-            Skippy OS
-          </Link>
-          <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={here(item.href) ? "page" : undefined}
-                className={here(item.href) ? "font-semibold underline underline-offset-4" : "text-foreground/70 hover:text-foreground"}
-              >
-                <item.icon
-                  aria-hidden
-                  size="1.15em"
-                  weight={here(item.href) ? "fill" : "regular"}
-                  className="mr-1.5 inline-block align-[-0.2em]"
-                />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <UserButton />
-      </header>
+      <TopBar />
       <main className="mt-10">{children}</main>
       <ServiceWorker />
       {dock ? <CaptureDock /> : null}
@@ -134,5 +106,74 @@ function Wall({ children }: { children: ReactNode }) {
       <h1 className="text-2xl font-semibold">Skippy OS</h1>
       <div className="mt-3 text-base leading-7">{children}</div>
     </main>
+  );
+}
+
+/**
+ * The name, the pages and the account button. On a wide screen the pages sit
+ * in a row beside the name; on a phone they fold into a menu opened by a
+ * button, which closes again on Escape or on going to another page.
+ */
+function TopBar() {
+  const path = usePathname();
+  // The page the menu was opened on, so that moving to another page closes it.
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn === path;
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenOn(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+  const here = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const look = (href: string) =>
+    here(href) ? "font-semibold underline underline-offset-4" : "text-foreground/70 hover:text-foreground";
+  return (
+    <header>
+      <div className="flex items-center justify-between gap-6 sm:items-start">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+          <Link href="/" className="text-xl font-semibold">
+            Skippy OS
+          </Link>
+          <nav aria-label="Pages" className="hidden flex-wrap gap-x-4 gap-y-1 text-sm sm:flex">
+            {NAV.map((item) => (
+              <Link key={item.href} href={item.href} aria-current={here(item.href) ? "page" : undefined} className={look(item.href)}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls="page-menu"
+            onClick={() => setOpenOn(open ? null : path)}
+            className={`${button} min-h-11 min-w-20 sm:hidden`}
+          >
+            {open ? "Close" : "Menu"}
+          </button>
+          <UserButton />
+        </div>
+      </div>
+      <nav id="page-menu" aria-label="Pages" hidden={!open} className="mt-4 border-t border-foreground/15 sm:hidden">
+        <ul>
+          {NAV.map((item) => (
+            <li key={item.href} className="border-b border-foreground/15">
+              <Link
+                href={item.href}
+                aria-current={here(item.href) ? "page" : undefined}
+                onClick={() => setOpenOn(null)}
+                className={`block py-3 text-base ${look(item.href)}`}
+              >
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </header>
   );
 }
