@@ -324,22 +324,24 @@ export const get = internalQuery({
   },
 });
 
+/** Projects by title. With no status given, every project that is not archived. */
+export async function listProjects(ctx: QueryCtx, args: { status?: Doc<"projects">["status"]; now: number }) {
+  const settings = await getSettings(ctx);
+  const status = args.status;
+  const projects = status
+    ? await ctx.db
+        .query("projects")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .collect()
+    : (await ctx.db.query("projects").collect()).filter((project) => project.status !== "archived");
+  return {
+    projects: projects
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map((project) => presentProject(project, settings, args.now)),
+  };
+}
+
 export const list = internalQuery({
   args: { status: v.optional(projectStatus) },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const settings = await getSettings(ctx);
-    const status = args.status;
-    const projects = status
-      ? await ctx.db
-          .query("projects")
-          .withIndex("by_status", (q) => q.eq("status", status))
-          .collect()
-      : (await ctx.db.query("projects").collect()).filter((project) => project.status !== "archived");
-    return {
-      projects: projects
-        .sort((a, b) => a.title.localeCompare(b.title))
-        .map((project) => presentProject(project, settings, now)),
-    };
-  },
+  handler: (ctx, args) => listProjects(ctx, { status: args.status, now: Date.now() }),
 });

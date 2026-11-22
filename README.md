@@ -8,8 +8,8 @@ The plan lives in [docs/skippy-os-spec-alt.html](docs/skippy-os-spec-alt.html). 
 
 | Path | What it is |
 | --- | --- |
-| `apps/web` | Next.js app. Holds the Skippy MCP endpoint at `/api/mcp` and, later, the dashboard. |
-| `convex` | Convex functions and schema: the single shared record. |
+| `apps/web` | Next.js app. Holds the Skippy MCP endpoint at `/api/mcp` and the dashboard, which only the owner can open. |
+| `convex` | Convex functions and schema: the single shared record. Agents reach it through the signed gateway; the dashboard reads it as the signed-in owner. |
 | `packages/shared` | Code both sides use: OAuth scopes and the signed gateway envelope. |
 | `docs` | The spec and the static mockups. |
 
