@@ -369,6 +369,22 @@ export default defineSchema({
     activitySeenAt: v.number(),
   }),
 
+  // Files the owner has put in. The bytes are in Convex file storage. See files.ts.
+  files: defineTable({
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    contentType: v.string(),
+    sizeBytes: v.number(),
+    note: v.optional(v.string()),
+    /** The record the file belongs to. */
+    attachedTo: v.optional(entityRef),
+    /** Set while the file waits in the inbox on a capture. */
+    captureId: v.optional(v.id("captures")),
+    ...authored,
+  })
+    .index("by_entity", ["attachedTo.entityId"])
+    .index("by_capture", ["captureId"]),
+
   // The inbox: things dropped in quickly, to be filed later. See captures.ts.
   captures: defineTable({
     text: v.optional(v.string()),

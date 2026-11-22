@@ -29,6 +29,7 @@ export const LOAD_ORDER = [
   "sources",
   "attachments",
   "links",
+  "files",
 ] as const;
 export type BatchName = (typeof LOAD_ORDER)[number];
 
@@ -596,7 +597,22 @@ export function transform(snapshot: Snapshot): Plan {
     if (codeProjects.has(file.projectId)) skip("projectFiles", "in a code project");
     else if (!keptProjects.has(file.projectId)) skip("projectFiles", "its project is missing");
     else if (file.deletedAt || file.status === "deleted") skip("projectFiles", "deleted in the old app");
-    else defer("projectFiles", PHASE_4);
+    else if (!text(file.storageId)) skip("projectFiles", "has no stored bytes");
+    else {
+      keep("projectFiles");
+      // The bytes are copied from the snapshot by the script, which adds the new storage id before loading.
+      batches.files.push(
+        compact({
+          oldId: file._id,
+          projectOldId: file.projectId,
+          oldStorageId: text(file.storageId),
+          fileName: text(file.fileName) ?? "file",
+          contentType: text(file.mimeType) ?? "application/octet-stream",
+          note: text(file.note),
+          ...stamps(file),
+        }),
+      );
+    }
   }
   for (const snapshotNote of table("projectNoteSnapshots")) {
     if (keptProjects.has(snapshotNote.projectId)) defer("projectNoteSnapshots", PHASE_4);

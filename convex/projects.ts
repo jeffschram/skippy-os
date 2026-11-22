@@ -13,6 +13,7 @@ import {
   showWhen,
   when,
 } from "./lib/common";
+import { describeFile, filesOn } from "./files";
 import { detach } from "./lib/remove";
 import { indexProject } from "./lib/searchIndex";
 import { actor, claudeHome, phaseStatus, projectHealth, projectKind, projectStatus } from "./schema";
@@ -439,6 +440,8 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
     openTasks: open.map((task) => presentTask(task, project.slug, settings.timeZone)),
     recentlyClosedTasks: closed.slice(0, 10).map((task) => presentTask(task, project.slug, settings.timeZone)),
     closedTaskCount: closed.length,
+    /** What files the project holds. They are opened from the dashboard; there is no tool that reads one. */
+    files: (await filesOn(ctx, project._id)).map(describeFile),
     recentUpdates: updates.map((update) => ({
       at: iso(update.at),
       by: actorLabel(update.actor),

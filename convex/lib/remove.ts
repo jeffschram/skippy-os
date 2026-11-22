@@ -2,8 +2,9 @@ import type { MutationCtx } from "../_generated/server";
 
 /**
  * Clears what points at a record that is about to be deleted: its search
- * entry, its links to and from other records, and its ties to sources. The
- * sources themselves stay, and so does the record's history in the activity log.
+ * entry, its links to and from other records, its ties to sources, and its
+ * files. The sources themselves stay, and so does the record's history in the
+ * activity log.
  */
 export async function detach(ctx: MutationCtx, entityId: string): Promise<void> {
   const searchDocs = await ctx.db
@@ -23,4 +24,12 @@ export async function detach(ctx: MutationCtx, entityId: string): Promise<void> 
     .withIndex("by_entity", (q) => q.eq("entityRef.entityId", entityId))
     .collect();
   for (const row of [...searchDocs, ...from, ...to, ...sources]) await ctx.db.delete(row._id);
+  const files = await ctx.db
+    .query("files")
+    .withIndex("by_entity", (q) => q.eq("attachedTo.entityId", entityId))
+    .collect();
+  for (const file of files) {
+    await ctx.storage.delete(file.storageId);
+    await ctx.db.delete(file._id);
+  }
 }

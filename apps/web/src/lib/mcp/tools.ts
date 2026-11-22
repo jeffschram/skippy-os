@@ -129,7 +129,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   get_project: {
     title: "Get project",
     description:
-      "Reads one project in full: its details and notes, phases, open tasks, recently closed tasks and the last five status reports.",
+      "Reads one project in full: its details and notes, phases, open tasks, recently closed tasks, the last five status reports, and what files it holds. Files are listed by name and size only; they are opened from the dashboard.",
     input: { project: projectSlug },
     kind: "read",
   },

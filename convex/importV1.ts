@@ -725,6 +725,68 @@ export const links = internalMutation({
   },
 });
 
+/** A one-time address the import script sends one stored file to. */
+export const uploadUrl = internalMutation({
+  args: {},
+  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
+});
+
+/** Which of these old ids are already loaded, so the script does not copy their bytes again. */
+export const known = internalQuery({
+  args: { table: v.string(), ids: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const found = [];
+    for (const id of args.ids) if (await mapped(ctx, args.table, id)) found.push(id);
+    return found;
+  },
+});
+
+export const files = internalMutation({
+  args: {
+    records: v.array(
+      v.object({
+        oldId: v.string(),
+        projectOldId: v.string(),
+        oldStorageId: v.string(),
+        /** Where the script put the bytes. Missing for a file that is already loaded. */
+        storageId: v.optional(v.id("_storage")),
+        fileName: v.string(),
+        contentType: v.string(),
+        note: v.optional(v.string()),
+        ...stamps,
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const result = outcome();
+    for (const record of args.records) {
+      if (await mapped(ctx, "projectFiles", record.oldId)) {
+        result.already++;
+        continue;
+      }
+      const project = await resolve(ctx, { table: "projects", id: record.projectOldId });
+      const blob = record.storageId ? await ctx.db.system.get(record.storageId) : null;
+      if (!project || !record.storageId || !blob) {
+        if (record.storageId && blob) await ctx.storage.delete(record.storageId);
+        result.skipped.push({ oldId: record.oldId, reason: project ? "its bytes were not copied" : "its project was not imported" });
+        continue;
+      }
+      const id = await ctx.db.insert("files", {
+        storageId: record.storageId,
+        fileName: record.fileName,
+        contentType: blob.contentType ?? record.contentType,
+        sizeBytes: blob.size,
+        ...(record.note ? { note: record.note } : {}),
+        attachedTo: project,
+        ...authored(record),
+      });
+      await remember(ctx, "projectFiles", record.oldId, "files", id);
+      result.imported++;
+    }
+    return result;
+  },
+});
+
 /** Every table that holds the owner's records. Settings and the gateway's own bookkeeping are not among them. */
 const RECORD_TABLES = [
   "projects",

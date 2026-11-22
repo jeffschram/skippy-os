@@ -2,6 +2,7 @@ import { actorLabel, type Actor } from "@skippy/shared";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { describeFile, destroyFile, fileOnCapture, presentFile, recordFile } from "./files";
 import { cleanText, iso, refuse } from "./lib/common";
 import { findEntity, mention, requireEntity } from "./lib/entities";
 import { actor, captureIntent, entityType } from "./schema";
@@ -22,12 +23,14 @@ const HOLD_MS = 7 * 86_400_000;
 const WHOLE_URL = /^https?:\/\/\S+$/i;
 
 /** A short name for a capture, for lists and the activity log. */
-export function captureTitle(capture: Pick<Doc<"captures">, "text" | "url">): string {
-  const line = capture.text?.trim().split("\n")[0] || capture.url || "Empty capture";
+export function captureTitle(capture: Pick<Doc<"captures">, "text" | "url">, fileName?: string): string {
+  const line = capture.text?.trim().split("\n")[0] || capture.url || fileName || "Empty capture";
   return line.length > 80 ? `${line.slice(0, 79)}…` : line;
 }
 
-export async function presentCapture(ctx: QueryCtx, capture: Doc<"captures">) {
+/** `withLinks` adds a way to open the capture's file. Only the owner's own pages ask for it. */
+export async function presentCapture(ctx: QueryCtx, capture: Doc<"captures">, withLinks = false) {
+  const file = await fileOnCapture(ctx, capture._id);
   const results = [];
   for (const ref of capture.resultRefs ?? []) {
     const found = await findEntity(ctx, ref.entityType, ref.entityId);
@@ -37,6 +40,7 @@ export async function presentCapture(ctx: QueryCtx, capture: Doc<"captures">) {
     id: capture._id,
     text: capture.text,
     url: capture.url,
+    file: file ? (withLinks ? await presentFile(ctx, file) : describeFile(file)) : undefined,
     intent: capture.intent,
     status: capture.status,
     by: actorLabel(capture.createdBy),
@@ -55,7 +59,14 @@ async function logCapture(ctx: MutationCtx, event: { activityType: string; actor
 }
 
 export const add = internalMutation({
-  args: { actor, text: v.optional(v.string()), url: v.optional(v.string()), intent: v.optional(captureIntent) },
+  args: {
+    actor,
+    text: v.optional(v.string()),
+    url: v.optional(v.string()),
+    intent: v.optional(captureIntent),
+    /** An upload to keep with the capture. Only the dashboard sends one. */
+    file: v.optional(v.object({ storageId: v.id("_storage"), fileName: v.string() })),
+  },
   handler: async (ctx, args) => {
     const now = Date.now();
     let text = cleanText(args.text) ?? undefined;
@@ -65,7 +76,7 @@ export const add = internalMutation({
       url = text;
       text = undefined;
     }
-    if (!text && !url) throw refuse("invalid_arguments", "Give some text or a url to capture.");
+    if (!text && !url && !args.file) throw refuse("invalid_arguments", "Give some text, a url or a file to capture.");
     if ((text?.length ?? 0) > MAX_TEXT) throw refuse("invalid_arguments", `A capture holds up to ${MAX_TEXT} characters.`);
     if (url && !/^https?:\/\//i.test(url)) throw refuse("invalid_arguments", "url must start with http:// or https://.");
     const intent = args.intent ?? "remember";
@@ -79,12 +90,13 @@ export const add = internalMutation({
       ...(intent === "hold" ? { expiresAt: now + HOLD_MS } : {}),
     });
     const capture = (await ctx.db.get(id))!;
+    const file = args.file ? await recordFile(ctx, { actor: args.actor, ...args.file, captureId: id }) : null;
     // A hold is private, so the log says only that one was made.
     await logCapture(ctx, {
       activityType: "capture.added",
       actor: args.actor,
       at: now,
-      summary: intent === "hold" ? "Held something for seven days" : `Captured "${captureTitle(capture)}"`,
+      summary: intent === "hold" ? "Held something for seven days" : `Captured "${captureTitle(capture, file?.fileName)}"`,
     });
     return { capture: await presentCapture(ctx, capture) };
   },
@@ -93,7 +105,13 @@ export const add = internalMutation({
 /** Captures waiting to be filed, oldest first, so they are dealt with in the order they came. */
 export async function listCaptures(
   ctx: QueryCtx,
-  args: { status?: Doc<"captures">["status"]; intent?: Doc<"captures">["intent"]; limit?: number; now: number },
+  args: {
+    status?: Doc<"captures">["status"];
+    intent?: Doc<"captures">["intent"];
+    limit?: number;
+    now: number;
+    withLinks?: boolean;
+  },
 ) {
   const status = args.status ?? "pending";
   const intent = args.intent ?? "remember";
@@ -107,7 +125,7 @@ export async function listCaptures(
     (row) => row.intent === intent && (row.expiresAt === undefined || row.expiresAt > args.now),
   );
   return {
-    captures: await Promise.all(wanted.slice(0, limit).map((row) => presentCapture(ctx, row))),
+    captures: await Promise.all(wanted.slice(0, limit).map((row) => presentCapture(ctx, row, args.withLinks))),
     more: wanted.length > limit,
   };
 }
@@ -144,6 +162,16 @@ export const resolve = internalMutation({
       throw refuse("invalid_arguments", "Say what the capture was filed as in results, or discard it.");
     }
     const note = cleanText(args.note) ?? undefined;
+    // A capture's file goes with it: onto the first record it became, or away when the owner discards it.
+    const file = await fileOnCapture(ctx, capture._id);
+    if (file && args.outcome === "discarded") {
+      if (args.actor.kind !== "user") {
+        throw refuse("owner_only", "That capture holds a file, and discarding it would delete the file. Leave it for the owner.");
+      }
+      await destroyFile(ctx, file);
+    } else if (file) {
+      await ctx.db.patch(file._id, { attachedTo: results[0].ref, captureId: undefined });
+    }
     await ctx.db.patch(capture._id, {
       status: args.outcome,
       processedBy: args.actor,
@@ -151,7 +179,7 @@ export const resolve = internalMutation({
       ...(results.length > 0 ? { resultRefs: results.map((result) => result.ref) } : {}),
       ...(note ? { outcome: note } : {}),
     });
-    const title = captureTitle(capture);
+    const title = captureTitle(capture, file?.fileName);
     const filedAs = results.map((result) => `${result.ref.entityType} "${result.title}"`).join(", ");
     await logCapture(ctx, {
       activityType: args.outcome === "processed" ? "capture.filed" : "capture.discarded",
@@ -176,7 +204,11 @@ export const expireHolds = internalMutation({
       .query("captures")
       .withIndex("by_expiry", (q) => q.gt("expiresAt", 0).lt("expiresAt", Date.now()))
       .take(200);
-    for (const row of lapsed) await ctx.db.delete(row._id);
+    for (const row of lapsed) {
+      const file = await fileOnCapture(ctx, row._id);
+      if (file) await destroyFile(ctx, file);
+      await ctx.db.delete(row._id);
+    }
     return { removed: lapsed.length };
   },
 });
@@ -190,18 +222,20 @@ export async function searchCaptures(ctx: QueryCtx, query: string, limit: number
     .withIndex("by_status", (q) => q.eq("status", "pending"))
     .order("desc")
     .take(300);
-  return pending
-    .filter((row) => row.intent === "remember")
-    .filter((row) => {
-      const words = `${row.text ?? ""} ${row.url ?? ""}`.toLowerCase();
-      return terms.every((term) => words.includes(term));
-    })
-    .slice(0, limit)
-    .map((row) => ({
+  const found = [];
+  for (const row of pending) {
+    if (row.intent !== "remember") continue;
+    const fileName = (await fileOnCapture(ctx, row._id))?.fileName;
+    const words = `${row.text ?? ""} ${row.url ?? ""} ${fileName ?? ""}`.toLowerCase();
+    if (!terms.every((term) => words.includes(term))) continue;
+    found.push({
       type: "capture" as const,
       id: row._id as string,
-      title: captureTitle(row),
+      title: captureTitle(row, fileName),
       state: "pending",
-      snippet: row.text && row.text.length > 80 ? `${row.text.slice(0, 220)}${row.text.length > 220 ? "…" : ""}` : row.url,
-    }));
+      snippet: row.text && row.text.length > 80 ? `${row.text.slice(0, 220)}${row.text.length > 220 ? "…" : ""}` : (row.url ?? fileName),
+    });
+    if (found.length >= limit) break;
+  }
+  return found;
 }

@@ -4,7 +4,8 @@ import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { showSize, useUpload } from "./files";
 import { itemHref } from "./item-details";
 import { button, Panel, problem, showDay, showTime } from "./parts";
 import { useNow } from "./use-now";
@@ -24,21 +25,25 @@ const quiet = "text-sm text-foreground/60 underline underline-offset-2";
 
 export function CaptureBox() {
   const add = useMutation(api.viewer.addCapture);
+  const upload = useUpload();
+  const picker = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File>();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string>();
   const [error, setError] = useState<string>();
 
   async function save(intent: "remember" | "hold") {
-    if (!text.trim() || busy) return;
+    if ((!text.trim() && !file) || busy) return;
     setBusy(true);
     setError(undefined);
     try {
-      await add({ text, intent });
+      await add({ ...(text.trim() ? { text } : {}), intent, ...(file ? { file: await upload(file) } : {}) });
       setText("");
+      setFile(undefined);
       setSaved(intent === "hold" ? "Held for seven days." : "Captured.");
     } catch (caught) {
-      setError(problem(caught));
+      setError(caught instanceof Error && !("data" in caught) ? caught.message : problem(caught));
     } finally {
       setBusy(false);
     }
@@ -72,12 +77,35 @@ export function CaptureBox() {
         className={field}
       />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button type="submit" disabled={busy || !text.trim()} className={`${button} disabled:opacity-50`}>
-          Capture
+        <button type="submit" disabled={busy || (!text.trim() && !file)} className={`${button} disabled:opacity-50`}>
+          {busy ? "Saving…" : "Capture"}
         </button>
-        <button type="button" disabled={busy || !text.trim()} onClick={() => save("hold")} className={`${button} disabled:opacity-50`}>
+        <button type="button" disabled={busy || (!text.trim() && !file)} onClick={() => save("hold")} className={`${button} disabled:opacity-50`}>
           Hold for 7 days
         </button>
+        <input
+          ref={picker}
+          type="file"
+          onChange={(event) => {
+            setFile(event.target.files?.[0]);
+            setSaved(undefined);
+            event.target.value = "";
+          }}
+          className="hidden"
+          aria-label="Choose a file to capture"
+        />
+        {file ? (
+          <span className="text-sm">
+            {file.name} <span className="text-foreground/60">· {showSize(file.size)}</span>{" "}
+            <button type="button" onClick={() => setFile(undefined)} className="text-sm text-foreground/60 underline underline-offset-2">
+              remove
+            </button>
+          </span>
+        ) : (
+          <button type="button" onClick={() => picker.current?.click()} className="text-sm text-foreground/60 underline underline-offset-2">
+            Attach a file
+          </button>
+        )}
         {saved ? <span className="text-sm text-foreground/60">{saved}</span> : null}
         {error ? <span className="text-sm text-red-700 dark:text-red-300">{error}</span> : null}
       </div>
@@ -114,7 +142,7 @@ export function InboxPanel() {
           <ul className="mt-3 space-y-2">
             {inbox.recent.map((capture) => (
               <li key={capture.id} className="text-sm">
-                <span className="text-foreground/70">{capture.text?.split("\n")[0] ?? capture.url}</span>
+                <span className="text-foreground/70">{capture.text?.split("\n")[0] ?? capture.url ?? capture.file?.fileName}</span>
                 <span className="text-foreground/60">
                   {" · "}
                   {capture.status === "discarded" ? "discarded" : "filed as "}
@@ -152,6 +180,18 @@ function Body({ capture }: { capture: Capture }) {
         <a href={capture.url} target="_blank" rel="noreferrer" className="block truncate text-sm underline underline-offset-2">
           {capture.url}
         </a>
+      ) : null}
+      {capture.file ? (
+        <p className="text-sm">
+          {"url" in capture.file && typeof capture.file.url === "string" ? (
+            <a href={capture.file.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              {capture.file.fileName}
+            </a>
+          ) : (
+            capture.file.fileName
+          )}
+          <span className="text-foreground/60"> · {showSize(capture.file.sizeBytes)}</span>
+        </p>
       ) : null}
     </>
   );

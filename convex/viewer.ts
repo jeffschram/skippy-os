@@ -5,11 +5,14 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { eventsBetween, liveRecurrences } from "./agenda";
 import { listCaptures } from "./captures";
+import { fileOnCapture, filesOn, presentFile } from "./files";
+import { findEntity } from "./lib/entities";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
 import {
   captureIntent,
   claudeHome,
+  entityType,
   commitment,
   eventStatus,
   phaseStatus,
@@ -450,8 +453,8 @@ export const captures = query({
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     const [pending, held, filed, discarded] = await Promise.all([
-      listCaptures(ctx, { now: args.now, limit: 50 }),
-      listCaptures(ctx, { now: args.now, intent: "hold", limit: 50 }),
+      listCaptures(ctx, { now: args.now, limit: 50, withLinks: true }),
+      listCaptures(ctx, { now: args.now, intent: "hold", limit: 50, withLinks: true }),
       listCaptures(ctx, { now: args.now, status: "processed", limit: 5 }),
       listCaptures(ctx, { now: args.now, status: "discarded", limit: 5 }),
     ]);
@@ -464,13 +467,65 @@ export const captures = query({
   },
 });
 
-/** Drops something into the inbox. Text that is only a web address is kept as a link. */
+/** Drops something into the inbox: text, a file, or both. Text that is only a web address is kept as a link. */
 export const addCapture = mutation({
-  args: { text: v.string(), intent: v.optional(captureIntent) },
+  args: {
+    text: v.optional(v.string()),
+    intent: v.optional(captureIntent),
+    file: v.optional(v.object({ storageId: v.id("_storage"), fileName: v.string() })),
+  },
   handler: async (ctx, args): Promise<{ id: string }> => {
     await requireOwner(ctx);
     const result = await ctx.runMutation(internal.captures.add, { actor: OWNER, ...args });
     return { id: result.capture.id };
+  },
+});
+
+// Files. An upload is two steps: the page asks for a one-time address, sends the bytes there, then says what they are.
+
+/** A one-time address the owner's browser can send one file to. */
+export const uploadUrl = mutation({
+  args: {},
+  handler: async (ctx): Promise<string> => {
+    await requireOwner(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Attaches an uploaded file to a record: a project (by slug), a task, a note, a person… */
+export const addFile = mutation({
+  args: {
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    note: v.optional(v.string()),
+    to: v.object({ type: entityType, id: v.string() }),
+  },
+  handler: async (ctx, args): Promise<{ id: string }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.files.attach, { actor: OWNER, ...args });
+    return { id: result.file.id };
+  },
+});
+
+/** The files on a record, newest first, each with a link the owner's browser can open. */
+export const files = query({
+  args: { type: entityType, id: v.string() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const entity = await findEntity(ctx, args.type, args.id);
+    if (!entity) return { files: [] };
+    const rows = (await filesOn(ctx, entity.ref.entityId)).sort((a, b) => b._creationTime - a._creationTime);
+    return { files: await Promise.all(rows.map((row) => presentFile(ctx, row))) };
+  },
+});
+
+/** Deletes a file for good. There is no agent tool for this: only the owner can. */
+export const removeFile = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.files.remove, { actor: OWNER, id: args.id });
+    return null;
   },
 });
 
@@ -484,7 +539,8 @@ export const fileCapture = mutation({
     if (!capture || capture.status !== "pending") throw refuse("not_found", "That capture is no longer waiting.");
     if (capture.intent === "hold") throw refuse("invalid_arguments", "A held capture is not filed. Clear it when you are done with it.");
     const lines = (capture.text ?? "").trim().split("\n");
-    const first = lines[0]?.trim() ?? "";
+    // A capture that is only a file is named after the file.
+    const first = lines[0]?.trim() || ((await fileOnCapture(ctx, capture._id))?.fileName ?? "");
     const rest = lines.slice(1).join("\n").trim();
     let made: { type: "task" | "knowledge"; id: string };
     if (args.as === "task") {
@@ -501,7 +557,7 @@ export const fileCapture = mutation({
       const result = await ctx.runMutation(internal.knowledge.upsert, {
         actor: OWNER,
         kind: args.as,
-        ...(rest || first.length > 120 ? { body: capture.text } : first ? { title: first } : {}),
+        ...(capture.text && (rest || first.length > 120) ? { body: capture.text } : first ? { title: first.slice(0, 200) } : {}),
         ...(capture.url ? { url: capture.url } : {}),
       });
       made = { type: "knowledge", id: result.knowledge.id };

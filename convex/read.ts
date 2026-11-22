@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, type QueryCtx } from "./_generated/server";
 import { eventsBetween, liveRecurrences, presentEvent, presentRecurrence } from "./agenda";
 import { searchCaptures } from "./captures";
+import { describeFile, filesOn } from "./files";
 import { getSettings, refuse, requireText, when } from "./lib/common";
 import { findEntity, mention, requireEntity, type Found } from "./lib/entities";
 import { LINK_LIMIT } from "./lib/links";
@@ -255,6 +256,8 @@ export async function readBundle(ctx: QueryCtx, args: { type: EntityType; id: st
       links,
       moreLinks: outgoing.length > LINK_LIMIT || incoming.length > LINK_LIMIT,
       sources: await listSources(ctx, entity.ref),
+      /** What files the record holds. They are opened from the dashboard; there is no tool that reads one. */
+      files: (await filesOn(ctx, entityId)).map(describeFile),
       recentActivity: activity.map((event) => ({
         at: new Date(event.at).toISOString(),
         by: actorLabel(event.actor),

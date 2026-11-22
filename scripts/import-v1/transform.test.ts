@@ -90,7 +90,7 @@ function snapshot(): Snapshot {
       },
     ],
     projectFiles: [
-      { _id: "f1", projectId: "p-shed", fileName: "plan.pdf", status: "ready", ...at },
+      { _id: "f1", projectId: "p-shed", fileName: "plan.pdf", mimeType: "application/pdf", storageId: "st1", status: "ready", ...at },
       { _id: "f2", projectId: "p-app", fileName: "out.txt", status: "ready", ...at },
     ],
     chatMessages: [{ _id: "m1" }, { _id: "m2" }],
@@ -176,10 +176,10 @@ describe("the import plan", () => {
 
   it("holds back what has no table yet, and says why the rest stays behind", () => {
     expect(plan.report.calendarEvents).toMatchObject({ toImport: 1, skipped: { "synced again from Google": 1 } });
-    expect(plan.report.projectFiles).toMatchObject({
-      deferred: { "waits for its table in Phase 4": 1 },
-      skipped: { "in a code project": 1 },
-    });
+    expect(plan.report.projectFiles).toMatchObject({ toImport: 1, skipped: { "in a code project": 1 } });
+    expect(plan.batches.files).toEqual([
+      expect.objectContaining({ oldId: "f1", projectOldId: "p-shed", oldStorageId: "st1", fileName: "plan.pdf", contentType: "application/pdf" }),
+    ]);
     expect(plan.report.chatMessages.skipped).toEqual({ "old chats are not carried over": 2 });
     expect(plan.report.somethingNew.skipped).toEqual({ "not part of the import plan": 1 });
   });

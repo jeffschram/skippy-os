@@ -146,8 +146,35 @@ function tally(items: string[]): Record<string, number> {
   return counts;
 }
 
-function load(plan: Plan, target: Target, reportFile: string) {
+/** Copies one stored file from the snapshot into the target's file storage, and returns its new id. */
+function copyBlob(target: Target, snapshotDir: string, oldStorageId: string, contentType: string): string | undefined {
+  const dir = join(snapshotDir, "_storage");
+  const name = existsSync(dir) ? readdirSync(dir).find((entry) => entry === oldStorageId || entry.startsWith(`${oldStorageId}.`)) : undefined;
+  if (!name) return undefined;
+  const url = convexRun(target, "uploadUrl", {}) as string;
+  const sent = spawnSync("curl", ["-sS", "-X", "POST", "-H", `Content-Type: ${contentType}`, "--data-binary", `@${join(dir, name)}`, url], {
+    encoding: "utf8",
+  });
+  if (sent.status !== 0) fail(`could not copy a file's bytes: ${sent.stderr}`);
+  try {
+    return (JSON.parse(sent.stdout) as { storageId?: string }).storageId;
+  } catch {
+    return fail(`the upload gave an answer that could not be read: ${sent.stdout.slice(0, 200)}`);
+  }
+}
+
+function load(plan: Plan, target: Target, reportFile: string, snapshotDir: string) {
   const totals: Record<string, { sent: number } & Outcome> = {};
+  // Files carry bytes. Copy them for the files that are not loaded yet, and only those.
+  if (plan.batches.files.length > 0) {
+    const ids = plan.batches.files.map((file) => String(file.oldId));
+    const loaded = new Set(convexRun(target, "known", { table: "projectFiles", ids }) as string[]);
+    for (const file of plan.batches.files) {
+      if (loaded.has(String(file.oldId))) continue;
+      const storageId = copyBlob(target, snapshotDir, String(file.oldStorageId), String(file.contentType));
+      if (storageId) file.storageId = storageId;
+    }
+  }
   for (const name of LOAD_ORDER) {
     const records = plan.batches[name];
     const total = { sent: records.length, imported: 0, already: 0, merged: 0, skipped: [], notes: [] } as { sent: number } & Outcome;
@@ -181,7 +208,7 @@ function load(plan: Plan, target: Target, reportFile: string) {
 
   const imported = (name: BatchName) => totals[name].imported;
   if (LOAD_ORDER.some((name) => imported(name) > 0)) {
-    const parts = (["projects", "tasks", "people", "companies", "goals", "knowledge", "recurrences", "events"] as const)
+    const parts = (["projects", "tasks", "people", "companies", "goals", "knowledge", "recurrences", "events", "files"] as const)
       .filter((name) => imported(name) > 0)
       .map((name) => `${imported(name)} ${name}`);
     convexRun(target, "finish", { summary: `Imported from the old Skippy: ${parts.join(", ") || "links and sources"}` });
@@ -262,6 +289,6 @@ if (opts.spotCheck) {
   spotCheck(plan, snapshot, opts.target!, beside(`spot-check-${opts.target}.md`));
 } else {
   printPlan(plan);
-  if (opts.write) load(plan, opts.target!, beside(`import-report-${opts.target}.json`));
+  if (opts.write) load(plan, opts.target!, beside(`import-report-${opts.target}.json`), opts.snapshot);
   else console.log("\nDry run: nothing was written. Add --write --target dev (or prod) to load.");
 }

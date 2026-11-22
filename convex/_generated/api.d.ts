@@ -11,6 +11,7 @@
 import type * as agenda from "../agenda.js";
 import type * as captures from "../captures.js";
 import type * as crons from "../crons.js";
+import type * as files from "../files.js";
 import type * as gateway from "../gateway.js";
 import type * as importV1 from "../importV1.js";
 import type * as knowledge from "../knowledge.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   agenda: typeof agenda;
   captures: typeof captures;
   crons: typeof crons;
+  files: typeof files;
   gateway: typeof gateway;
   importV1: typeof importV1;
   knowledge: typeof knowledge;
