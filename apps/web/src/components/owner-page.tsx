@@ -1,5 +1,6 @@
 "use client";
 
+import { List, X } from "@phosphor-icons/react";
 import { SignInButton, SignOutButton, UserButton, useAuth } from "@clerk/nextjs";
 import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
@@ -150,10 +151,11 @@ function TopBar() {
             type="button"
             aria-expanded={open}
             aria-controls="page-menu"
+            aria-label={open ? "Close menu" : "Menu"}
             onClick={() => setOpenOn(open ? null : path)}
-            className={`${button} min-h-11 min-w-20 sm:hidden`}
+            className="inline-flex size-11 items-center justify-center rounded-md border border-foreground/20 hover:bg-foreground/5 sm:hidden"
           >
-            {open ? "Close" : "Menu"}
+            {open ? <X aria-hidden size={24} /> : <List aria-hidden size={24} />}
           </button>
           <UserButton />
         </div>
