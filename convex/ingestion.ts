@@ -69,7 +69,8 @@ export const rubric = internalQuery({
         .query("sourceCursors")
         .withIndex("by_source", (q) => q.eq("source", source))
         .first();
-      cursors[source] = row?.cursor ?? null;
+      // A source the old Skippy read is picked up where it stopped, so its mail is not gone through twice.
+      cursors[source] = row?.cursor ?? (await importedUpTo(ctx, source, now));
     }
     return {
       now: new Date(now).toISOString(),
@@ -172,6 +173,49 @@ export const advanceCursor = internalMutation({
     return { source: args.source, cursor };
   },
 });
+
+/**
+ * The time of the newest thing the import brought across for a source, when
+ * that is inside the look-back window. It stands in for a cursor until the
+ * first pass sets a real one.
+ */
+async function importedUpTo(ctx: QueryCtx, source: IngestSource, now: number): Promise<string | null> {
+  if (source === "google_calendar") return null;
+  const rows = await ctx.db
+    .query("sourceRefs")
+    .withIndex("by_external", (q) => q.eq("sourceSystem", source))
+    .collect();
+  const newest = rows.reduce((latest, row) => Math.max(latest, row.sourceTimestamp ?? 0), 0);
+  return newest > now - LOOKBACK_DAYS * 86_400_000 ? new Date(newest).toISOString() : null;
+}
+
+/**
+ * Whether something in a source already has a record that ingestion did not
+ * make: one the import brought across, or one saved by hand with that source.
+ * The old Skippy filed mail by `messageId`; ingestion files it by `externalId`.
+ */
+async function onFileBefore(ctx: QueryCtx, source: IngestSource, externalId: string): Promise<boolean> {
+  const ours = await ctx.db
+    .query("ingestionReceipts")
+    .withIndex("by_key", (q) => q.eq("source", source).gte("key", `${externalId}:`).lt("key", `${externalId}:\uffff`))
+    .first();
+  if (ours) return false;
+  const known =
+    (await ctx.db
+      .query("sourceRefs")
+      .withIndex("by_message", (q) => q.eq("sourceSystem", source).eq("messageId", externalId))
+      .first()) ??
+    (await ctx.db
+      .query("sourceRefs")
+      .withIndex("by_external", (q) => q.eq("sourceSystem", source).eq("externalId", externalId))
+      .first());
+  if (!known) return false;
+  const attached = await ctx.db
+    .query("entitySourceRefs")
+    .withIndex("by_source", (q) => q.eq("sourceRefId", known._id))
+    .first();
+  return attached !== null;
+}
 
 async function receiptFor(ctx: QueryCtx, source: IngestSource, key: string) {
   return await ctx.db
@@ -377,12 +421,21 @@ export const ingestObjects = internalMutation({
     if (args.items.length > 50) throw refuse("invalid_arguments", "Send at most 50 items at a time.");
     const by = args.actor;
     const results = [];
+    // Asked once per message at the start: a message's own records in this batch must not count against it.
+    const before = new Map<string, boolean>();
+    for (const entry of args.items) {
+      if (!before.has(entry.externalId)) before.set(entry.externalId, await onFileBefore(ctx, args.source, entry.externalId));
+    }
 
     for (const entry of args.items) {
       const key = `${entry.externalId}:${entry.kind}${entry.part ? `:${entry.part}` : ""}`;
       const seen = await receiptFor(ctx, args.source, key);
       if (seen) {
         results.push({ externalId: entry.externalId, kind: entry.kind, outcome: seen.undoneAt ? ("undone" as const) : ("already" as const) });
+        continue;
+      }
+      if (before.get(entry.externalId)) {
+        results.push({ externalId: entry.externalId, kind: entry.kind, outcome: "already" as const, message: "a record made from this before ingestion is on file" });
         continue;
       }
       try {

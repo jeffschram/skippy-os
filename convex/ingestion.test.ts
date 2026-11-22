@@ -258,6 +258,47 @@ describe("what a pass makes from mail", () => {
     expect(await owner.query(api.viewer.task, { id: made.results[0].id! })).toBeNull();
   });
 
+  it("starts where the old Skippy stopped, and leaves alone mail it already made a record from", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    // What the import left: a task made from message "old-1" five days ago, filed the old way, by messageId.
+    await t.run(async (ctx) => {
+      const by = { kind: "import" as const, source: "skippy-v1" };
+      const taskId = await ctx.db.insert("tasks", { title: "From the old Skippy", status: "todo", createdBy: by, updatedBy: by, updatedAt: NOW });
+      const sourceId = await ctx.db.insert("sourceRefs", {
+        sourceSystem: "gmail",
+        messageId: "old-1",
+        sourceTimestamp: NOW - 5 * 86_400_000,
+        createdAt: NOW,
+      });
+      await ctx.db.insert("entitySourceRefs", { entityRef: { entityType: "task", entityId: taskId }, sourceRefId: sourceId, relationship: "created_from" });
+    });
+
+    const rubric = await asClaude<Rubric>(t, "get_importance_rubric", {});
+    expect(rubric.cursors.gmail).toBe(new Date(NOW - 5 * 86_400_000).toISOString());
+    expect(rubric.cursors.imessage).toBeNull();
+
+    const runId = await begin(t);
+    const made = await asClaude<Ingested>(t, "ingest_objects", {
+      runId,
+      source: "gmail",
+      items: [
+        { ...ask, externalId: "old-1" },
+        { ...ask, externalId: "new-1" },
+        { ...sender, externalId: "new-1" },
+      ],
+    });
+    // The old message makes nothing. The new one makes both its records, though the first attaches the source the second would find.
+    expect(made.results.map((result) => result.outcome)).toEqual(["already", "created", "created"]);
+    expect((await owner.query(api.viewer.openTasks, { now: NOW })).tasks.map((task) => task.title).sort()).toEqual([
+      "From the old Skippy",
+      "Return the signed lease to Pat",
+    ]);
+    // Once a real cursor is set, it is the one that counts.
+    await asClaude(t, "advance_source_cursor", { runId, source: "gmail", cursor: "2026-11-25T16:00:00Z" });
+    expect((await asClaude<Rubric>(t, "get_importance_rubric", {})).cursors.gmail).toBe("2026-11-25T16:00:00Z");
+  });
+
   it("only adds to a person already on file, and that cannot be undone", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });

@@ -48,19 +48,23 @@ For the run's counts, "read" is the number of events you sent. Calendars you lef
 
 ## Gmail
 
-Only when the prompt names it.
+Only when the prompt names it. Use the Gmail connector's `search_threads` to list mail and `get_thread` to read a thread. Use no other Gmail tool.
 
-1. The cursor is the time of the newest message read on the last pass. With no cursor, look back 14 days.
-2. Find messages received after the cursor. Leave out promotions, social updates, spam, newsletters, receipts with nothing to do, verification codes, and anything the block list names.
-3. Judge what is left by the rubric and the owner's rules. Most mail makes nothing. When unsure whether something matters, leave it out.
-4. For what matters, send records with `ingest_objects`, source `gmail`, up to 50 at a time. `externalId` is the message's id, `url` a link that opens it, `at` when it was sent, and `summary` one or two lines in your own words on what it says and why you made this.
-   - **A task** only for a clear ask: someone asks the owner to do something, the owner said they would, or there is a date attached (a bill, a deadline, a form to return). The title starts with a verb. Add `dueAt` only for a real deadline.
+1. The cursor is the time of the newest message seen on the last pass. Take the day it falls on. With no cursor, take the day 14 days before today.
+2. List the threads from that day on with `search_threads`: the query `after:YYYY/MM/DD -category:promotions -category:social -category:forums`, 50 at a time, following the next-page token until there are no more. Each thread comes with its sender, subject, a snippet and the date of its messages. Sent mail is included on purpose: what the owner promised someone is in it.
+3. Leave out messages dated at or before the cursor's time, and anything the block list names.
+4. Judge each thread from its sender, subject and snippet, by the rubric and the owner's rules. Most mail makes nothing: newsletters, notices with nothing to do, receipts, shipping updates, verification codes, calendar invitations that are already on the calendar. When unsure whether something matters, leave it out.
+5. Open a thread with `get_thread` only when its snippet suggests it matters and you need more to say correctly what it asks, by when, or who wrote it. Do not open everything.
+6. For what matters, send records with `ingest_objects`, source `gmail`, up to 50 at a time. `externalId` is the id of the message that carries the point, `url` the link that opens it, `at` when it was sent, and `summary` one or two lines in your own words on what it says and why you made this.
+   - **A task** only for a clear ask: someone asks the owner to do something, the owner said they would, or there is a date attached (a bill to pay, a deadline, a form to return). The title starts with a verb. Add `dueAt` only for a real deadline. A bill on autopay is not a task.
    - **An event** for something with a time that is not on the calendar already.
-   - **A person** for someone new who wrote as a person, not a company's system. Give their email.
+   - **A person** for someone new who wrote to the owner as a person, not a company's system. Give their email. Skippy OS adds to a person it already has, so a known person is not doubled.
    - **Knowledge** of kind "memory" for a lasting fact about the owner or the people around them. One fact per record.
    - One message can make more than one record. Use `part` to tell apart two of the same kind.
-5. Read each result. "already" and "undone" mean Skippy OS has seen that message before; that is expected. "refused" comes with a reason: fix the item and send it again once, or leave it out.
-6. Call `advance_source_cursor` for `gmail` with the time of the newest message you read, whether or not it made anything.
+7. Read each result. "already" and "undone" mean Skippy OS has a record from that message from before; that is expected. "refused" comes with a reason: fix the item and send it again once, or leave it out.
+8. Call `advance_source_cursor` for `gmail` with the time of the newest message you saw, as an ISO time, whether or not it made anything.
+
+For the run's counts, "read" is the number of threads you looked at and "skipped" the number that made nothing.
 
 ## The briefing
 
