@@ -23,11 +23,16 @@ One setting names the address: the MCP endpoint's URL, `SKIPPY_MCP_RESOURCE_URL`
 | Step | Who | State |
 | --- | --- | --- |
 | Convex production accepts both addresses: `SKIPPY_MCP_RESOURCE_URL` is the new one and `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` the old one. Nothing changes for clients. | Claude | done 2026-11-22 |
-| Clerk: Agents, MCP servers, Add MCP server, `https://www.skippyos.app/api/mcp`. Leave the old one in place for now. | Owner | to do |
+| Cloudflare: set the DNS records for `skippyos.app` and `www` to "DNS only" (grey cloud), so requests go straight to Vercel. Vercel already holds its own certificates for both names, so nothing goes down. | Owner | to do |
+| Clerk: Agents, MCP servers, Add MCP server, `https://www.skippyos.app/api/mcp`. Leave the old one in place for now. | Owner | added 2026-11-22; Clerk's check said it could not reach the address |
 | Vercel: change `SKIPPY_MCP_RESOURCE_URL` (Production) to `https://www.skippyos.app/api/mcp`, then redeploy. This is the switch: from here the old connector is refused. | Owner | to do |
 | claude.ai: remove the Skippy OS connector and add it again at the new URL, with the same name, "Skippy OS". The jobs on the mini and the project instructions use that name. | Owner | to do |
 | Check a call through the new connector, then unset `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` in Convex and remove the old MCP server in Clerk. | Claude, then owner | to do |
 | On each device: open the new address, sign in, turn notifications on, and add it to the Home Screen. Turn notifications off in the old Home Screen app before deleting it, or each notification arrives twice. | Owner | to do |
+
+Clerk runs a check when an MCP server is added. Its second test, that the address's metadata names itself, cannot pass until the Vercel change is made, because until then the new address still advertises the old one. Run the check again after the switch.
+
+When the address was first added, both tests failed with "The public HTTPS endpoint could not be reached". The address answered correctly from the mini and from a data centre at that moment, with a valid certificate. The one difference from the old address was Cloudflare's proxy in front of Vercel, which Vercel and Clerk both advise against, so it is turned off as the first step.
 
 Avoid the switch at the top of an hour: the ingestion passes, the sweep and the review all use the connector, and one that starts between the Vercel change and the new connector fails and says so on Home.
 

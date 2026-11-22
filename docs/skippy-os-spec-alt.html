@@ -894,6 +894,7 @@
     <tr><td>2026-11-21</td><td>From here on, Claude takes its own recommendation at preference points and records the choice here, instead of asking</td></tr>
     <tr><td>2026-11-21</td><td>Phase 3 builds the plugin first, then the dashboard pages</td></tr>
     <tr><td>2026-11-21</td><td>The plugin holds skills only. The MCP connection comes from the "Skippy OS" connector on the claude.ai account.</td></tr>
+    <tr><td>2026-11-22</td><td>Cloudflare only answers DNS for <code>skippyos.app</code>; it does not proxy the site. Requests go straight to Vercel, as they did on the old address, so there is one less thing between an MCP client and the endpoint.</td></tr>
     <tr><td>2026-11-22</td><td>The site and the MCP move to <code>skippyos.app</code> now, at the owner's word. The MCP address is <code>https://www.skippyos.app/api/mcp</code>: <code>www</code>, because that is the host Vercel serves without a redirect, and MCP clients do not follow one.</td></tr>
     <tr><td>2026-11-22</td><td>While the address moves, Convex accepts the old one as well (<code>SKIPPY_MCP_RESOURCE_URL_PREVIOUS</code>), so Convex can be set ahead and the switch is one change in Vercel. The extra setting is removed when the move is done.</td></tr>
     <tr><td>2026-11-22</td><td>Clerk stays a development instance for the move. A production instance is its own step, tracked in the open questions.</td></tr>
