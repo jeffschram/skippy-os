@@ -1,14 +1,29 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ConvexClientProvider } from "@/components/convex-client-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Skippy OS",
+  applicationName: "Skippy OS",
   description: "Second brain, project manager and life task manager.",
+  // One person's private dashboard at a public address: keep it out of search engines.
+  robots: { index: false, follow: false, nocache: true },
   // Lets an iPhone keep it on the Home Screen as an app, which is also what allows notifications there.
   appleWebApp: { capable: true, title: "Skippy OS", statusBarStyle: "default" },
-  icons: { apple: "/apple-touch-icon.png" },
+  // Records are full of dates and numbers that are not phone numbers.
+  formatDetection: { telephone: false, date: false, address: false, email: false },
+};
+
+// The icons are files beside this one: favicon.ico, icon.svg and apple-icon.png.
+
+/** The browser's own chrome takes the page's colour, in light and in dark. */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
