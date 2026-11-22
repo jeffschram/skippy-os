@@ -1,5 +1,6 @@
 "use client";
 
+import { Brain, CalendarBlank, GearSix, House, Kanban, Pulse } from "@phosphor-icons/react";
 import { SignInButton, SignOutButton, UserButton, useAuth } from "@clerk/nextjs";
 import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
@@ -25,12 +26,12 @@ import { TaskDetails } from "./task-details";
 
 
 const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/projects", label: "Projects" },
-  { href: "/agenda", label: "Agenda" },
-  { href: "/memory", label: "Memory" },
-  { href: "/activity", label: "Activity" },
-  { href: "/settings", label: "Settings" },
+  { href: "/", label: "Home", icon: House },
+  { href: "/projects", label: "Projects", icon: Kanban },
+  { href: "/agenda", label: "Agenda", icon: CalendarBlank },
+  { href: "/memory", label: "Memory", icon: Brain },
+  { href: "/activity", label: "Activity", icon: Pulse },
+  { href: "/settings", label: "Settings", icon: GearSix },
 ];
 
 /** `wide` is for list pages; reading pages use the narrower column. A page with its own input turns the capture `dock` off. */
@@ -95,6 +96,12 @@ function ForOwner({ wide, dock, children }: { wide?: boolean; dock: boolean; chi
                 aria-current={here(item.href) ? "page" : undefined}
                 className={here(item.href) ? "font-semibold underline underline-offset-4" : "text-foreground/70 hover:text-foreground"}
               >
+                <item.icon
+                  aria-hidden
+                  size="1.15em"
+                  weight={here(item.href) ? "fill" : "regular"}
+                  className="mr-1.5 inline-block align-[-0.2em]"
+                />
                 {item.label}
               </Link>
             ))}
