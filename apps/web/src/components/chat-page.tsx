@@ -229,7 +229,7 @@ function CardView({ messageId, card }: { messageId: string; card: Card }) {
         ) : (
           (card.result?.title ?? card.draft.title ?? card.draft.name)
         )}
-        <span className="text-foreground/60"> · created</span>
+        <span className="text-foreground/60"> · {card.result ? "created" : "created, and deleted since"}</span>
       </li>
     );
   }

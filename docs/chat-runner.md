@@ -20,6 +20,8 @@ If the runner is not going, nothing is lost: your message waits, the page says "
 
 It may not edit files or run commands. Code changes happen in a real Claude Code session.
 
+When something in a chat should become a record, the session offers a card under its reply. You change what you like and press Create, or Not now. Nothing is created until you do. Accepting a project card turns the chat into that project's chat, and tasks you accept after it join the project.
+
 ## Install it
 
 ```bash
