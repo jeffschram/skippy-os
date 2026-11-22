@@ -16,6 +16,10 @@ export const ENTITY_TYPES = [
 ] as const;
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
+/** Where ingestion reads from. */
+export const INGEST_SOURCES = ["google_calendar", "gmail", "imessage"] as const;
+export type IngestSource = (typeof INGEST_SOURCES)[number];
+
 /** The kinds that search covers. */
 export const SEARCHABLE_TYPES = ["project", "task", "person", "company", "knowledge", "event", "recurrence"] as const;
 export type SearchableType = (typeof SEARCHABLE_TYPES)[number];

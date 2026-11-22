@@ -4,7 +4,8 @@ import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useState, type FormEvent } from "react";
 import { OwnerPage } from "./owner-page";
-import { button, problem, Quiet } from "./parts";
+import { IngestionRules } from "./ingested";
+import { button, Panel, problem, Quiet } from "./parts";
 
 /** The owner-wide settings: the time zone dates are read in, and when a quiet project is flagged. */
 
@@ -15,6 +16,11 @@ export function SettingsPage() {
     <OwnerPage>
       <h1 className="text-2xl font-semibold">Settings</h1>
       <Loaded />
+      <div className="mt-12">
+        <Panel title="Ingestion">
+          <IngestionRules />
+        </Panel>
+      </div>
     </OwnerPage>
   );
 }

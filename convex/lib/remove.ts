@@ -1,4 +1,6 @@
+import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import type { Ref } from "./entities";
 
 /**
  * Clears what points at a record that is about to be deleted: its search
@@ -32,4 +34,27 @@ export async function detach(ctx: MutationCtx, entityId: string): Promise<void> 
     await ctx.storage.delete(file.storageId);
     await ctx.db.delete(file._id);
   }
+}
+
+/**
+ * Deletes a record for good, with what points at it. Covers the kinds
+ * ingestion can make: a task, an event, a person, or something in Memory.
+ * Returns false for a kind it does not delete, or a record already gone.
+ */
+export async function destroyRecord(ctx: MutationCtx, ref: Ref): Promise<boolean> {
+  const tables = { task: "tasks", event: "calendarEvents", person: "people", knowledge: "knowledge" } as const;
+  const table = tables[ref.entityType as keyof typeof tables];
+  if (!table) return false;
+  const id = ctx.db.normalizeId(table, ref.entityId);
+  if (!id || !(await ctx.db.get(id))) return false;
+  if (table === "people") {
+    const handles = await ctx.db
+      .query("personHandles")
+      .withIndex("by_person", (q) => q.eq("personId", id as Id<"people">))
+      .collect();
+    for (const handle of handles) await ctx.db.delete(handle._id);
+  }
+  await detach(ctx, id);
+  await ctx.db.delete(id);
+  return true;
 }

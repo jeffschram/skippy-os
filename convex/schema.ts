@@ -1,4 +1,4 @@
-import { ENTITY_TYPES, KNOWLEDGE_KINDS, RELATIONS, SEARCHABLE_TYPES } from "@skippy/shared";
+import { ENTITY_TYPES, INGEST_SOURCES, KNOWLEDGE_KINDS, RELATIONS, SEARCHABLE_TYPES } from "@skippy/shared";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -54,6 +54,7 @@ export const taskStatus = v.union(
   v.literal("cancelled"),
 );
 export const commitment = v.union(v.literal("must"), v.literal("want"));
+export const ingestSource = oneOf(INGEST_SOURCES);
 export const goalStatus = v.union(v.literal("active"), v.literal("paused"), v.literal("achieved"), v.literal("abandoned"));
 export const recurrenceRule = v.union(
   v.object({ kind: v.literal("interval"), everyDays: v.number() }),
@@ -216,6 +217,8 @@ export default defineSchema({
     externalId: v.optional(v.string()),
     calendarId: v.optional(v.string()),
     htmlLink: v.optional(v.string()),
+    /** Google copies only: the ingestion run that last saw the event in the calendar. */
+    seenInRun: v.optional(v.id("ingestionRuns")),
     projectId: v.optional(v.id("projects")),
     ...authored,
   })
@@ -368,6 +371,70 @@ export default defineSchema({
   // One row. How far down the activity log the owner has read on the dashboard.
   viewerState: defineTable({
     activitySeenAt: v.number(),
+  }),
+
+  // Ingestion. A scheduled Claude task reads the owner's calendar, mail and
+  // messages and writes what matters here through the MCP. See ingestion.ts.
+
+  // How far each source has been read.
+  sourceCursors: defineTable({
+    source: ingestSource,
+    cursor: v.string(),
+    updatedAt: v.number(),
+    runId: v.optional(v.id("ingestionRuns")),
+  }).index("by_source", ["source"]),
+
+  // One row per pass: when it ran, what it read and what went wrong.
+  ingestionRuns: defineTable({
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    status: v.union(v.literal("running"), v.literal("finished"), v.literal("failed")),
+    /** Which pass of the day, in the agent's words: "9am". */
+    pass: v.optional(v.string()),
+    actor,
+    sources: v.array(
+      v.object({
+        source: ingestSource,
+        read: v.number(),
+        skipped: v.number(),
+        error: v.optional(v.string()),
+      }),
+    ),
+    note: v.optional(v.string()),
+  }).index("by_started", ["startedAt"]),
+
+  // What ingestion made from one thing in a source. It is the record's origin
+  // (source, pointer back, summary, run), it makes a replay create nothing
+  // twice, and it is what undo works from.
+  ingestionReceipts: defineTable({
+    runId: v.id("ingestionRuns"),
+    source: ingestSource,
+    /** The thing's id in its source, and what was made from it. One source item can make several records. */
+    key: v.string(),
+    entityRef,
+    action: v.union(v.literal("created"), v.literal("updated")),
+    /** One or two lines: what the original says and why this was made. */
+    summary: v.string(),
+    url: v.optional(v.string()),
+    at: v.number(),
+    undoneAt: v.optional(v.number()),
+    undoReason: v.optional(v.string()),
+  })
+    .index("by_key", ["source", "key"])
+    .index("by_run", ["runId"])
+    .index("by_at", ["at"]),
+
+  // What ingestion is told: things to leave out ("block"), and how to judge ("rule").
+  // The owner writes them in Settings, and an undo with a reason adds one.
+  ingestionRules: defineTable({
+    kind: v.union(v.literal("block"), v.literal("rule")),
+    /** One source, or every source when missing. */
+    source: v.optional(ingestSource),
+    text: v.string(),
+    active: v.boolean(),
+    /** The undo that made the rule, when one did. */
+    fromReceiptId: v.optional(v.id("ingestionReceipts")),
+    ...authored,
   }),
 
   // Files the owner has put in. The bytes are in Convex file storage. See files.ts.

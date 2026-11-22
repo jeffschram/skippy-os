@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { EventRow, RecurrenceRow } from "./calendar-parts";
 import { InboxPanel } from "./capture";
+import { IngestedPanel } from "./ingested";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
@@ -20,6 +21,7 @@ export function Home() {
         <InboxPanel />
         <Today />
         <SinceLastLook />
+        <IngestedPanel />
         <Projects />
         <Activity />
       </div>

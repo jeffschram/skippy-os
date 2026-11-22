@@ -31,6 +31,12 @@ export const OPERATIONS = {
   upsert_event: { scope: SCOPE_WRITE },
   upsert_recurrence: { scope: SCOPE_WRITE },
   complete_recurrence: { scope: SCOPE_WRITE },
+  // Ingestion: the scheduled pass over calendar, mail and messages.
+  get_importance_rubric: { scope: SCOPE_READ },
+  record_ingestion_run: { scope: SCOPE_WRITE },
+  advance_source_cursor: { scope: SCOPE_WRITE },
+  sync_calendar: { scope: SCOPE_WRITE },
+  ingest_objects: { scope: SCOPE_WRITE },
   // Read.
   search: { scope: SCOPE_READ },
   get_context_bundle: { scope: SCOPE_READ },

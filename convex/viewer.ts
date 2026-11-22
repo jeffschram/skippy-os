@@ -6,6 +6,7 @@ import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/s
 import { eventsBetween, liveRecurrences } from "./agenda";
 import { listCaptures } from "./captures";
 import { fileOnCapture, filesOn, presentFile } from "./files";
+import { readIngestion } from "./ingestion";
 import { findEntity } from "./lib/entities";
 import { listProjects, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
@@ -13,6 +14,7 @@ import {
   captureIntent,
   claudeHome,
   entityType,
+  ingestSource,
   commitment,
   eventStatus,
   phaseStatus,
@@ -587,6 +589,62 @@ export const discardCapture = mutation({
   handler: async (ctx, args): Promise<null> => {
     await requireOwner(ctx);
     await ctx.runMutation(internal.captures.resolve, { actor: OWNER, id: args.id, outcome: "discarded" });
+    return null;
+  },
+});
+
+// Ingestion: what each pass made, the way to take it back, and the rules passes follow.
+
+/** The latest ingestion passes with what each made, when each source was last read, and the rules. */
+export const ingestion = query({
+  args: { runs: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    return await readIngestion(ctx, args);
+  },
+});
+
+/**
+ * Takes back something ingestion made. A reason becomes a rule for later
+ * passes. Answers `needsConfirm` when the record has been changed by the owner
+ * since, so the page can ask before deleting it.
+ */
+export const undoIngested = mutation({
+  args: { receiptId: v.string(), reason: v.optional(v.string()), force: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<{ undone: boolean; needsConfirm?: string }> => {
+    await requireOwner(ctx);
+    try {
+      const result = await ctx.runMutation(internal.ingestion.undo, { actor: OWNER, ...args });
+      return { undone: result.undone };
+    } catch (error) {
+      const data = error instanceof ConvexError ? (error.data as { code?: unknown; message?: unknown }) : undefined;
+      if (data?.code === "edited_since") return { undone: false, needsConfirm: String(data.message) };
+      throw error;
+    }
+  },
+});
+
+/** Adds a rule or a block for ingestion, or changes one when `id` is given. */
+export const saveIngestionRule = mutation({
+  args: {
+    id: v.optional(v.string()),
+    kind: v.optional(v.union(v.literal("block"), v.literal("rule"))),
+    source: v.optional(v.union(ingestSource, v.null())),
+    text: v.optional(v.string()),
+    active: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.ingestion.saveRule, { actor: OWNER, ...args });
+    return null;
+  },
+});
+
+export const removeIngestionRule = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<null> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.ingestion.removeRule, { actor: OWNER, id: args.id });
     return null;
   },
 });

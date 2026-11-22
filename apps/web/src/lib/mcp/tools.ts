@@ -1,6 +1,7 @@
 import {
   AGENT_SURFACES,
   ENTITY_TYPES,
+  INGEST_SOURCES,
   KNOWLEDGE_KINDS,
   RELATIONS,
   SEARCHABLE_TYPES,
@@ -313,6 +314,121 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       id: z.string().describe("The record's id. For a project, its slug."),
     },
     kind: "read",
+  },
+  get_importance_rubric: {
+    title: "Ingestion rubric",
+    description:
+      "For an ingestion pass. Returns how to judge what is read (the rubric), the owner's own rules, the block list of senders, conversations and calendars to leave out, where each source was left (its cursor, or null when it has never been read), today's date and the owner's time zone. Read it at the start of every pass.",
+    input: {},
+    kind: "read",
+  },
+  record_ingestion_run: {
+    title: "Record ingestion run",
+    description:
+      "Opens an ingestion run, or closes one. Call it with status \"started\" before reading anything: it returns the runId every other ingestion tool needs. If it answers that another run is in progress, stop. At the end call it with the runId, status \"finished\" (or \"failed\"), and for each source how many things were read and how many were left out.",
+    input: {
+      status: z.enum(["started", "finished", "failed"]),
+      runId: z.string().optional().describe("Required when finishing or failing a run."),
+      pass: z.string().max(40).optional().describe('Which pass this is, when starting: "9am", "manual".'),
+      sources: z
+        .array(
+          z.object({
+            source: z.enum(INGEST_SOURCES),
+            read: z.number().int().min(0).describe("How many things were read from the source."),
+            skipped: z.number().int().min(0).describe("How many of those were left out."),
+            error: z.string().max(500).optional().describe("What went wrong with this source, if anything did."),
+          }),
+        )
+        .max(3)
+        .optional()
+        .describe("One entry per source the run read. For finishing or failing."),
+      note: z.string().max(1000).optional().describe("Anything the owner should know about this run."),
+    },
+    kind: "write",
+  },
+  advance_source_cursor: {
+    title: "Advance source cursor",
+    description:
+      "Notes how far a source has been read, so the next pass starts there. Call it once per source, after everything read from it has been sent. The cursor is yours to choose and read back: a time, or the source's own marker.",
+    input: {
+      runId: z.string(),
+      source: z.enum(INGEST_SOURCES),
+      cursor: z.string().max(500).describe("For example the ISO time of the newest thing read."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  sync_calendar: {
+    title: "Sync calendar",
+    description:
+      "Copies a stretch of one Google calendar into Skippy OS as read-only events. Send every event in the stretch from `from` to `to`, up to 100 at a time, with more: true on every call but the last. On the last call, events copied before that are no longer in the calendar are marked cancelled. Sending the same events again changes nothing. Give each event's start and end exactly as the calendar gives them.",
+    input: {
+      runId: z.string(),
+      calendarId: z.string().max(300).describe("The calendar's id, as the calendar connector names it."),
+      from: z.string().describe("The first day of the stretch that was read, like 2026-11-08."),
+      to: z.string().describe("The last day of the stretch that was read, like 2027-02-20."),
+      events: z
+        .array(
+          z.object({
+            id: z.string().max(300).describe("The event's id in the calendar."),
+            title: z.string().max(500),
+            start: z.string().describe("A date (2026-11-25) for an all-day event, or a time with its offset (2026-11-25T15:00:00-05:00)."),
+            end: z.string().optional().describe("As the calendar gives it. For an all-day event that is the day after its last day."),
+            location: z.string().max(500).optional(),
+            description: z.string().max(1000).optional().describe("A short description. Leave out long text, links to calls and boilerplate."),
+            url: z.string().max(1000).optional().describe("The link that opens the event in the calendar."),
+            cancelled: z.boolean().optional().describe("True when the calendar lists the event as cancelled."),
+          }),
+        )
+        .max(100),
+      more: z.boolean().optional().describe("True when more events from the same stretch follow in another call."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  ingest_objects: {
+    title: "Ingest objects",
+    description:
+      "For an ingestion pass over mail or messages. Makes records from what was read: a task, an event, a person, or something to remember. Each item names the thing it came from by externalId, with a one or two line summary and a link back; never the original's text. The same thing sent again makes nothing, even if the owner has since changed or undone what it made. Up to 50 items a call. Each item's outcome comes back: created, updated, already, undone or refused.",
+    input: {
+      runId: z.string(),
+      source: z.enum(INGEST_SOURCES),
+      items: z
+        .array(
+          z
+            .object({
+              kind: z.enum(["task", "event", "person", "knowledge"]),
+              externalId: z.string().max(300).describe("The id of the email, message or thread in its source."),
+              part: z.string().max(40).optional().describe("Tells apart two records of one kind made from the same thing."),
+              url: z.string().max(1000).optional().describe("A link back to the original."),
+              at: z.string().optional().describe("When the original was sent, as an ISO time."),
+              summary: z.string().max(600).describe("One or two lines: what the original says and why this was made."),
+              title: z.string().max(300).optional().describe("For a task, an event or knowledge. A task's title starts with a verb."),
+              description: z.string().max(2000).optional().describe("For a task or an event."),
+              dueAt: z.string().optional().describe("For a task with a real deadline. A date like 2026-11-25."),
+              project: z.string().optional().describe("For a task: the slug of the project it belongs to."),
+              waitingOn: z.string().max(300).optional().describe("For a task the owner is waiting on someone for."),
+              startAt: z.string().optional().describe("For an event. A date, a local time or a full ISO time."),
+              endAt: z.string().optional().describe("For an event."),
+              allDay: z.boolean().optional().describe("For an event."),
+              location: z.string().max(500).optional().describe("For an event."),
+              name: z.string().max(200).optional().describe("For a person: their full name."),
+              emails: z.array(z.string().max(320)).max(10).optional().describe("For a person."),
+              phoneNumbers: z.array(z.string().max(40)).max(10).optional().describe("For a person."),
+              company: z.string().max(200).optional().describe("For a person."),
+              roleTitle: z.string().max(200).optional().describe("For a person."),
+              relationshipContext: z.string().max(1000).optional().describe("For a person: how the owner knows them."),
+              knowledgeKind: z.enum(KNOWLEDGE_KINDS).optional().describe('For knowledge. Usually "memory".'),
+              body: z.string().max(4000).optional().describe("For knowledge: the fact or note, in your own words."),
+              linkUrl: z.string().max(2000).optional().describe('For knowledge of kind "link".'),
+            })
+            .describe("Fill the fields for its kind and leave the rest out."),
+        )
+        .min(1)
+        .max(50),
+    },
+    kind: "write",
+    idempotent: true,
   },
   get_today: {
     title: "Today",
