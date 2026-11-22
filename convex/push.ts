@@ -1,7 +1,6 @@
 import { zoneOffsetMs } from "@skippy/shared";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { getSettings } from "./lib/common";
 
@@ -11,6 +10,8 @@ import { getSettings } from "./lib/common";
  * asked for them. What it decides is kept, so the owner can see what was sent
  * and what was held back. The sending itself is in `pushNode.ts`.
  */
+
+const STUCK_MS = 10 * 60_000;
 
 /** The hour on the owner's clock, 0 to 23. */
 function localHour(at: number, timeZone: string): number {
@@ -33,6 +34,13 @@ export async function notify(
     .withIndex("by_key", (q) => q.eq("dedupeKey", args.dedupeKey))
     .first();
   if (seen) return { status: "duplicate" };
+  // One that has been on its way for ten minutes is not going to arrive. Say so.
+  const waiting = await ctx.db.query("notificationDeliveries").withIndex("by_created").order("desc").take(20);
+  for (const stuck of waiting) {
+    if (stuck.status === "pending" && now - stuck.createdAt > STUCK_MS) {
+      await ctx.db.patch(stuck._id, { status: "failed", reason: "the sender did not finish" });
+    }
+  }
   const settings = await getSettings(ctx);
   const devices = (await ctx.db.query("pushSubscriptions").collect()).filter((device) => device.enabled);
   const reason =
@@ -89,4 +97,19 @@ export const settle = internalMutation({
   },
 });
 
-export type DeviceId = Id<"pushSubscriptions">;
+/**
+ * Sends a test notification to every device, from the command line:
+ * `npx convex run push:sendTest`. The Settings page has its own button.
+ */
+export const sendTest = internalMutation({
+  args: {},
+  handler: async (ctx) =>
+    await notify(ctx, {
+      dedupeKey: `test:${Date.now()}`,
+      type: "test",
+      title: "Skippy OS",
+      body: "Notifications work on this device.",
+      url: "/settings",
+      evenInQuietHours: true,
+    }),
+});
