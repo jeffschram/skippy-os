@@ -20,6 +20,14 @@
         "dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "web-live",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev:live"
+      ],
+      "port": 3000
     }
   ]
 }
