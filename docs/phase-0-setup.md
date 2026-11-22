@@ -65,6 +65,7 @@ Those clients connect from the internet, so they need the public address.
 1. Create a Convex project and deploy to it. Set the same three values there as locally: `SKIPPY_GATEWAY_SECRET`, `SKIPPY_OWNER_CLERK_USER_ID` and `SKIPPY_MCP_RESOURCE_URL`.
 2. Create a Vercel project from this repo with `apps/web` as its root directory. Set the variables from `apps/web/.env.example`, with `SKIPPY_MCP_RESOURCE_URL` set to `https://<project>.vercel.app/api/mcp`. Use the stable production address, never a per-deploy preview address.
 3. In Clerk, add that same URL as an MCP server.
+4. So that a push to `main` also deploys Convex: in the Convex dashboard, open the project's production deployment, go to Settings, and generate a production deploy key. In Vercel, add it to the project as `CONVEX_DEPLOY_KEY`, for the Production environment only. The key can change production data, so it goes nowhere else: not in the repo, not in a local file.
 
 ## Settings
 
@@ -74,6 +75,7 @@ Those clients connect from the internet, so they need the public address.
 | `SKIPPY_GATEWAY_SECRET` | Web app and Convex | Signs calls from the MCP endpoint to Convex. At least 32 characters. |
 | `SKIPPY_OWNER_CLERK_USER_ID` | Convex | The one Clerk user allowed in. Anyone else is refused, never created. |
 | `CONVEX_URL` | Web app | The Convex deployment's address. |
+| `CONVEX_DEPLOY_KEY` | Vercel, Production only | Lets the Vercel build push Convex functions and schema to production. The build stops if this key and `CONVEX_URL` name different deployments. |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Web app | Clerk API keys. |
 
 ## The acceptance run
