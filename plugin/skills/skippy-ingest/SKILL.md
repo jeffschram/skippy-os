@@ -16,10 +16,12 @@ An ingestion pass reads what is new in the owner's calendar, mail or messages an
 
 ## Which tools
 
-- Skippy OS, through the connector named **Skippy OS**: `get_importance_rubric`, `record_ingestion_run`, `sync_calendar`, `ingest_objects`, `advance_source_cursor`, and for the briefing `get_today` and `record_briefing`. An older connector named just "Skippy" is a retired system; never use it.
+- Skippy OS, through the connector named **Skippy OS**: `get_importance_rubric`, `record_ingestion_run`, `sync_calendar`, `ingest_objects`, `advance_source_cursor`, to check what is already on file `get_agenda` and `search`, and for the briefing `get_today` and `record_briefing`. An older connector named just "Skippy" is a retired system; never use it.
 - The owner's Google Calendar and Gmail, through Claude's own connectors for them.
 
 If the Skippy OS tools are missing, stop: there is nowhere to record anything.
+
+When the calendar is one of the sources, read it before the mail, so that what the mail mentions is already there to be found.
 
 ## Which sources
 
@@ -55,14 +57,18 @@ Only when the prompt names it. Use the Gmail connector's `search_threads` to lis
 3. Leave out messages dated at or before the cursor's time, and anything the block list names.
 4. Judge each thread from its sender, subject and snippet, by the rubric and the owner's rules. Most mail makes nothing: newsletters, notices with nothing to do, receipts, shipping updates, verification codes, calendar invitations that are already on the calendar. When unsure whether something matters, leave it out.
 5. Open a thread with `get_thread` only when its snippet suggests it matters and you need more to say correctly what it asks, by when, or who wrote it. Do not open everything.
-6. For what matters, send records with `ingest_objects`, source `gmail`, up to 50 at a time. `externalId` is the id of the message that carries the point, `url` the link that opens it, `at` when it was sent, and `summary` one or two lines in your own words on what it says and why you made this.
+6. Before making a record, check that Skippy OS does not have it already. Mail often repeats what is on file: a booking confirmation for something already on the calendar, a second reminder about a bill.
+   - Before an event, call `get_agenda` for its day. If the calendar already has it, under any wording, make nothing.
+   - Before a task, call `search` with the plainest words in it. If an open task already covers it, make nothing.
+   - If you cannot check, because a tool is missing or fails, make the task and leave the event out: a doubled task is seen and ticked off, a doubled event clutters the calendar.
+7. For what matters and is not on file, send records with `ingest_objects`, source `gmail`, up to 50 at a time. `externalId` is the id of the message that carries the point, `url` the link that opens it, `at` when it was sent, and `summary` one or two lines in your own words on what it says and why you made this.
    - **A task** only for a clear ask: someone asks the owner to do something, the owner said they would, or there is a date attached (a bill to pay, a deadline, a form to return). The title starts with a verb. Add `dueAt` only for a real deadline. A bill on autopay is not a task.
    - **An event** for something with a time that is not on the calendar already.
    - **A person** for someone new who wrote to the owner as a person, not a company's system. Give their email. Skippy OS adds to a person it already has, so a known person is not doubled.
    - **Knowledge** of kind "memory" for a lasting fact about the owner or the people around them. One fact per record.
    - One message can make more than one record. Use `part` to tell apart two of the same kind.
-7. Read each result. "already" and "undone" mean Skippy OS has a record from that message from before; that is expected. "refused" comes with a reason: fix the item and send it again once, or leave it out.
-8. Call `advance_source_cursor` for `gmail` with the time of the newest message you saw, as an ISO time, whether or not it made anything.
+8. Read each result. "already" and "undone" mean Skippy OS has a record from that message from before; that is expected. "refused" comes with a reason: fix the item and send it again once, or leave it out.
+9. Call `advance_source_cursor` for `gmail` with the time of the newest message you saw, as an ISO time, whether or not it made anything.
 
 For the run's counts, "read" is the number of threads you looked at and "skipped" the number that made nothing.
 
