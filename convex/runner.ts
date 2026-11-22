@@ -9,9 +9,10 @@ import { describeScope, failTurn, keepBrief, LEASE_MS } from "./chats";
  * holds in a file on the mini, and whose SHA-256 is in this deployment's
  * environment as SKIPPY_RUNNER_TOKEN_SHA256. The token itself is never stored here.
  *
- * The runner can do four things: say it is alive, claim the oldest waiting
- * turn, report progress on a turn it holds, and finish it. It cannot read the
- * owner's records or touch anything but chat turns.
+ * The chat runner can do four things: say it is alive, claim the oldest
+ * waiting turn, report progress on a turn it holds, and finish it. The
+ * ingestion job, which holds the same token, can do one: report that a pass
+ * failed. Neither can read the owner's records.
  */
 
 async function requireRunner(token: string): Promise<void> {
@@ -41,6 +42,42 @@ export const heartbeat = mutation({
     const fields = { lastSeenAt: now, ...(args.version ? { version: args.version } : {}) };
     if (row) await ctx.db.patch(row._id, fields);
     else await ctx.db.insert("agentHosts", { host: args.host, ...fields });
+    return null;
+  },
+});
+
+/**
+ * Says that a scheduled ingestion pass did not get as far as recording itself:
+ * its session could not reach Skippy OS, or it died. Without this the owner
+ * would see nothing at all, since a pass that cannot reach Skippy OS cannot
+ * say so. A run the pass left open is closed as failed too.
+ */
+export const ingestFailed = mutation({
+  args: { ...runner, pass: v.optional(v.string()), reason: v.string() },
+  handler: async (ctx, args) => {
+    await requireRunner(args.token);
+    const now = Date.now();
+    const reason = args.reason.trim().slice(0, 600) || "The pass ended without recording anything.";
+    const latest = await ctx.db.query("ingestionRuns").withIndex("by_started").order("desc").first();
+    if (latest?.status === "running") {
+      await ctx.db.patch(latest._id, { status: "failed", finishedAt: now, note: reason });
+    } else {
+      await ctx.db.insert("ingestionRuns", {
+        startedAt: now,
+        finishedAt: now,
+        status: "failed",
+        ...(args.pass ? { pass: args.pass } : {}),
+        actor: { kind: "agent", harness: "claude", clientId: "skippy-ingest-job", surface: "scheduled" },
+        sources: [],
+        note: reason,
+      });
+    }
+    await ctx.db.insert("activityEvents", {
+      activityType: "ingestion.failed",
+      actor: { kind: "agent", harness: "claude", clientId: "skippy-ingest-job", surface: "scheduled" },
+      at: now,
+      summary: `Ingestion ${args.pass ? `(${args.pass}) ` : ""}failed: ${reason}`,
+    });
     return null;
   },
 });
