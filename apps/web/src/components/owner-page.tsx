@@ -138,6 +138,14 @@ function TopBar() {
           <Link href="/" className="text-xl font-semibold">
             Skippy OS
           </Link>
+          {process.env.NODE_ENV === "development" ? (
+            <span
+              title="This is the test copy on this computer. It has its own data, and the Mac mini does not answer chats here."
+              className="rounded border border-amber-600/60 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+            >
+              Test copy
+            </span>
+          ) : null}
           <nav aria-label="Pages" className="hidden flex-wrap gap-x-4 gap-y-1 text-sm sm:flex">
             {NAV.map((item) => (
               <Link key={item.href} href={item.href} aria-current={here(item.href) ? "page" : undefined} className={look(item.href)}>

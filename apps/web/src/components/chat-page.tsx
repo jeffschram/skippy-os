@@ -232,7 +232,11 @@ function Status({ chat, away }: { chat: Chat; away: boolean }) {
   if (turn.status === "queued") {
     return (
       <p className="mt-1 text-sm text-foreground/60">
-        {away ? "Waiting for the Mac mini. Your message is saved and will be answered when it is back." : "Sent to the Mac mini…"}
+        {chat.miniSeenAt === null
+          ? "No Mac mini has ever connected to this copy of Skippy OS, so no reply will come here. Chats are answered on the live site."
+          : away
+            ? "Waiting for the Mac mini. Your message is saved and will be answered when it is back."
+            : "Sent to the Mac mini…"}
       </p>
     );
   }
