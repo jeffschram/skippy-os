@@ -25,6 +25,7 @@ import type * as projects from "../projects.js";
 import type * as read from "../read.js";
 import type * as tasks from "../tasks.js";
 import type * as viewer from "../viewer.js";
+import type * as viewerMemory from "../viewerMemory.js";
 
 import type {
   ApiFromModules,
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   read: typeof read;
   tasks: typeof tasks;
   viewer: typeof viewer;
+  viewerMemory: typeof viewerMemory;
 }>;
 
 /**

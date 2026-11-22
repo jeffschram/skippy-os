@@ -10,8 +10,9 @@ import { presentTask } from "./tasks";
 import { DEFAULT_SETTINGS, getSettings, iso, refuse } from "./lib/common";
 
 /**
- * What the web app reads and changes for the person signed in to it. These are
- * the only public functions besides the gateway. Each one checks the sign-in
+ * What the web app reads and changes for the person signed in to it. These,
+ * with the Memory page's functions in `viewerMemory.ts`, are the only public
+ * functions besides the gateway. Each one checks the sign-in
  * itself: the owner gets data, anyone else is refused, and nothing is ever
  * created for them.
  *
@@ -37,7 +38,7 @@ async function whoIsLooking(ctx: QueryCtx | MutationCtx): Promise<Viewer> {
   return identity.subject === owner ? "owner" : "not_owner";
 }
 
-async function requireOwner(ctx: QueryCtx | MutationCtx): Promise<void> {
+export async function requireOwner(ctx: QueryCtx | MutationCtx): Promise<void> {
   const viewer = await whoIsLooking(ctx);
   if (viewer === "signed_out") throw new ConvexError({ code: "not_signed_in" });
   if (viewer === "not_owner") throw new ConvexError({ code: "account_not_authorized" });
@@ -249,7 +250,7 @@ export const markSeen = mutation({
   },
 });
 
-const OWNER: Actor = { kind: "user" };
+export const OWNER: Actor = { kind: "user" };
 const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
 
 /** Adds a task, or changes one when `id` is given. Only the fields passed change; null clears one. */

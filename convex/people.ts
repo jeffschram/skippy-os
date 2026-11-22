@@ -6,7 +6,7 @@ import { buildPatch, cleanText, getSettings, iso, logActivity, refuse, requireTe
 import type { Ref } from "./lib/entities";
 import { ensureLink, linksFrom } from "./lib/links";
 import { indexCompany, indexPerson } from "./lib/searchIndex";
-import { actor } from "./schema";
+import { actor, companyLabel } from "./schema";
 
 /** People and the companies they work at. Internal: run through `gateway.call` or the web app's own functions. */
 
@@ -269,5 +269,55 @@ export const upsert = internalMutation({
       summary: `Added ${newName}${companyChange ? `, who ${companyChange}` : ""}`,
     });
     return { created: true, changed: true, person: await presentPerson(ctx, created, settings.timeZone) };
+  },
+});
+
+/** Changes a company. Only the fields passed change; null clears one. */
+export const updateCompany = internalMutation({
+  args: {
+    actor,
+    id: v.string(),
+    name: v.optional(v.string()),
+    domain: nullable(v.string()),
+    website: nullable(v.string()),
+    relationshipLabel: nullable(companyLabel),
+    notes: nullable(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const id = ctx.db.normalizeId("companies", args.id);
+    const company = id ? await ctx.db.get(id) : null;
+    if (!company) throw refuse("not_found", `There is no company with the id "${args.id}".`);
+    const name = args.name === undefined ? undefined : requireText(args.name, "name");
+    if (name && name.toLowerCase() !== company.nameKey) {
+      const clash = await ctx.db
+        .query("companies")
+        .withIndex("by_name_key", (q) => q.eq("nameKey", name.toLowerCase()))
+        .first();
+      if (clash) throw refuse("company_exists", `There is already a company named "${clash.name}".`);
+    }
+    const { patch, diff } = buildPatch(company, {
+      name,
+      nameKey: name?.toLowerCase(),
+      domain: cleanText(args.domain),
+      website: cleanText(args.website),
+      relationshipLabel: args.relationshipLabel,
+      notes: cleanText(args.notes),
+    });
+    if (Object.keys(patch).length === 0) return { changed: false, company: presentCompany(company) };
+    await ctx.db.patch(company._id, { ...patch, updatedBy: args.actor, updatedAt: now });
+    const updated = (await ctx.db.get(company._id))!;
+    await indexCompany(ctx, updated);
+    delete diff.nameKey;
+    await logActivity(ctx, {
+      entityType: "company",
+      entityId: company._id,
+      activityType: "company.updated",
+      actor: args.actor,
+      at: now,
+      summary: `Updated company "${updated.name}": ${Object.keys(diff).join(", ")}`,
+      diff,
+    });
+    return { changed: true, company: presentCompany(updated) };
   },
 });

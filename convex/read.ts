@@ -1,4 +1,4 @@
-import { actorLabel, dayBounds, localDate, WhenError } from "@skippy/shared";
+import { actorLabel, dayBounds, localDate, WhenError, type EntityType, type SearchableType } from "@skippy/shared";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, type QueryCtx } from "./_generated/server";
@@ -130,9 +130,12 @@ function snippet(text: string, title: string, query: string): string | undefined
   return `${start > 0 ? "…" : ""}${piece}${start + 220 < flat.length ? "…" : ""}`;
 }
 
-export const search = internalQuery({
-  args: { query: v.string(), type: v.optional(searchableType), limit: v.optional(v.number()) },
-  handler: async (ctx, args) => {
+/** Word search across every searchable record, best match first. */
+export async function runSearch(
+  ctx: QueryCtx,
+  args: { query: string; type?: SearchableType; limit?: number },
+) {
+  {
     const query = requireText(args.query, "query");
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 10), 1), 25);
     const type = args.type;
@@ -150,7 +153,12 @@ export const search = internalQuery({
     }
     // Best match first. Call get_context_bundle with a result's type and id to read it in full.
     return { query, results };
-  },
+  }
+}
+
+export const search = internalQuery({
+  args: { query: v.string(), type: v.optional(searchableType), limit: v.optional(v.number()) },
+  handler: (ctx, args) => runSearch(ctx, args),
 });
 
 /** The record itself, in the same shape the tool that writes it returns. */
@@ -173,15 +181,26 @@ async function presentRecord(ctx: QueryCtx, entity: Found, now: number) {
       return presentCompany((await ctx.db.get(entityId as Id<"companies">))!);
     case "knowledge":
       return presentKnowledge((await ctx.db.get(entityId as Id<"knowledge">))!, settings.timeZone);
+    case "goal": {
+      const doc = (await ctx.db.get(entityId as Id<"goals">))!;
+      return {
+        id: doc._id,
+        title: doc.title,
+        description: doc.description,
+        status: doc.status,
+        horizon: doc.horizon,
+        measures: doc.measures,
+      };
+    }
     default:
       return mention(entity);
   }
 }
 
-export const contextBundle = internalQuery({
-  args: { type: entityType, id: v.string() },
-  handler: async (ctx, args) => {
-    const now = Date.now();
+/** One record with what surrounds it: its links, its sources and its latest history. */
+export async function readBundle(ctx: QueryCtx, args: { type: EntityType; id: string; now: number }) {
+  {
+    const now = args.now;
     const entity = await requireEntity(ctx, args);
     const { entityId } = entity.ref;
 
@@ -227,5 +246,10 @@ export const contextBundle = internalQuery({
         summary: event.summary,
       })),
     };
-  },
+  }
+}
+
+export const contextBundle = internalQuery({
+  args: { type: entityType, id: v.string() },
+  handler: (ctx, args) => readBundle(ctx, { ...args, now: Date.now() }),
 });

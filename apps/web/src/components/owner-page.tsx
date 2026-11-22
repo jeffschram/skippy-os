@@ -6,12 +6,14 @@ import { useConvexAuth, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ItemDetails } from "./item-details";
 import { button } from "./parts";
 import { TaskDetails } from "./task-details";
 
 /**
  * The frame every page of the dashboard sits in. Signed out, it is a wall with
- * a sign-in button. Signed in as the owner, it shows the top bar and the page.
+ * a sign-in button. Signed in as the owner, it shows the top bar and the page,
+ * and mounts the details views that open over any page.
  * Signed in as anyone else, it shows nothing.
  *
  * The wall is a courtesy. What keeps the data private is that every Convex
@@ -23,6 +25,7 @@ const NAV = [
   { href: "/", label: "Home" },
   { href: "/projects", label: "Projects" },
   { href: "/agenda", label: "Agenda" },
+  { href: "/memory", label: "Memory" },
   { href: "/activity", label: "Activity" },
   { href: "/settings", label: "Settings" },
 ];
@@ -94,6 +97,7 @@ function ForOwner({ wide, children }: { wide?: boolean; children: ReactNode }) {
       </header>
       <main className="mt-10">{children}</main>
       <TaskDetails />
+      <ItemDetails />
     </div>
   );
 }

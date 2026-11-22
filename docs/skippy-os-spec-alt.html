@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.31 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 under way: the Skippy plugin is installed on the mini, and the dashboard has Home, Projects, Agenda, Activity and Settings with editing throughout; a Claude Project chat now reports to Skippy OS on its own, tried by the owner · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.32 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 built and in its week of use; Phase 4 under way with the Memory page live: the Skippy plugin is installed on the mini, and the dashboard has Home, Projects, Agenda, Activity and Settings with editing throughout; a Claude Project chat now reports to Skippy OS on its own, tried by the owner · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -315,7 +315,7 @@
 <details>
   <summary>5.6 Knowledge, people, agenda</summary>
   <ul>
-    <li>Brain: notes, links, memories, decisions, principles, all in one <code>knowledge</code> table, with search <span class="tag borrow">borrowed</span></li>
+    <li>Memory: notes, links, memories, decisions, principles, all in one <code>knowledge</code> table, with search <span class="tag borrow">borrowed</span></li>
     <li>People and companies as a light CRM</li>
     <li>Agenda: Skippy events plus Google events (inbound-only), and recurrences <span class="tag borrow">borrowed</span></li>
   </ul>
@@ -478,11 +478,11 @@
     <tr><td><code>/projects</code></td><td>Board of all projects: health, staleness, Claude home link</td></tr>
     <tr><td><code>/projects/[slug]</code></td><td>Status history, phases and tasks, notes pad, chat (including origin history), links</td></tr>
     <tr><td><code>/agenda</code></td><td>Tasks, events and recurrences on one page, in day order, with waiting and undated tasks at the bottom. Views: Schedule, Tasks only, Board. Filters and editing. <span class="tag new">decided</span> (replaces separate <code>/tasks</code> and <code>/agenda</code> pages)</td></tr>
-    <tr><td><code>/brain/[section]</code></td><td>Notes, links, memories, decisions, people, companies, goals; search</td></tr>
+    <tr><td><code>/memory/[section]</code></td><td>Notes, links, memories, decisions, people, companies, goals; search</td></tr>
     <tr><td><code>/activity</code></td><td>Who changed what (me vs Claude), ingestion runs</td></tr>
     <tr><td><code>/settings</code></td><td>Connections, Mac mini status, tokens, rubric, ingestion rules and block list, staleness threshold, areas</td></tr>
   </table>
-  <p>Every item opens a shared details view that has its own chat. Navigation: Home, Projects, Agenda, Brain, Activity, and Settings behind an icon.</p>
+  <p>Every item opens a shared details view that has its own chat. Navigation: Home, Projects, Agenda, Memory, Activity, and Settings behind an icon.</p>
 </details>
 
 <details open>
@@ -490,7 +490,7 @@
   <ul>
     <li><strong>Briefing-first, one column.</strong> Home reads like a morning note: the briefing, then a short "Needs you" list, then Today, Projects, Recent chats, and Overnight and Captures collapsed. Chosen over a three-column command center and a project board; all three are in <a href="mockups/home-layouts.html">mockups/home-layouts.html</a>.</li>
     <li><strong>Navigation:</strong> a top bar on desktop and a menu button on phone. No sidebar.</li>
-    <li><strong>Column widths:</strong> reading pages (Home, a chat, a project) use about 720px. List pages (Projects, Agenda, Brain, Activity) use about 1000px.</li>
+    <li><strong>Column widths:</strong> reading pages (Home, a chat, a project) use about 720px. List pages (Projects, Agenda, Memory, Activity) use about 1000px.</li>
     <li><strong>The input is docked at the bottom of every page</strong>, and its scope follows the page. On Home it captures or starts an idea chat. On a project or any other item it adds to that item or chats about it. A chip in the input names the current scope.</li>
     <li><strong>Item details open in a large modal</strong> over whatever page I was on, not as their own page and not as a side panel. It's about 1000px wide and most of the window's height: fields in a right-hand column, then description, links, chat and history, with its own docked input scoped to the item. On a phone it fills the screen. Each item still has its own link, so a modal can be opened directly or shared between devices. This applies to tasks, people, notes and events; projects keep a full page.</li>
     <li>The phone layout is the same column, not a separate design.</li>
@@ -547,7 +547,7 @@
   <tr><td>1. Foundation</td><td>Schema, sign-in, gateway, core MCP tools</td><td>No</td></tr>
   <tr><td>2. Import</td><td>Real data from the old project</td><td>No</td></tr>
   <tr><td>3. Status loop</td><td>Claude reports; the dashboard shows and edits</td><td>No</td></tr>
-  <tr><td>4. Capture &amp; brain</td><td>Quick capture, knowledge, people, agenda, search</td><td>No</td></tr>
+  <tr><td>4. Capture &amp; memory</td><td>Quick capture, knowledge, people, agenda, search</td><td>No</td></tr>
   <tr><td>5. Ingestion &amp; briefing</td><td>Automatic ingestion from Calendar, Gmail and iMessage, undo on Home, briefing note, push, PWA</td><td>Yes</td></tr>
   <tr><td>6. Idea chat</td><td>Chat runner, Home and item chats, promotion cards</td><td>Yes</td></tr>
   <tr><td>7. Sweeps &amp; reviews</td><td>Nightly sweep, weekly review</td><td>Yes</td></tr>
@@ -673,17 +673,25 @@
     <li><strong>Tried by the owner (2026-11-22): a Claude Project chat reports on its own.</strong> A new Claude Project for <code>kalamazoo-thanksgiving</code>, with the longer line in its instructions, read the project from Skippy OS, did the open task's research, moved the task to waiting with what it waits on, and recorded a status report marked as coming from a Claude Project. Nobody asked it to report. The dashboard showed the report and the task change at once. Not known: whether the chat took the skill from the plugin or from <code>get_skill</code>, since reads are not logged. Still to try: the same from iOS, and a change made on the dashboard being picked up by Claude's next session.</li>
     <li><strong>The last editing gaps (2026-11-22):</strong> on a project page a phase can be moved up or down and removed. Moving renumbers the plan 1, 2, 3, which also fixes imported plans that started at 0. Removing a phase leaves its tasks in the project, in no phase. A task can be deleted for good from its details view, after a confirm that says it cannot be undone and offers cancelling instead. Deleting clears the task's search entry, its links and its ties to sources; its lines in the activity log stay. A project's edit form now also sets its target date and its Claude home (a Claude Project by name and link, or a code folder by path and repository link).</li>
     <li><strong>Only the owner deletes.</strong> Removing a phase and deleting a task are dashboard actions. There is still no agent tool that deletes anything; an agent cancels a task instead.</li>
-    <li><strong>Still to come:</strong> details views for people and knowledge arrive with <code>/brain</code> in Phase 4.</li>
+    <li><strong>Moved to Phase 4:</strong> details views for people and knowledge, built there with the Memory page.</li>
   </ul>
 </details>
 
 <details>
-  <summary>Phase 4: Capture &amp; brain</summary>
+  <summary>Phase 4: Capture &amp; memory</summary>
   <ul>
     <li>The Home input in capture mode, including files and "hold" captures</li>
-    <li><code>/brain</code> sections, people and companies, and events and recurrences on <code>/agenda</code></li>
+    <li><code>/memory</code> sections, people and companies, and events and recurrences on <code>/agenda</code></li>
     <li>Embeddings and search, in the web app and through the MCP</li>
     <li>The rest of the import: 10 recurrences, 53 calendar events made by Skippy and 7 files on non-code projects, from the Phase 2 snapshot. Then empty and remove <code>importMap</code>, <code>convex/importV1.ts</code> and <code>scripts/import-v1</code>.</li>
+  </ul>
+  <p><strong>Built so far</strong></p>
+  <ul>
+    <li><strong>Renamed (2026-11-22):</strong> the Brain is now Memory, at the owner's request: the page, its address and the navigation. "Memory" is the whole section; a "memory" is still one of the six kinds of thing saved in it, shown in the Memories section.</li>
+    <li><strong>The Memory page (2026-11-22):</strong> <code>/memory</code> and <code>/memory/[section]</code>, with sections Everything, Notes, Links, Memories, Decisions, Principles, Questions, People, Companies and Goals. What is saved is listed most recently changed first, thirty at a time, with the archived behind a switch. A search box searches the section; on Everything it searches all Skippy holds, tasks and projects included. Search still matches words, not meaning.</li>
+    <li><strong>Details for anything in Memory:</strong> a title opens the record over the current page, at <code>?item=&lt;type&gt;:&lt;id&gt;</code>. A note, link, memory, decision, principle or question can be edited, re-kinded, archived and restored. A person's details, company and notes can be changed and an email or number added (not yet removed). A company can be edited. A goal is read-only for now. Below each: what it is linked to, where it came from, and its history.</li>
+    <li><strong>Adding from the page:</strong> a short form saves something new of any kind, and a person can be added by name. Every change runs the same internal function an agent's tool runs, with the owner as the actor.</li>
+    <li><strong>Still to do in this phase:</strong> the real capture (the Home input, the captures list, files and "hold"), events and recurrences on the Agenda, the rest of the import, removing an email or number from a person, editing goals, and deciding on meaning-based search. <span class="tag open">Open</span></li>
   </ul>
   <p>The held records name old project and task ids, and a task imported in Phase 2 may have been deleted from the dashboard since. Its <code>importMap</code> row is kept, so that a second run of the import does not bring the task back; the Phase 4 import must check that the record a row names still exists, and skip with a reason when it does not.</p>
   <p><strong>Done when:</strong> a capture made on my phone is findable by search from a Claude chat, completing a recurrence in either place advances it exactly once, and the held records are imported and <code>importMap</code> is dropped.</p>
@@ -815,6 +823,8 @@
     <tr><td>2026-11-21</td><td>From here on, Claude takes its own recommendation at preference points and records the choice here, instead of asking</td></tr>
     <tr><td>2026-11-21</td><td>Phase 3 builds the plugin first, then the dashboard pages</td></tr>
     <tr><td>2026-11-21</td><td>The plugin holds skills only. The MCP connection comes from the "Skippy OS" connector on the claude.ai account.</td></tr>
+    <tr><td>2026-11-22</td><td>"Brain" is renamed "Memory" everywhere it names the section. The kind of record called a memory keeps its name.</td></tr>
+    <tr><td>2026-11-22</td><td>Phase 4 starts with the Memory page, since a thousand imported records were waiting for it; capture follows.</td></tr>
     <tr><td>2026-11-22</td><td>Deleting is the owner's alone, from the dashboard. A deleted task keeps its history in the activity log and its row in the import map; agents cancel instead of deleting.</td></tr>
     <tr><td>2026-11-22</td><td>Skippy OS also serves the skills' text through <code>get_skill</code>. The plugin stays the first choice where it loads; the tool covers every client where it does not.</td></tr>
   </table>

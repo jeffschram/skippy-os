@@ -1,6 +1,6 @@
 ---
 name: skippy-capture
-description: 'Use when the owner asks to save, capture, remember or note something in Skippy or "my brain", or asks what Skippy knows. Says which Skippy OS tool fits and how to avoid saving it twice.'
+description: 'Use when the owner asks to save, capture, remember or note something in Skippy or its Memory, or asks what Skippy knows. Says which Skippy OS tool fits and how to avoid saving it twice.'
 ---
 
 # Filing things into Skippy OS

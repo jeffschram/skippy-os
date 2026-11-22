@@ -240,6 +240,8 @@ export default defineSchema({
     ...authored,
   })
     .index("by_kind", ["kind"])
+    .index("by_updated", ["updatedAt"])
+    .index("by_kind_updated", ["kind", "updatedAt"])
     .index("by_normalized_url", ["normalizedUrl"]),
 
   // The graph: any record can be related to any other. Read as "from <type> to".
