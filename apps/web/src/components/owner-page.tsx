@@ -147,6 +147,7 @@ function TopBar() {
           </nav>
         </div>
         <div className="flex items-center gap-3">
+          <UserButton />
           <button
             type="button"
             aria-expanded={open}
@@ -157,7 +158,6 @@ function TopBar() {
           >
             {open ? <X aria-hidden size={24} /> : <List aria-hidden size={24} />}
           </button>
-          <UserButton />
         </div>
       </div>
       <nav id="page-menu" aria-label="Pages" hidden={!open} className="mt-4 border-t border-foreground/15 sm:hidden">
