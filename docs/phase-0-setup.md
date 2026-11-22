@@ -9,12 +9,12 @@ All three accounts exist and are configured, and the hosted site has every setti
 | Service | What exists | State |
 | --- | --- | --- |
 | Convex | Project `skippy-os` in team `schram-industries`. Dev deployment `tame-toad-217`, production deployment `elated-meerkat-158`. | Functions pushed to both. Gateway secret and MCP address set on both. Owner ID set on both. |
-| Vercel | Project `skippy-os`, building from `main` on GitHub. Root directory `apps/web`. | Live at `skippy-os-two.vercel.app` (`skippy-os.vercel.app` belongs to someone else). Production variables set: `SKIPPY_MCP_RESOURCE_URL`, `CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_TELEMETRY_DISABLED`, `CLERK_SECRET_KEY`, `SKIPPY_GATEWAY_SECRET`. A made-up token is refused with `401 invalid_token`. |
-| Clerk | Application "Skippy OS", development instance. | MCP server `https://skippy-os-two.vercel.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. Convex integration on, so the web app's session is accepted by Convex. One user, the owner. |
+| Vercel | Project `skippy-os`, building from `main` on GitHub. Root directory `apps/web`. | Live at `www.skippyos.app` since 2026-11-22; `skippyos.app` redirects there. The first address, `skippy-os-two.vercel.app`, still serves the site. Production variables set: `SKIPPY_MCP_RESOURCE_URL`, `CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_TELEMETRY_DISABLED`, `CLERK_SECRET_KEY`, `SKIPPY_GATEWAY_SECRET`. A made-up token is refused with `401 invalid_token`. |
+| Clerk | Application "Skippy OS", development instance. | MCP server `https://www.skippyos.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. Convex integration on, so the web app's session is accepted by Convex. One user, the owner. |
 
-The hosted MCP address is `https://skippy-os-two.vercel.app/api/mcp` until the move below is finished, and `https://www.skippyos.app/api/mcp` after it.
+The hosted MCP address is `https://www.skippyos.app/api/mcp`. Until 2026-11-22 it was `https://skippy-os-two.vercel.app/api/mcp`.
 
-## Moving to skippyos.app (started 2026-11-22)
+## The move to skippyos.app (2026-11-22)
 
 The owner pointed `skippyos.app` at the Vercel project. The site answers at `https://www.skippyos.app`; the bare `skippyos.app` redirects there. Signing in to the site works on the new address with no change, because a Clerk development instance is not tied to one address. Convex does not care which address the browser is on.
 
@@ -22,19 +22,25 @@ One setting names the address: the MCP endpoint's URL, `SKIPPY_MCP_RESOURCE_URL`
 
 | Step | Who | State |
 | --- | --- | --- |
-| Convex production accepts both addresses: `SKIPPY_MCP_RESOURCE_URL` is the new one and `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` the old one. Nothing changes for clients. | Claude | done 2026-11-22 |
-| Cloudflare: set the DNS records for `skippyos.app` and `www` to "DNS only" (grey cloud), so requests go straight to Vercel. Vercel already holds its own certificates for both names, so nothing goes down. | Owner | to do |
-| Clerk: Agents, MCP servers, Add MCP server, `https://www.skippyos.app/api/mcp`. Leave the old one in place for now. | Owner | added 2026-11-22; Clerk's check said it could not reach the address |
-| Vercel: change `SKIPPY_MCP_RESOURCE_URL` (Production) to `https://www.skippyos.app/api/mcp`, then redeploy. This is the switch: from here the old connector is refused. | Owner | to do |
-| claude.ai: remove the Skippy OS connector and add it again at the new URL, with the same name, "Skippy OS". The jobs on the mini and the project instructions use that name. | Owner | to do |
-| Check a call through the new connector, then unset `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` in Convex and remove the old MCP server in Clerk. | Claude, then owner | to do |
+| Convex production accepts both addresses: `SKIPPY_MCP_RESOURCE_URL` is the new one and `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` the old one. Nothing changes for clients. | Claude | done |
+| Cloudflare: the DNS records for `skippyos.app` and `www` set to "DNS only" (grey cloud), so requests go straight to Vercel. | Owner | done |
+| Clerk: Agents, MCP servers, Add MCP server, `https://www.skippyos.app/api/mcp`. | Owner | done |
+| Vercel: `SKIPPY_MCP_RESOURCE_URL` (Production) changed to `https://www.skippyos.app/api/mcp`, and a redeploy. This is the switch: from here the old connector is refused. | Owner | done |
+| claude.ai: the Skippy OS connector removed and added again at the new URL under the same name, "Skippy OS", then connected (sign in and consent). The jobs on the mini and the project instructions use that name. | Owner | done |
+| A call through the new connector from a fresh session on the mini, then `SKIPPY_MCP_RESOURCE_URL_PREVIOUS` unset in Convex. | Claude | done |
+| Clerk: remove the old MCP server, `https://skippy-os-two.vercel.app/api/mcp`. | Owner | to do |
 | On each device: open the new address, sign in, turn notifications on, and add it to the Home Screen. Turn notifications off in the old Home Screen app before deleting it, or each notification arrives twice. | Owner | to do |
+
+Two things learned on the way:
+
+- Adding a connector in claude.ai and connecting it are two steps. Until it is connected, sessions on the mini get no Skippy OS tools.
+- Claude Code on the mini remembers for a while that a connector needed a sign-in (`~/.claude/mcp-needs-auth-cache.json`). A session started just after connecting can still be refused. Removing that connector's entry from the file, or waiting, clears it.
 
 Clerk runs a check when an MCP server is added. Its second test, that the address's metadata names itself, cannot pass until the Vercel change is made, because until then the new address still advertises the old one. Run the check again after the switch.
 
-When the address was first added, both tests failed with "The public HTTPS endpoint could not be reached". The address answered correctly from the mini and from a data centre at that moment, with a valid certificate. The one difference from the old address was Cloudflare's proxy in front of Vercel, which Vercel and Clerk both advise against, so it is turned off as the first step.
+When the address was first added, both of Clerk's tests failed with "The public HTTPS endpoint could not be reached". The address answered correctly from the mini and from a data centre at that moment, with a valid certificate. The one difference from the old address was Cloudflare's proxy in front of Vercel, which Vercel and Clerk both advise against, so it was turned off, and the first test then passed.
 
-Avoid the switch at the top of an hour: the ingestion passes, the sweep and the review all use the connector, and one that starts between the Vercel change and the new connector fails and says so on Home.
+For a later move, avoid the switch at the top of an hour: the ingestion passes, the sweep and the review all use the connector, and one that starts between the Vercel change and the new connector fails and says so on Home.
 
 ### What is left before the first test
 
