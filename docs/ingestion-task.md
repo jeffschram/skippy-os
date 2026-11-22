@@ -1,6 +1,10 @@
 # The scheduled ingestion task
 
-Skippy's ingestion runs as a scheduled task in the Claude desktop app on the mini. The app would not let Claude create the task for you, so you create it once by hand. It takes a minute.
+Skippy's ingestion runs as a scheduled task in the Claude desktop app on the mini.
+
+The task exists: Claude created it on 2026-11-22, once the owner asked for it directly (an earlier try, made without being asked, was refused by the app). It is named "Skippy ingestion pass", its id is `skippy-ingest`, and its file is `~/.claude/scheduled-tasks/skippy-ingest/SKILL.md`. It was saved in Auto mode: its runs use tools and connectors without asking first, and the app's classifier stops what looks unsafe. To change the mode, the schedule or the prompt, edit the task in the app's Scheduled section.
+
+The steps below are how to make it again, on another machine or after deleting it.
 
 ## Create it
 
