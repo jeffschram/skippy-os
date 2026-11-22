@@ -32,4 +32,6 @@ To run Convex on this machine with no Convex account: `CONVEX_AGENT_MODE=anonymo
 
 A push to `main` deploys everything. Vercel runs [scripts/vercel-build.mjs](scripts/vercel-build.mjs), which runs the tests, builds the web app and then pushes the Convex functions and schema to production. If any step fails, the site and Convex both stay as they were.
 
+After changing a skill in `plugin/skills`, run `node scripts/sync-skills.mjs`. It copies the text into the web app for the `get_skill` tool, and a test fails when the copy is out of date.
+
 This needs `CONVEX_DEPLOY_KEY` set in Vercel; see [docs/phase-0-setup.md](docs/phase-0-setup.md). One-off Convex jobs, such as `npx convex run --prod maintenance:reindexSearch`, are still run by hand.

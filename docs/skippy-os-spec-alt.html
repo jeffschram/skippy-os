@@ -74,7 +74,7 @@
 <header>
   <h1>Skippy OS: alternate concept</h1>
   <p>Claude (the desktop and iOS apps) is where I work. Skippy OS is the knowledge system underneath, plus a supercharged dashboard and an idea chat on top.</p>
-  <div class="meta">Alt spec v0.28 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 under way: the Skippy plugin is installed on the mini, and the dashboard has Home, Projects, Agenda, Activity and Settings with editing throughout; the claude.ai side still needs the owner · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
+  <div class="meta">Alt spec v0.29 · 2026-11-22 · Status: Phase 0 passing for claude.ai and Claude iOS; Phase 1 done: tools live and tried from claude.ai, Convex deploys with each push, web app shell live and checked by the owner; Phase 2 done: the old data is loaded into production and spot-checked; the import map and import code are kept until Phase 4 brings across the records held for it; Phase 3 under way: the Skippy plugin is installed on the mini, and the dashboard has Home, Projects, Agenda, Activity and Settings with editing throughout; the claude.ai side still needs the owner · Compare with <a href="skippy-os-spec.html">skippy-os-spec.html</a> (v0.2, which builds a full standalone app)</div>
   <div class="legend">
     <span><span class="tag new">decided</span> answered in the 2026-11-19 interview</span>
     <span><span class="tag borrow">borrowed</span> from <code>skippy-mcp-and-app</code></span>
@@ -249,7 +249,7 @@
 <details open>
   <summary>How status gets recorded <span class="tag new">decided</span></summary>
   <ul>
-    <li>Every Claude Project gets a line in its instructions: <code>Skippy project: &lt;slug&gt;. Follow the skippy-status skill.</code> Every Code folder gets the same line in its <code>CLAUDE.md</code>.</li>
+    <li>Every Code folder gets a line in its <code>CLAUDE.md</code>: <code>Skippy project: &lt;slug&gt;. Follow the skippy-status skill.</code> Every Claude Project gets the same line in its instructions, with a second sentence that says where to find the skill when the plugin has not loaded: <code>If you don't have that skill, get it with get_skill from the Skippy OS connector.</code></li>
     <li>The skill says to call <code>record_project_status</code> when a milestone is reached, a decision is made, something gets blocked, or a working session ends. It also says to create or complete tasks as they come up.</li>
     <li>Risk: Claude sometimes forgets. Mitigation (proposed): the dashboard shows "last update from Claude" on every project and flags active projects with no update in <strong>7 days</strong> (adjustable in settings). The weekly review then asks about them. <span class="tag new">decided</span></li>
     <li><strong>Nightly sweep</strong> <span class="tag new">decided</span>: a scheduled task in Claude desktop on the mini runs the <code>skippy-nightly-sweep</code> skill. For each active code project it reads git commits and branches since the last sweep, plus local Claude Code session transcripts for that folder. Wherever there's activity Claude didn't report, it records a status update with <code>actor: {kind: "claude", surface: "scheduled"}</code>. Each project keeps a <code>lastSweptAt</code> marker, so nothing is double-counted.</li>
@@ -457,7 +457,7 @@
     <li><strong>Status:</strong> <code>record_project_status</code>, <code>get_project</code>, <code>list_projects</code></li>
     <li><strong>Records:</strong> <code>upsert_task</code>, <code>complete_task</code>, <code>upsert_project</code>, <code>create_phase</code>, <code>update_phase</code>, <code>upsert_person</code>, <code>upsert_knowledge</code>, <code>create_event</code>, <code>upsert_recurrence</code>, <code>complete_recurrence</code>, <code>link_entities</code></li>
     <li><strong>Capture &amp; ingest:</strong> <code>capture</code>, <code>list_captures</code>, <code>ingest_object</code>, <code>get_importance_rubric</code> (which also returns the rules and block list), <code>get_source_cursor</code>, <code>advance_source_cursor</code>, <code>record_ingestion_run</code></li>
-    <li><strong>Read:</strong> <code>search</code>, <code>get_context_bundle</code>, <code>get_today</code>, <code>get_changes_since</code></li>
+    <li><strong>Read:</strong> <code>search</code>, <code>get_context_bundle</code>, <code>get_today</code>, <code>get_changes_since</code>, <code>get_skill</code> (the text of <code>skippy-status</code> or <code>skippy-capture</code>, for a client with no plugin loaded)</li>
     <li><strong>Web chat only:</strong> <code>propose_promotion</code></li>
   </ul>
   <p><strong>Who can use which tools:</strong></p>
@@ -669,6 +669,7 @@
     <li><strong>Activity and Settings:</strong> <code>/activity</code> is the full log, with a filter for the owner's changes or agents'. <code>/settings</code> holds the time zone and the number of days before a quiet project is flagged stale.</li>
     <li><strong>New project:</strong> the projects board can add a project, general or code. A title already in use is refused, the same as for an agent.</li>
     <li><strong>Found (2026-11-22): the account connection does not always reach a terminal session.</strong> At about 11pm on the 21st, <code>claude mcp list</code> in a terminal on the mini showed every claude.ai connector, "Skippy OS" included, and two fresh sessions used its tools. About 40 minutes later the same command showed none of the account's connectors, in a clean environment too, although the command line was still signed in and the connector still worked in the desktop app. A fresh session then loaded the installed plugin and the skill, found no Skippy OS tools, said so and recorded nothing, which is what the skill tells it to do. The cause is not known. If it keeps happening, "skills only" is not enough for Claude Code: the plugin would need its own MCP entry, and that needs Claude Code's sign-in to the Skippy MCP checked first (the Phase 0 item still open; Clerk has automatic client registration off). By 10am on the 22nd the connectors were listed again, with nothing changed on the mini in between, so it looks like a passing fault on the account side; still unexplained, and worth watching. <span class="tag open">Open</span></li>
+    <li><strong>Found (2026-11-22): the first Claude Project chat asked the old connector for the skill.</strong> With the line in a new Project's instructions, Claude called <code>get_skill</code> on the old "Skippy" connector, which is still switched on, and got back an empty record. It then read the project from the old system. Two changes follow. Skippy OS now has its own <code>get_skill</code>, which returns the text of either skill, so a client that has no plugin loaded (a Project chat, iOS, and later ChatGPT and Codex, which cannot load a Claude plugin at all) follows the same rules. The text is copied from <code>plugin/skills</code> by <code>scripts/sync-skills.mjs</code>, and a test fails when the copy is out of date. And the line for a Claude Project now names the Skippy OS connector. The old connector still has to be switched off by the owner. <span class="tag open">Open</span></li>
     <li><strong>Still to do:</strong> reordering and removing phases, deleting a task (cancelling is the way for now), and setting a project's Claude home and target date from the dashboard. Details views for people and knowledge arrive with <code>/brain</code> in Phase 4. <span class="tag open">Open</span></li>
   </ul>
 </details>
@@ -810,6 +811,7 @@
     <tr><td>2026-11-21</td><td>From here on, Claude takes its own recommendation at preference points and records the choice here, instead of asking</td></tr>
     <tr><td>2026-11-21</td><td>Phase 3 builds the plugin first, then the dashboard pages</td></tr>
     <tr><td>2026-11-21</td><td>The plugin holds skills only. The MCP connection comes from the "Skippy OS" connector on the claude.ai account.</td></tr>
+    <tr><td>2026-11-22</td><td>Skippy OS also serves the skills' text through <code>get_skill</code>. The plugin stays the first choice where it loads; the tool covers every client where it does not.</td></tr>
   </table>
 </details>
 

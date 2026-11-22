@@ -41,6 +41,7 @@ describe("the MCP server", () => {
       "get_changes_since",
       "get_context_bundle",
       "get_project",
+      "get_skill",
       "get_today",
       "link_entities",
       "list_projects",
@@ -60,11 +61,22 @@ describe("the MCP server", () => {
       "get_changes_since",
       "get_context_bundle",
       "get_project",
+      "get_skill",
       "get_today",
       "list_projects",
       "search",
       "whoami",
     ]);
+  });
+
+  it("hands over a skill's instructions without asking Convex", async () => {
+    const calls: OperationName[] = [];
+    const reply = await rpc(READ, "tools/call", { name: "get_skill", arguments: { name: "skippy-status" } }, async (operation) => {
+      calls.push(operation);
+      return {};
+    });
+    expect(calls).toEqual([]);
+    expect(reply.result?.content?.[0].text).toContain("record_project_status");
   });
 
   it("will not run a write tool for a read-only caller", async () => {

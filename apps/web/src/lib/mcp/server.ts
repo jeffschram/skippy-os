@@ -1,6 +1,8 @@
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
-import { OPERATIONS, type OperationName, type OAuthPrincipal } from "@skippy/shared";
+import { OPERATIONS, SCOPE_READ, type OperationName, type OAuthPrincipal } from "@skippy/shared";
+import { z } from "zod";
 import { GatewayRefusal } from "./gateway";
+import { SKILLS, type SkillName } from "./skills.generated";
 import { TOOLS } from "./tools";
 
 const INSTRUCTIONS = [
@@ -10,6 +12,7 @@ const INSTRUCTIONS = [
   "Write with upsert_project, create_phase, update_phase, upsert_task, complete_task, upsert_person, upsert_knowledge and link_entities.",
   "Before saving a person or something to remember, search for it, so the same thing is not saved twice.",
   "When you work on a Skippy project, call record_project_status when a milestone is reached, a decision is made, something gets blocked, or the session ends.",
+  "When instructions say to follow the skippy-status or skippy-capture skill and you do not already have its text, call get_skill for it and follow what it returns.",
   "Every write is logged with you as its author.",
 ].join(" ");
 
@@ -50,6 +53,23 @@ export function buildServer(principal: Pick<OAuthPrincipal, "scopes">, run: RunO
             : { readOnlyHint: false, destructiveHint: false, idempotentHint: tool.idempotent ?? false },
       },
       (args: Record<string, unknown>) => answer(name, args ?? {}),
+    );
+  }
+
+  // Answered here, not by Convex: the skill text ships with the site.
+  if (principal.scopes.includes(SCOPE_READ)) {
+    server.registerTool(
+      "get_skill",
+      {
+        title: "Get skill",
+        description:
+          "Returns the working instructions for a Skippy skill: skippy-status (when and how to report on a Skippy project) or skippy-capture (what to save where). Call it when instructions say to follow one of these skills and you do not already have its text loaded.",
+        inputSchema: {
+          name: z.enum(Object.keys(SKILLS) as [SkillName, ...SkillName[]]).describe("The skill to read."),
+        },
+        annotations: { readOnlyHint: true },
+      },
+      ({ name }): CallToolResult => ({ content: [{ type: "text", text: SKILLS[name] }] }),
     );
   }
 
