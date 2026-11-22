@@ -169,6 +169,14 @@ export function ClaudeHome({ home }: { home: Project["claudeHome"] }) {
       ) : (
         <>
           Code folder: <code className="font-mono">{home.path}</code>
+          {home.repoUrl ? (
+            <>
+              {" · "}
+              <a href={home.repoUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                Repository
+              </a>
+            </>
+          ) : null}
         </>
       )}
     </p>
