@@ -127,6 +127,9 @@ describe("the calendar copy", () => {
     // The next pass: one unchanged, one moved, and the trip is no longer in the calendar.
     tick();
     runId = await begin(t);
+    // Describing an event in other words is not a change to it.
+    const reworded = await asClaude<Sync>(t, "sync_calendar", { runId, ...stretch, events: [{ ...dentist, description: "Check-up." }], more: true });
+    expect(reworded).toMatchObject({ created: 0, changed: 0, unchanged: 1 });
     const again = await asClaude<Sync>(t, "sync_calendar", {
       runId,
       ...stretch,

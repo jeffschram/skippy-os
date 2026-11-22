@@ -258,8 +258,11 @@ export const syncCalendar = internalMutation({
       ).find((row) => row.origin === "google");
 
       if (existing) {
-        const changed = (Object.keys(fields) as (keyof typeof fields)[]).some((name) => existing[name] !== fields[name]);
-        await ctx.db.patch(existing._id, { ...fields, seenInRun: run._id, ...(changed ? { updatedBy: args.actor, updatedAt: now } : {}) });
+        // The description is the pass's own wording and differs from one pass to the next,
+        // so it is not what makes an event changed. It is refreshed when something else is.
+        const { description: _wording, ...facts } = fields;
+        const changed = (Object.keys(facts) as (keyof typeof facts)[]).some((name) => existing[name] !== facts[name]);
+        await ctx.db.patch(existing._id, changed ? { ...fields, seenInRun: run._id, updatedBy: args.actor, updatedAt: now } : { seenInRun: run._id });
         if (changed) await indexEvent(ctx, (await ctx.db.get(existing._id))!);
         if (changed) counts.changed++;
         else counts.unchanged++;
