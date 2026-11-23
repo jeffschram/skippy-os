@@ -1,14 +1,14 @@
 # Moving Clerk to a production instance
 
-Skippy OS signs people in with a Clerk development instance. Clerk says a development instance is not meant for a live app: it is capped at 100 users, its sign-in pages sit on an `accounts.dev` address, and it keeps the browser session in a way Clerk calls not secure enough for production. A production instance needs a domain the owner controls, and since 2026-11-22 there is one: `skippyos.app`.
+Until 2026-11-22 Skippy OS signed people in with a Clerk development instance. Clerk says a development instance is not meant for a live app: it is capped at 100 users, its sign-in pages sit on an `accounts.dev` address, and it keeps the browser session in a way Clerk calls not secure enough for production. A production instance needs a domain the owner controls, and since 2026-11-22 there is one: `skippyos.app`.
 
-This is not done yet. It is written down so it can be done in one sitting when the owner chooses. Nothing in the code changes.
+**Done on 2026-11-22.** The live site, Convex production and the claude.ai connector now use the production instance, whose sign-in server is `https://clerk.skippyos.app`. The development instance is kept for the local site. This page records how it was done and what was learned, in case it is ever done again.
 
-## What it costs
+## What it cost
 
 - **Every client signs in again.** The production instance is a different sign-in server with its own users and keys. The claude.ai connector has to be reconnected, and each browser and phone signed in again. Do it before ChatGPT or Codex are connected, so they connect once.
 - **The owner gets a new user id.** Convex lets in one Clerk user by id, so that setting changes. No stored record holds the old id, so no data changes.
-- **`pnpm dev:live` stops working.** The local site uses the development keys. Convex production will only accept sign-ins from the production instance, and a production instance does not work on `localhost`. After the move, the local site runs on the test database only (`pnpm dev`), and live data is seen on `www.skippyos.app`.
+- **The local site can no longer show live data.** The local site uses the development keys. Convex production only accepts sign-ins from the production instance, and a production instance does not work on `localhost`. The `pnpm dev:live` command was removed; the local site runs on the test database (`pnpm dev`), and live data is seen on `www.skippyos.app`.
 - **An hour or so, mostly waiting** for DNS and certificates.
 
 ## Steps
@@ -34,6 +34,14 @@ The owner's user id is never written into the repo or a chat. For step 8 the own
 ```bash
 npx convex env set SKIPPY_OWNER_CLERK_USER_ID user_... --prod
 ```
+
+## What went differently from the plan
+
+- **The keys were in Vercel but the site was not rebuilt.** The publishable key is built into the pages, so saving it changes nothing until the next build. A push to `main` did the rebuild.
+- **Convex took the new sign-in server at once.** Setting `CLERK_JWT_ISSUER_DOMAIN` needed no deploy: the live pages stopped loading data from that moment until the site was rebuilt with the production keys. Set it last, just before the rebuild.
+- **Nobody could sign up at first.** Cloning made Google the only sign-in method, and a production instance cannot use Clerk's shared Google credentials: Google answered "Missing required parameter: client_id". Email sign-up and sign-in were both off. Turn email on (User & authentication, Email) before the switch, or give Google its own credentials.
+- **Cloning did not bring across** the scopes, the OAuth settings, the MCP server or the Convex integration. Step 3 lists them by their names in the dashboard.
+- **Claude Code on the mini remembered that the connector needed a sign-in.** After reconnecting in claude.ai, the entry for the connector in `~/.claude/mcp-needs-auth-cache.json` had to be removed before a new session would use it.
 
 ## Going back
 

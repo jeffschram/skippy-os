@@ -10,7 +10,7 @@ All three accounts exist and are configured, and the hosted site has every setti
 | --- | --- | --- |
 | Convex | Project `skippy-os` in team `schram-industries`. Dev deployment `tame-toad-217`, production deployment `elated-meerkat-158`. | Functions pushed to both. Gateway secret and MCP address set on both. Owner ID set on both. |
 | Vercel | Project `skippy-os`, building from `main` on GitHub. Root directory `apps/web`. | Live at `www.skippyos.app` since 2026-11-22; `skippyos.app` redirects there. The first address, `skippy-os-two.vercel.app`, still serves the site. Production variables set: `SKIPPY_MCP_RESOURCE_URL`, `CONVEX_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_TELEMETRY_DISABLED`, `CLERK_SECRET_KEY`, `SKIPPY_GATEWAY_SECRET`. A made-up token is refused with `401 invalid_token`. |
-| Clerk | Application "Skippy OS", development instance. | MCP server `https://www.skippyos.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. Convex integration on, so the web app's session is accepted by Convex. One user, the owner. |
+| Clerk | Application "Skippy OS". Since 2026-11-22 the live site uses its production instance, whose sign-in server is `https://clerk.skippyos.app`; the development instance serves the local site. How the move went is in `clerk-production.md`. | MCP server `https://www.skippyos.app/api/mcp` registered. Public (CIMD) clients allowed. DCR off. Scopes `skippy:read` and `skippy:write` created, advertised, and allowed and default for self-registering clients. JWT access tokens with audience, PKCE required. Convex integration on, so the web app's session is accepted by Convex. One user, the owner. |
 
 The hosted MCP address is `https://www.skippyos.app/api/mcp`. Until 2026-11-22 it was `https://skippy-os-two.vercel.app/api/mcp`.
 
@@ -49,8 +49,8 @@ Nothing. The owner signed in through the claude.ai connector, and that user's ID
 ### Decisions still open
 
 - **DCR** is off. Clerk marks it deprecated and it opens a public registration endpoint. Turn it on only if a client in the acceptance run cannot connect without it, and record which client.
-- **Sign-ups** are open on the Clerk instance. Convex refuses every account but the owner, and the web app shows such an account a page with no data, but closing sign-ups after the owner exists (Clerk, Access mode) is tidier.
-- **Clerk production instance** needs a domain the owner controls, so it cannot use a `vercel.app` address. The development instance is enough for Phase 0.
+- **Sign-ups** were still open on the production instance when it went live on 2026-11-22 (Access mode "Open"). Convex refuses every account but the owner, and the web app shows such an account a page with no data, but setting Access mode to "Invite-only" now that the owner exists is tidier. Sign-in is by email; Google is off, because a production instance needs its own Google credentials.
+- **Clerk production instance:** done on 2026-11-22, once the site had its own domain. See `clerk-production.md`.
 
 ## What already works without any account
 
