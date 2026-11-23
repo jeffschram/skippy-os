@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
+    "@playwright/mcp": "0.0.86",
     "@types/node": "^22",
     "@types/web-push": "^3.6.4",
     "convex-test": "^0.0.73",
