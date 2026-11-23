@@ -20,7 +20,7 @@ Adding a connector and connecting it are two separate steps: the tools only appe
 Open Claude Code on the work computer (the desktop app's Code tab) and paste this:
 
 ````text
-Create a scheduled task named "Work schedule to Skippy OS". It runs at 7:30am, 12:30pm and 4:30pm, Monday to Friday. Use the prompt between the lines below, word for word.
+Create a scheduled task named "Work schedule to Skippy OS". It runs once a day at 4:30pm, Monday to Friday. Use the prompt between the lines below, word for word.
 
 ----
 Copy my work schedule from Microsoft 365 into Skippy OS. Nobody is watching this run, so do not ask questions or wait for approval.
@@ -29,7 +29,7 @@ Tools: the Microsoft 365 connector to read the calendar, and the connector named
 
 1. Call get_importance_rubric on Skippy OS. Note today's date and my time zone from it.
 2. Call record_ingestion_run with status "started" and pass "work calendar". Keep the runId. If it says another run is in progress, stop: the next run will catch up.
-3. Read my main Microsoft 365 calendar from 14 days before today to 90 days after, in my time zone, as a calendar view so that each occurrence of a recurring event comes back as its own event. Follow every next page until there are no more.
+3. Read my main Microsoft 365 calendar from today to 30 days after, in my time zone, as a calendar view so that each occurrence of a recurring event comes back as its own event. Follow every next page until there are no more.
 4. Send the events to Skippy OS with sync_calendar, at most 100 per call: the runId, calendarId "m365-work", from and to as the first and last dates of that stretch (like 2026-11-08), and more: true on every call but the last. If there are no events, still make one call with an empty list, so that removed events are noticed.
    For each event:
    - id: the event's id. If occurrences of a recurring event share one id, use that id followed by "_" and the occurrence's start date.
@@ -48,7 +48,7 @@ Before saving it, make sure the task is allowed to use the Microsoft 365 and Ski
 
 If Claude there cannot create scheduled tasks itself, make the task by hand in the desktop app (Code tab, Scheduled, New task) with the same name, times and prompt.
 
-Why half past: the Mac mini's passes start on the hour at 9, 11, 1, 3, 5 and 7, and only one run can be open at a time. A run that meets one in progress stops and the next one catches up, so a clash costs nothing, but half past avoids it. A scheduled task on a computer only runs while that computer is on and awake, so pick times when the work computer is usually open.
+Why 4:30pm: it runs at the end of the working day, so the evening shows tomorrow and the rest of the week. It reads the next 30 days. The Mac mini's passes start on the hour at 9, 11, 1, 3, 5 and 7, and only one run can be open at a time, so half past keeps clear of them. If it does meet one, it stops, and that day's copy is skipped until the next run. A scheduled task only runs while the computer is on and awake. If the work computer is usually shut before 4:30, pick an earlier half hour.
 
 ## 3. Run it once by hand
 
