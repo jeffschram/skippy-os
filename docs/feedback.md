@@ -26,6 +26,8 @@ Things that are wrong, slow, confusing or awkward.
   - **Home, one switch instead of three buttons.** Decided 2026-11-22: a three-way switch, Chat / Capture / Hold, with one send button. Chat is where it starts and where it goes back to after each send, so a switch left on Hold cannot quietly send things to the seven-day pile. This changes what Enter does on Home: today it captures. With files allowed in a chat, attaching one no longer rules Chat out, and the `/chat` shortcut is no longer needed.
   - **Not copied from Claude:** the model picker and the tools menu. The mini decides those.
   - **Later pass:** a microphone button, tap to dictate and hold to dictate. Check first what speech-to-text the iPhone browser and the Home Screen app allow.
+- [ ] **A details window should open for reading, not as a form.** (2026-11-22) Opening a task, or any other record, shows its edit form straight away. Wanted: the window opens showing the record laid out to be read, with an Edit button that switches it to the form. This covers both details windows: the one for tasks and the one for everything else (events, recurrences, people, notes and the rest).
+- [ ] **Chat: keep the composer pinned to the bottom of the screen.** (2026-11-22) The box is already set to stick to the bottom, but that only holds once the chat is longer than the screen; in a short chat it sits just under the last message. Wanted: always at the bottom of the screen, as in Claude, with the messages scrolling above it. Check it on the phone with the keyboard open. Do it together with the composer item above.
 
 ## Ideas
 
