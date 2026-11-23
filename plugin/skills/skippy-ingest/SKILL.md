@@ -31,10 +31,10 @@ Read the sources the prompt names. If it names none, read Google Calendar only.
 
 ## Steps
 
-1. Call `get_importance_rubric`. It returns the rubric, the owner's own rules, the block list, each source's cursor, today's date and the owner's time zone. The owner's rules win over the rubric where they differ.
+1. Call `get_importance_rubric`. It returns the rubric, the owner's own rules, the block list, each source's cursor, today's briefing as it stands, today's date and the owner's time zone. The owner's rules win over the rubric where they differ.
 2. Call `record_ingestion_run` with `status: "started"` and a `pass` label (the hour, such as "11am", or "manual"). Keep the `runId`. If it answers that another run is in progress, stop and say so.
 3. Read each source as described below. A source that fails does not stop the others: note its error and leave its cursor where it was.
-4. If the rubric said `briefingWritten` is false, write the day's briefing as described below.
+4. Write the day's briefing, or bring it up to date, as described below. Every pass does this.
 5. Call `record_ingestion_run` with the `runId`, `status: "finished"`, and one entry per source read: how many things you read and how many you left out. Use `status: "failed"` only when nothing could be read at all. Put anything the owner should know in `note`, in a sentence or two.
 6. Reply with two or three lines: what was read, what was made, and any problem.
 
@@ -108,15 +108,19 @@ For the run's counts, "read" is the number of new messages and "skipped" the num
 
 ## The briefing
 
-The first pass of the day writes the owner's morning note. They read it on their dashboard, and their phone tells them it is ready.
+The briefing is the owner's note for the day, on their dashboard. The first pass of the day writes it, and their phone tells them it is ready. Every later pass rewrites it, so that whenever they look it says how the rest of the day stands. Rewrites send no notification.
 
 1. Call `get_today`. It lists the day's events, the recurring things that are due, the tasks that are overdue, due or planned for today, and what is waiting on someone.
-2. Write the note to the owner, as "you". Lead with what the day holds: what is at a fixed time, what is due, what is overdue. Then anything this pass read that is worth knowing and made no record. Leave out what is not happening: do not list empty categories.
-3. Keep it short: about 200 words at most. Plain text only: short sentences, and lines that start with a hyphen for a list. No headings, no bold, no links.
-4. Say only what the tools told you or what you read in this pass. Do not guess at how the owner feels about their day or what they should prioritise.
-5. Call `record_briefing` with the text and the `runId`. It answers whether a notification went out; that needs nothing from you.
-
-If the rubric said the briefing is already written, do not write another.
+2. From 4pm in the owner's time zone, also call `get_agenda` with `from` set to tomorrow and `days: 1`, for what tomorrow holds.
+3. Write the note to the owner, as "you". Lead with what is still ahead today: what is at a fixed time, what is due, what is overdue. Then anything worth knowing that made no record. From 4pm, end with a few lines on tomorrow: what is at a fixed time and what is due. Leave out what is not happening: do not list empty categories.
+4. If the rubric's `briefing` is not null, this is a rewrite. Start from that text and write the note as it should read now:
+   - Leave out what is over: events that have ended, tasks that are now done.
+   - Keep what an earlier pass said was worth knowing, while it is still true and still matters today.
+   - Add what this pass read that is worth knowing and made no record.
+   - Write it whole, as one note. Do not add "Update:" lines or say what changed since the last version.
+5. Keep it short: about 200 words at most. Plain text only: short sentences, and lines that start with a hyphen for a list. No headings, no bold, no links.
+6. Say only what the tools told you, what an earlier version of the note said, or what you read in this pass. Do not guess at how the owner feels about their day or what they should prioritise.
+7. Call `record_briefing` with the text and the `runId`. It answers whether a notification went out; that needs nothing from you.
 
 ## If a pass is interrupted
 

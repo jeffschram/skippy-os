@@ -268,7 +268,7 @@ function Machinery() {
         ? `${jobs.ingestion.pass ? `${jobs.ingestion.pass} pass ` : "last pass "}${jobs.ingestion.status === "finished" ? "finished" : jobs.ingestion.status} · ${showTime(jobs.ingestion.finishedAt ?? jobs.ingestion.startedAt)}`
         : "has not run yet",
     ],
-    ["Morning briefing", jobs.briefing ? `for ${showDay(jobs.briefing.date)} · written ${showTime(jobs.briefing.writtenAt)}` : "none written yet"],
+    ["Briefing", jobs.briefing ? `for ${showDay(jobs.briefing.date)} · last written ${showTime(jobs.briefing.writtenAt)}` : "none written yet"],
     ["Weekly review", jobs.review ? `written ${showTime(jobs.review.writtenAt)}` : "none written yet"],
     ["Nightly sweep", jobs.sweepReportAt ? `last wrote a report ${showTime(jobs.sweepReportAt)}` : "has not written a report yet"],
   ];

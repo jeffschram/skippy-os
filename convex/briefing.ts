@@ -8,9 +8,11 @@ import { readToday } from "./read";
 import { actor } from "./schema";
 
 /**
- * The morning note. The day's first ingestion pass writes it: what is on
- * today, and what came in that is worth knowing but made no record. One a
- * day; writing it again replaces it. Writing today's sends one notification.
+ * The day's note. The first ingestion pass of the day writes it: what is on
+ * today, and what came in that is worth knowing but made no record. Every
+ * later pass rewrites it, so it stays current through the day. One a day;
+ * writing it again replaces it. Only the first write of the day sends a
+ * notification.
  */
 
 const MAX_TEXT = 6000;
@@ -46,13 +48,13 @@ export async function latestReview(ctx: QueryCtx, now: number) {
   return presentBriefing(latest, localDate(now, settings.timeZone));
 }
 
-/** Whether a day's morning note has been written. */
-export async function dailyWritten(ctx: QueryCtx, date: string): Promise<boolean> {
+/** A day's note, if it has been written. */
+export async function dailyBriefing(ctx: QueryCtx, date: string): Promise<Doc<"briefings"> | null> {
   const rows = await ctx.db
     .query("briefings")
     .withIndex("by_date", (q) => q.eq("date", date))
     .collect();
-  return rows.some((row) => row.kind !== "weekly");
+  return rows.find((row) => row.kind !== "weekly") ?? null;
 }
 
 /** "3 due today, 1 overdue, 2 events", for the notification. */

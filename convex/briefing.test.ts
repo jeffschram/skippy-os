@@ -62,14 +62,19 @@ describe("quiet hours", () => {
 });
 
 describe("the briefing", () => {
-  it("is written once a day, shown on Home, and tells the next pass it is done", async () => {
+  it("is one note a day, shown on Home, and handed to each later pass to rewrite", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });
     expect(await owner.query(api.viewer.briefing, { now: NOW })).toBeNull();
-    expect((await asClaude<{ briefingWritten: boolean }>(t, "get_importance_rubric", {})).briefingWritten).toBe(false);
+    expect(await asClaude(t, "get_importance_rubric", {})).toMatchObject({ briefingWritten: false, briefing: null });
 
     const first = await asClaude<Written>(t, "record_briefing", { text: "Two things today.\n- Dentist at 3.\n- Rent is due." });
     expect(first).toMatchObject({ date: "2026-11-25", changed: true });
+    type Rubric = { briefingWritten: boolean; briefing: { text: string; writtenAt: string } | null };
+    expect((await asClaude<Rubric>(t, "get_importance_rubric", {})).briefing).toEqual({
+      text: "Two things today.\n- Dentist at 3.\n- Rent is due.",
+      writtenAt: expect.stringMatching(/^2026-11-25T17:00/),
+    });
     expect((await asClaude<{ briefingWritten: boolean }>(t, "get_importance_rubric", {})).briefingWritten).toBe(true);
     expect(await owner.query(api.viewer.briefing, { now: NOW })).toMatchObject({
       date: "2026-11-25",
@@ -82,6 +87,8 @@ describe("the briefing", () => {
     expect(await asClaude<Written>(t, "record_briefing", { text: "Two things today.\n- Dentist at 3.\n- Rent is due." })).toMatchObject({ changed: false });
     await asClaude(t, "record_briefing", { text: "Three things today." });
     expect((await owner.query(api.viewer.briefing, { now: NOW }))!.text).toBe("Three things today.");
+    // A later pass reads the note as it now stands, to bring it up to date.
+    expect((await asClaude<Rubric>(t, "get_importance_rubric", {})).briefing?.text).toBe("Three things today.");
     expect(await t.run((ctx) => ctx.db.query("briefings").collect())).toHaveLength(1);
 
     // Tomorrow, yesterday's note is still the latest, and says so.
@@ -90,7 +97,7 @@ describe("the briefing", () => {
     expect(await refusal(t.query(api.viewer.briefing, { now: NOW }))).toBe("not_signed_in");
   });
 
-  it("sends one notification for today's note, with what the day holds", async () => {
+  it("sends one notification for today's note, with what the day holds, and none for rewrites", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });
     await owner.mutation(api.viewer.savePushSubscription, device);

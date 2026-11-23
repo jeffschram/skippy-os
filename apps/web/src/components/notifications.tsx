@@ -7,7 +7,7 @@ import { button, problem, Quiet, showTime } from "./parts";
 
 /**
  * Notifications on this device. A device asks for them here; Skippy OS then
- * sends the morning briefing's notice to every device that asked. On an
+ * sends the briefing's morning notice to every device that asked. On an
  * iPhone the browser only allows this once the site is on the Home Screen.
  */
 
@@ -122,7 +122,7 @@ export function NotificationSettings({ quietFrom, quietTo }: { quietFrom: number
   return (
     <div className="space-y-4">
       <p className="text-sm text-foreground/70">
-        When the morning briefing is written, every device that has notifications on is told. {data.devices.length === 0 ? "No device has them on yet." : `${data.devices.length} device${data.devices.length === 1 ? " has" : "s have"} them on.`}
+        When the day&apos;s briefing is first written, every device that has notifications on is told. Later passes update it without a notification. {data.devices.length === 0 ? "No device has them on yet." : `${data.devices.length} device${data.devices.length === 1 ? " has" : "s have"} them on.`}
       </p>
       {!data.publicKey ? <p className="text-sm text-foreground/70">Notifications are not set up on the server yet.</p> : null}
       {device.ios && !device.installed ? (

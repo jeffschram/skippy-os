@@ -1,7 +1,7 @@
 import { actorLabel, INGEST_SOURCES, localDate, type IngestSource } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import { dailyWritten } from "./briefing";
+import { dailyBriefing } from "./briefing";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { cleanText, getSettings, iso, refuse, requireText, when } from "./lib/common";
@@ -63,6 +63,7 @@ export const rubric = internalQuery({
   handler: async (ctx) => {
     const now = Date.now();
     const settings = await getSettings(ctx);
+    const briefing = await dailyBriefing(ctx, localDate(now, settings.timeZone));
     const rules = (await ctx.db.query("ingestionRules").collect()).filter((rule) => rule.active);
     const cursors: Record<string, string | null> = {};
     for (const source of INGEST_SOURCES) {
@@ -84,8 +85,10 @@ export const rubric = internalQuery({
       blockList: rules.filter((rule) => rule.kind === "block").map(presentRule),
       /** Where each source was left. null means it has never been read: look back `firstRunLookbackDays`. */
       cursors,
-      /** Whether today's briefing has been written. The first pass of the day writes it. */
-      briefingWritten: await dailyWritten(ctx, localDate(now, settings.timeZone)),
+      /** Whether today's briefing has been written. The first pass of the day writes it; every later pass rewrites it. */
+      briefingWritten: briefing !== null,
+      /** Today's briefing as it stands, for a later pass to bring up to date. */
+      briefing: briefing ? { text: briefing.text, writtenAt: iso(briefing.updatedAt)! } : null,
       firstRunLookbackDays: LOOKBACK_DAYS,
     };
   },

@@ -1,4 +1,4 @@
-Run a Skippy ingestion pass for Google Calendar, Gmail and iMessage, in that order. The first pass of the day also writes the morning briefing, as the skill describes.
+Run a Skippy ingestion pass for Google Calendar, Gmail and iMessage, in that order. Every pass also writes or rewrites the day's briefing, as the skill describes.
 
 Follow the skippy-ingest skill. If you do not have that skill loaded, get its text with the get_skill tool on the connector named "Skippy OS" (name: "skippy-ingest") and follow what it returns.
 

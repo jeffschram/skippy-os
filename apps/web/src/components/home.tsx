@@ -13,7 +13,7 @@ import { Panel, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts"
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
-/** Home: the morning briefing, what needs the owner, the inbox, today's tasks, the live projects and the latest activity. Each panel is its own live query. */
+/** Home: the day's briefing, what needs the owner, the inbox, today's tasks, the live projects and the latest activity. Each panel is its own live query. */
 
 export function Home() {
   return (
