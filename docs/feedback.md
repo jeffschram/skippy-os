@@ -19,7 +19,13 @@ A line looks like this:
 
 Things that are wrong, slow, confusing or awkward.
 
-_Nothing yet._
+- [ ] **The chat box and the Home box should work like Claude's composer.** (2026-11-22) Today the chat box is a plain text field that takes no files, and Home has a text field with three buttons (Capture, Hold for 7 days, Chat) and an "Attach a file" link.
+  - **Shape, both pages:** one rounded box that grows as the text does, with a row of buttons inside it: add a file on the left, send on the right. Enter sends, Shift+Enter starts a new line.
+  - **Files:** add with the button, by pasting an image, or by dragging one in. Each shows as a small chip that can be removed before sending. Several at once.
+  - **Claude reads what is attached.** Decided 2026-11-22: images and PDFs to begin with, kept in Convex file storage like every other file. This means a chat message can carry files, and the chat runner on the mini has to hand them to the session. It is the larger part of the work.
+  - **Home, one switch instead of three buttons.** Decided 2026-11-22: a three-way switch, Chat / Capture / Hold, with one send button. Chat is where it starts and where it goes back to after each send, so a switch left on Hold cannot quietly send things to the seven-day pile. This changes what Enter does on Home: today it captures. With files allowed in a chat, attaching one no longer rules Chat out, and the `/chat` shortcut is no longer needed.
+  - **Not copied from Claude:** the model picker and the tools menu. The mini decides those.
+  - **Later pass:** a microphone button, tap to dictate and hold to dictate. Check first what speech-to-text the iPhone browser and the Home Screen app allow.
 
 ## Ideas
 
