@@ -601,10 +601,13 @@ export default defineSchema({
     attachedTo: v.optional(entityRef),
     /** Set while the file waits in the inbox on a capture. */
     captureId: v.optional(v.id("captures")),
+    /** Set when the owner sent the file with a chat message, for the chat's session to read. */
+    messageId: v.optional(v.id("chatMessages")),
     ...authored,
   })
     .index("by_entity", ["attachedTo.entityId"])
-    .index("by_capture", ["captureId"]),
+    .index("by_capture", ["captureId"])
+    .index("by_message", ["messageId"]),
 
   // The inbox: things dropped in quickly, to be filed later. See captures.ts.
   captures: defineTable({

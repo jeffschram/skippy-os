@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention } from "./lib/entities";
+import { CHAT_FILE_TYPES, MAX_CHAT_FILES, recordFile } from "./files";
 import { refuse, requireText } from "./lib/common";
 import { actor, cardDraft, cardKind } from "./schema";
 
@@ -21,10 +22,23 @@ const MAX_MESSAGE = 8000;
 
 export type Scope = Doc<"chats">["scope"];
 
-/** Saves the owner's message, with the reply it is waiting for and the turn that will write it. */
-export async function queueTurn(ctx: MutationCtx, chatId: Id<"chats">, text: string, kind?: "brief"): Promise<Id<"chatTurns">> {
+export type Upload = { storageId: Id<"_storage">; fileName: string };
+
+/**
+ * Saves the owner's message, with the reply it is waiting for and the turn
+ * that will write it. Images and PDFs sent with it are kept on the message; a
+ * message that is only files needs no words.
+ */
+export async function queueTurn(
+  ctx: MutationCtx,
+  chatId: Id<"chats">,
+  text: string,
+  options: { kind?: "brief"; files?: Upload[] } = {},
+): Promise<Id<"chatTurns">> {
   const now = Date.now();
-  const content = requireText(text, "text");
+  const files = options.files ?? [];
+  if (files.length > MAX_CHAT_FILES) throw refuse("invalid_arguments", `A message takes up to ${MAX_CHAT_FILES} files.`);
+  const content = files.length > 0 ? text.trim() : requireText(text, "text");
   if (content.length > MAX_MESSAGE) throw refuse("invalid_arguments", `A message holds up to ${MAX_MESSAGE} characters.`);
   const busy = await ctx.db
     .query("chatTurns")
@@ -35,6 +49,7 @@ export async function queueTurn(ctx: MutationCtx, chatId: Id<"chats">, text: str
     throw refuse("chat_busy", "The last message is still being answered. Wait for it, or cancel it.");
   }
   const userMessageId = await ctx.db.insert("chatMessages", { chatId, role: "user", content, status: "done", createdAt: now });
+  for (const file of files) await recordFile(ctx, { actor: { kind: "user" }, ...file, messageId: userMessageId, only: CHAT_FILE_TYPES });
   // One millisecond later, so the reply always sorts after its question.
   const assistantMessageId = await ctx.db.insert("chatMessages", { chatId, role: "assistant", content: "", status: "waiting", createdAt: now + 1 });
   await ctx.db.patch(chatId, { updatedAt: now });
@@ -43,21 +58,23 @@ export async function queueTurn(ctx: MutationCtx, chatId: Id<"chats">, text: str
     userMessageId,
     assistantMessageId,
     status: "queued",
-    ...(kind ? { kind } : {}),
+    ...(options.kind ? { kind: options.kind } : {}),
     createdAt: now,
   });
 }
 
-export async function startChat(ctx: MutationCtx, args: { text: string; about?: { type: EntityType; id: string } }) {
+export async function startChat(ctx: MutationCtx, args: { text: string; about?: { type: EntityType; id: string }; files?: Upload[] }) {
   const now = Date.now();
-  const text = requireText(args.text, "text");
+  const files = args.files ?? [];
+  const text = files.length > 0 ? args.text.trim() : requireText(args.text, "text");
   let scope: Scope = { kind: "home" };
   if (args.about) {
     const record = await findEntity(ctx, args.about.type, args.about.id);
     if (!record) throw refuse("not_found", `There is no ${args.about.type} with the id "${args.about.id}".`);
     scope = { kind: "item", entityRef: record.ref };
   }
-  const firstLine = text.split("\n")[0].trim();
+  // A chat that starts with only a file is named after the file.
+  const firstLine = text.split("\n")[0].trim() || files[0].fileName.trim() || "A file";
   const chatId = await ctx.db.insert("chats", {
     scope,
     title: firstLine.length > 70 ? `${firstLine.slice(0, 69)}…` : firstLine,
@@ -66,7 +83,7 @@ export async function startChat(ctx: MutationCtx, args: { text: string; about?: 
     createdAt: now,
     updatedAt: now,
   });
-  await queueTurn(ctx, chatId, text);
+  await queueTurn(ctx, chatId, text, { files });
   return chatId;
 }
 

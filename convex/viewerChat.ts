@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention, type Ref } from "./lib/entities";
 import { BRIEF_REQUEST, describeScope, failTurn, queueTurn, startChat } from "./chats";
+import { filesOnMessage, presentFile } from "./files";
 import { refuse } from "./lib/common";
 import { cardDraft, entityType } from "./schema";
 import { OWNER, requireOwner } from "./viewer";
@@ -13,9 +14,12 @@ import { OWNER, requireOwner } from "./viewer";
  * like the functions in `viewer.ts`.
  */
 
+/** An image or PDF the browser has already sent to storage, to go with a message. */
+const upload = v.object({ storageId: v.id("_storage"), fileName: v.string() });
+
 /** Starts a chat with its first message. `about` makes it a chat about one record; without it, an idea chat. */
 export const start = mutation({
-  args: { text: v.string(), about: v.optional(v.object({ type: entityType, id: v.string() })) },
+  args: { text: v.string(), about: v.optional(v.object({ type: entityType, id: v.string() })), files: v.optional(v.array(upload)) },
   handler: async (ctx, args): Promise<{ chatId: string }> => {
     await requireOwner(ctx);
     return { chatId: await startChat(ctx, args) };
@@ -23,14 +27,14 @@ export const start = mutation({
 });
 
 export const send = mutation({
-  args: { chatId: v.string(), text: v.string() },
+  args: { chatId: v.string(), text: v.string(), files: v.optional(v.array(upload)) },
   handler: async (ctx, args): Promise<null> => {
     await requireOwner(ctx);
     const id = ctx.db.normalizeId("chats", args.chatId);
     const chat = id ? await ctx.db.get(id) : null;
     if (!chat) throw refuse("not_found", "That chat is no longer there.");
     if (chat.state === "archived") throw refuse("invalid_arguments", "That chat is archived.");
-    await queueTurn(ctx, chat._id, args.text);
+    await queueTurn(ctx, chat._id, args.text, { files: args.files });
     return null;
   },
 });
@@ -86,6 +90,7 @@ export const chat = query({
           content: message.content,
           status: message.status,
           at: new Date(message.createdAt).toISOString(),
+          files: message.role === "user" ? await Promise.all((await filesOnMessage(ctx, message._id)).map((file) => presentFile(ctx, file))) : [],
           cards: await Promise.all((message.cards ?? []).map((card) => presentCard(ctx, card))),
         })),
       ),
@@ -237,7 +242,7 @@ export const continueInClaude = mutation({
     const id = ctx.db.normalizeId("chats", args.chatId);
     const found = id ? await ctx.db.get(id) : null;
     if (!found) throw refuse("not_found", "That chat is no longer there.");
-    await queueTurn(ctx, found._id, BRIEF_REQUEST, "brief");
+    await queueTurn(ctx, found._id, BRIEF_REQUEST, { kind: "brief" });
     return null;
   },
 });

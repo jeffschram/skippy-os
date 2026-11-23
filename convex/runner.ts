@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
 import { describeScope, failTurn, keepBrief, LEASE_MS } from "./chats";
+import { filesOnMessage } from "./files";
 
 /**
  * What the chat runner on the mini calls. These are public functions, so each
@@ -14,7 +15,8 @@ import { describeScope, failTurn, keepBrief, LEASE_MS } from "./chats";
  * ingestion job, which holds the same token, can do one: report that a pass
  * failed. The nightly sweep can ask which code projects there are and where
  * their folders are, and note how far it has swept. None of them can read the
- * owner's tasks, people or memory.
+ * owner's tasks, people or memory. The one thing of the owner's the runner is
+ * handed is what a chat message carries: its words, and the files sent with it.
  */
 
 async function requireRunner(token: string): Promise<void> {
@@ -159,6 +161,15 @@ export const claim = mutation({
       /** False on a chat's first turn: the session has to be started, not resumed. */
       resume: chat.sessionStarted === true,
       text: message.content,
+      /** Images and PDFs the owner sent with the message, each with the link to fetch it by. The link is the only key to the file. */
+      files: await Promise.all(
+        (await filesOnMessage(ctx, message._id)).map(async (file) => ({
+          id: file._id,
+          fileName: file.fileName,
+          contentType: file.contentType,
+          url: await ctx.storage.getUrl(file.storageId),
+        })),
+      ),
       scope: await describeScope(ctx, chat.scope),
       folder,
     };

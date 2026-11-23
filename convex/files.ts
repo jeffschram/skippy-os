@@ -8,11 +8,14 @@ import { actor, entityType } from "./schema";
 
 /**
  * Files the owner has put into Skippy. A file belongs to one record (a
- * project, a task, a note, a person…) or waits on a capture in the inbox.
+ * project, a task, a note, a person…), waits on a capture in the inbox, or
+ * was sent with a chat message.
  * The bytes live in Convex file storage; a row here says what they are.
  *
  * Internal: run from the web app's own functions. Agents see what files a
- * record has, but there is no tool that uploads, reads or deletes one.
+ * record has, but there is no tool that uploads, reads or deletes one. The
+ * one exception is a file sent with a chat message: the chat runner on the
+ * mini is handed it, so that chat's session can read it.
  */
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -49,16 +52,40 @@ export async function fileOnCapture(ctx: QueryCtx, captureId: Id<"captures">): P
     .first();
 }
 
+/** What a chat's session can read: the images Claude Code opens, and PDFs. */
+export const CHAT_FILE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"] as const;
+export const MAX_CHAT_FILES = 10;
+
+export async function filesOnMessage(ctx: QueryCtx, messageId: Id<"chatMessages">): Promise<Doc<"files">[]> {
+  return await ctx.db
+    .query("files")
+    .withIndex("by_message", (q) => q.eq("messageId", messageId))
+    .collect();
+}
+
 /** Records an uploaded blob as a file. The size and type are read from storage, not taken on trust. */
 export async function recordFile(
   ctx: MutationCtx,
-  args: { actor: Actor; storageId: Id<"_storage">; fileName: string; note?: string | null; attachedTo?: Ref; captureId?: Id<"captures"> },
+  args: {
+    actor: Actor;
+    storageId: Id<"_storage">;
+    fileName: string;
+    note?: string | null;
+    attachedTo?: Ref;
+    captureId?: Id<"captures">;
+    messageId?: Id<"chatMessages">;
+    /** When given, the only content types let in. */
+    only?: readonly string[];
+  },
 ): Promise<Doc<"files">> {
   const blob = await ctx.db.system.get(args.storageId);
   if (!blob) throw refuse("not_found", "That upload did not arrive. Try again.");
   if (blob.size > MAX_FILE_BYTES) {
     await ctx.storage.delete(args.storageId);
     throw refuse("invalid_arguments", `A file can be up to ${MAX_FILE_BYTES / 1024 / 1024} MB.`);
+  }
+  if (args.only && !args.only.includes(blob.contentType ?? "")) {
+    throw refuse("invalid_arguments", `"${args.fileName}" is not an image or a PDF. A chat reads PNG, JPEG, GIF and WebP images and PDFs.`);
   }
   const note = cleanText(args.note) ?? undefined;
   const id = await ctx.db.insert("files", {
@@ -69,6 +96,7 @@ export async function recordFile(
     ...(note ? { note } : {}),
     ...(args.attachedTo ? { attachedTo: args.attachedTo } : {}),
     ...(args.captureId ? { captureId: args.captureId } : {}),
+    ...(args.messageId ? { messageId: args.messageId } : {}),
     createdBy: args.actor,
     updatedBy: args.actor,
     updatedAt: Date.now(),

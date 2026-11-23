@@ -6,23 +6,23 @@ import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useState } from "react";
+import { Composer, ComposerBar, CHAT_FILE_TYPES, MAX_CHAT_FILES } from "./composer";
 import { showSize, useUpload } from "./files";
 import { itemHref } from "./item-details";
-import { button, Panel, problem, showDay, showTime } from "./parts";
+import { Panel, problem, showDay, showTime } from "./parts";
 import { useNow } from "./use-now";
 
 /**
- * Quick capture and the inbox. The input saves at once and says nothing back.
- * What it saves waits in the inbox until it is filed as a task, a note, a
- * link or a memory, by the owner here or by Claude. "Hold" keeps something
+ * The docked box and the inbox. A capture saves at once and says nothing
+ * back. What it saves waits in the inbox until it is filed as a task, a note,
+ * a link or a memory, by the owner here or by Claude. "Hold" keeps something
  * for seven days as a hand-off between devices; it is never filed.
  */
 
 type Inbox = FunctionReturnType<typeof api.viewer.captures>;
 type Capture = Inbox["pending"][number];
 
-const field = "w-full rounded-md border border-foreground/20 bg-transparent px-3 py-2 text-base";
 const quiet = "text-sm text-foreground/60 underline underline-offset-2";
 
 /** Which record the page being looked at is about, so a capture made there can be filed under it. */
@@ -34,42 +34,65 @@ function useScope(): { type: "project"; id: string; title: string } | undefined 
   return slug && page ? { type: "project", id: slug, title: page.project.title } : undefined;
 }
 
+type Mode = "chat" | "capture" | "hold";
+const MODES: { id: Mode; label: string; send: string }[] = [
+  { id: "chat", label: "Chat", send: "Start the chat" },
+  { id: "capture", label: "Capture", send: "Capture it" },
+  { id: "hold", label: "Hold", send: "Hold it for seven days" },
+];
+
 /**
- * The capture input, docked at the bottom of every page. On a project's page
- * it captures for that project, and says so; the scope can be dropped. The
- * same words can start a chat instead: the Chat button, or beginning with /chat.
+ * The box docked at the bottom of every page. A switch says what sending
+ * does: start a chat, capture for the inbox, or hold for seven days. It starts
+ * on Chat and goes back to Chat after each send, so it is never left on Hold
+ * by accident. On a project's page a chat or a capture is about that project,
+ * and says so; that can be dropped. It is as wide as the page it sits under.
  */
-export function CaptureDock() {
+export function CaptureDock({ wide }: { wide?: boolean }) {
   const add = useMutation(api.viewer.addCapture);
   const startChat = useMutation(api.viewerChat.start);
   const router = useRouter();
   const upload = useUpload();
-  const picker = useRef<HTMLInputElement>(null);
   const scope = useScope();
   const [unscoped, setUnscoped] = useState<string>();
-  const [file, setFile] = useState<File>();
+  const [mode, setMode] = useState<Mode>("chat");
+  const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string>();
   const [error, setError] = useState<string>();
   // Dropping the scope lasts until the owner moves to another record.
   const about = scope && unscoped !== scope.id ? scope : undefined;
-  const empty = !text.trim() && !file;
+  const empty = !text.trim() && files.length === 0;
 
-  async function save(intent: "remember" | "hold") {
+  async function send() {
     if (empty || busy) return;
+    // The switch may have been moved after the files were added.
+    const unreadable = files.find((file) => !CHAT_FILE_TYPES.includes(file.type));
+    if (mode === "chat" && unreadable) return setError(`A chat reads images and PDFs. Take off "${unreadable.name}", or switch to Capture to keep it.`);
+    if (mode !== "chat" && files.length > 1) return setError("A capture keeps one file. Take the others off, or switch to Chat.");
     setBusy(true);
     setError(undefined);
+    setSaved(undefined);
     try {
-      await add({
-        ...(text.trim() ? { text } : {}),
-        intent,
-        ...(about && intent === "remember" ? { about: { type: about.type, id: about.id } } : {}),
-        ...(file ? { file: await upload(file) } : {}),
-      });
-      setText("");
-      setFile(undefined);
-      setSaved(intent === "hold" ? "Held for seven days." : about ? `Captured for ${about.title}.` : "Captured.");
+      const sent = await Promise.all(files.map((file) => upload(file)));
+      if (mode === "chat") {
+        const { chatId } = await startChat({ text, files: sent, ...(about ? { about: { type: about.type, id: about.id } } : {}) });
+        setText("");
+        setFiles([]);
+        router.push(`/chat/${chatId}`);
+      } else {
+        await add({
+          ...(text.trim() ? { text } : {}),
+          intent: mode === "hold" ? "hold" : "remember",
+          ...(about && mode === "capture" ? { about: { type: about.type, id: about.id } } : {}),
+          ...(sent[0] ? { file: sent[0] } : {}),
+        });
+        setText("");
+        setFiles([]);
+        setSaved(mode === "hold" ? "Held for seven days." : about ? `Captured for ${about.title}.` : "Captured.");
+        setMode("chat");
+      }
     } catch (caught) {
       setError(caught instanceof Error && !("data" in caught) ? caught.message : problem(caught));
     } finally {
@@ -77,101 +100,89 @@ export function CaptureDock() {
     }
   }
 
-  /** Starts a chat with what is typed, about the project being viewed when there is one, and goes to it. */
-  async function chat() {
-    const words = text.replace(/^\/chat\s*/i, "").trim();
-    if (!words || busy) return;
-    setBusy(true);
+  const change = () => {
+    setSaved(undefined);
     setError(undefined);
-    try {
-      const { chatId } = await startChat({ text: words, ...(about ? { about: { type: about.type, id: about.id } } : {}) });
-      setText("");
-      router.push(`/chat/${chatId}`);
-    } catch (caught) {
-      setError(problem(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /** Enter captures, unless the words start with /chat. */
-  const submit = () => (/^\/chat(\s|$)/i.test(text) ? chat() : save("remember"));
-
-  function onKey(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // Enter saves; Shift+Enter starts a new line.
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      void submit();
-    }
-  }
+  };
+  const placeholder =
+    mode === "chat"
+      ? about
+        ? `Chat about ${about.title}`
+        : "Talk something through with Skippy"
+      : mode === "capture"
+        ? about
+          ? `Capture for ${about.title}`
+          : "Capture a thought, a link, something to do"
+        : "Hold something for seven days, to pick up on another device";
 
   return (
-    <form
-      onSubmit={(event: FormEvent) => {
-        event.preventDefault();
-        void submit();
-      }}
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-foreground/15 bg-background"
-    >
-      <div className="mx-auto w-full max-w-5xl px-6 py-3">
-        <textarea
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setSaved(undefined);
-          }}
-          onKeyDown={onKey}
-          rows={Math.min(Math.max(text.split("\n").length, 1), 6)}
-          placeholder={about ? `Capture for ${about.title}. Enter saves it; Chat talks it through.` : "Capture a thought, a link, something to do. Enter saves it; Chat talks it through."}
-          aria-label="Capture"
-          className={`resize-none ${field}`}
-        />
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <button type="submit" disabled={busy || empty} className={`${button} disabled:opacity-50`}>
-            {busy ? "Saving…" : "Capture"}
-          </button>
-          <button type="button" disabled={busy || empty} onClick={() => save("hold")} className={`${button} disabled:opacity-50`}>
-            Hold for 7 days
-          </button>
-          <button type="button" disabled={busy || !text.trim() || Boolean(file)} onClick={chat} className={`${button} disabled:opacity-50`}>
-            Chat
-          </button>
-          <input
-            ref={picker}
-            type="file"
-            onChange={(event) => {
-              setFile(event.target.files?.[0]);
-              setSaved(undefined);
-              event.target.value = "";
-            }}
-            className="hidden"
-            aria-label="Choose a file to capture"
-          />
-          {file ? (
-            <span className="text-sm">
-              {file.name} <span className="text-foreground/60">· {showSize(file.size)}</span>{" "}
-              <button type="button" onClick={() => setFile(undefined)} className={quiet}>
-                remove
-              </button>
-            </span>
+    <ComposerBar wide={wide}>
+      <Composer
+        text={text}
+        onText={(value) => {
+          setText(value);
+          change();
+        }}
+        files={files}
+        onFiles={(value) => {
+          setFiles(value);
+          change();
+        }}
+        onSend={send}
+        accept={mode === "chat" ? CHAT_FILE_TYPES : undefined}
+        refusal="A chat reads images and PDFs. Switch to Capture to keep any other file."
+        maxFiles={mode === "chat" ? MAX_CHAT_FILES : 1}
+        label={MODES.find((entry) => entry.id === mode)!.label}
+        placeholder={placeholder}
+        sendLabel={busy ? "Sending" : MODES.find((entry) => entry.id === mode)!.send}
+        canSend={!busy && !empty}
+        tools={
+          <>
+            <fieldset className="inline-flex rounded-full border border-foreground/20 p-0.5">
+              <legend className="sr-only">What sending does</legend>
+              {MODES.map((entry) => (
+                <label
+                  key={entry.id}
+                  className={`cursor-pointer rounded-full px-3 py-1.5 text-sm has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-foreground sm:py-1 ${
+                    mode === entry.id ? "bg-foreground font-medium text-background" : "text-foreground/70 hover:text-foreground"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="dock-mode"
+                    value={entry.id}
+                    checked={mode === entry.id}
+                    onChange={() => {
+                      setMode(entry.id);
+                      change();
+                    }}
+                    className="sr-only"
+                  />
+                  {entry.label}
+                </label>
+              ))}
+            </fieldset>
+            {about && mode !== "hold" ? (
+              <span className="rounded border border-foreground/20 px-1.5 py-0.5 text-xs text-foreground/70">
+                about {about.title}{" "}
+                <button type="button" onClick={() => setUnscoped(about.id)} aria-label={`Do not tie this to ${about.title}`} className="underline underline-offset-2">
+                  drop
+                </button>
+              </span>
+            ) : null}
+          </>
+        }
+        status={
+          busy ? (
+            "Sending…"
+          ) : error ? (
+            <span className="text-red-700 dark:text-red-300">{error}</span>
           ) : (
-            <button type="button" onClick={() => picker.current?.click()} className={quiet}>
-              Attach a file
-            </button>
-          )}
-          {about ? (
-            <span className="rounded border border-foreground/20 px-1.5 py-0.5 text-xs text-foreground/70">
-              for {about.title}{" "}
-              <button type="button" onClick={() => setUnscoped(about.id)} aria-label={`Do not capture for ${about.title}`} className="underline underline-offset-2">
-                drop
-              </button>
-            </span>
-          ) : null}
-          {saved ? <span className="text-sm text-foreground/60">{saved}</span> : null}
-          {error ? <span className="text-sm text-red-700 dark:text-red-300">{error}</span> : null}
-        </div>
-      </div>
-    </form>
+            saved
+          )
+        }
+      />
+    </ComposerBar>
   );
 }
 

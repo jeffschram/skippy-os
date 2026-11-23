@@ -84,7 +84,7 @@ function ForOwner({ wide, dock, children }: { wide?: boolean; dock: boolean; chi
       <TopBar />
       <main className="mt-10">{children}</main>
       <ServiceWorker />
-      {dock ? <CaptureDock /> : null}
+      {dock ? <CaptureDock wide={wide} /> : null}
       <TaskDetails />
       <ItemDetails />
     </div>

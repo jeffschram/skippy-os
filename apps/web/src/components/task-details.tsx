@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ChatsAbout } from "./chats-about";
+import { TaskView } from "./details-views";
 import { Files } from "./files";
 import { button } from "./parts";
 import { problem, Quiet, showTime } from "./parts";
@@ -14,8 +15,9 @@ import { useNow } from "./use-now";
 /**
  * A task's details, opened over whatever page the owner is on by adding
  * `?task=<id>` to the address. The address can be bookmarked or opened on
- * another device. Saving sends only the fields that were changed, so a
- * deadline with a time of day is not flattened by an edit to something else.
+ * another device. It opens laid out for reading; Edit swaps in the form.
+ * Saving sends only the fields that were changed, so a deadline with a time
+ * of day is not flattened by an edit to something else.
  */
 
 type Details = NonNullable<FunctionReturnType<typeof api.viewer.task>>;
@@ -74,10 +76,59 @@ function Loaded({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
     );
   }
-  return <Form key={details.task.id} details={details} onClose={onClose} />;
+  return <Opened key={details.task.id} details={details} onClose={onClose} />;
 }
 
-function Form({ details, onClose }: { details: Details; onClose: () => void }) {
+/** The task for reading, or its form once Edit is pressed, with its chats, files and history below either. */
+function Opened({ details, onClose }: { details: Details; onClose: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const { task } = details;
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        {editing ? <h2 className="text-lg font-semibold">Edit task</h2> : <p className="text-sm text-foreground/60">Task</p>}
+        <div className="flex items-center gap-4">
+          {!editing ? (
+            <button type="button" onClick={() => setEditing(true)} className={button}>
+              Edit
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
+            Close
+          </button>
+        </div>
+      </div>
+      {editing ? <Form details={details} onDone={() => setEditing(false)} onClose={onClose} /> : <TaskView details={details} />}
+      <div className="border-t border-foreground/15 pt-4">
+        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chats</h3>
+        <ChatsAbout type="task" id={task.id} />
+      </div>
+      <div className="border-t border-foreground/15 pt-4">
+        <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
+        <Files type="task" id={task.id} />
+      </div>
+      {details.history.length > 0 ? (
+        <div className="border-t border-foreground/15 pt-4">
+          <h3 className="text-sm font-medium text-foreground/60">History</h3>
+          <ul className="mt-2 space-y-2">
+            {details.history.map((event) => (
+              <li key={event.id} className="text-sm">
+                {event.summary}
+                <span className="text-foreground/60">
+                  {" "}
+                  · {event.by} · {showTime(event.at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** `onDone` goes back to reading; `onClose` shuts the window, which is what deleting does. */
+function Form({ details, onDone, onClose }: { details: Details; onDone: () => void; onClose: () => void }) {
   const { task } = details;
   const save = useMutation(api.viewer.saveTask);
   const remove = useMutation(api.viewer.deleteTask);
@@ -120,12 +171,12 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
     if (due !== (task.due?.date ?? "")) changes.dueAt = due || null;
     if (planned !== (task.scheduledFor?.date ?? "")) changes.scheduledFor = planned || null;
     if (waitingOn !== (task.waitingOn ?? "")) changes.waitingOn = text(waitingOn);
-    if (Object.keys(changes).length === 1) return onClose();
+    if (Object.keys(changes).length === 1) return onDone();
     setBusy(true);
     setError(undefined);
     try {
       await save(changes);
-      onClose();
+      onDone();
     } catch (caught) {
       setError(problem(caught));
       setBusy(false);
@@ -146,12 +197,6 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg font-semibold">Task</h2>
-        <button type="button" onClick={onClose} aria-label="Close" className="text-sm text-foreground/60 underline underline-offset-2">
-          Close
-        </button>
-      </div>
       <label className="block text-sm">
         Title
         <input value={title} onChange={(event) => setTitle(event.target.value)} required className={`mt-1 text-base ${field}`} />
@@ -256,7 +301,7 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
           <button type="submit" disabled={busy} className={button}>
             {busy ? "Saving…" : "Save"}
           </button>
-          <button type="button" onClick={onClose} className={button}>
+          <button type="button" onClick={onDone} className={button}>
             Cancel
           </button>
           <button
@@ -268,30 +313,6 @@ function Form({ details, onClose }: { details: Details; onClose: () => void }) {
           </button>
         </div>
       )}
-      <div className="border-t border-foreground/15 pt-4">
-        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chats</h3>
-        <ChatsAbout type="task" id={task.id} />
-      </div>
-      <div className="border-t border-foreground/15 pt-4">
-        <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
-        <Files type="task" id={task.id} />
-      </div>
-      {details.history.length > 0 ? (
-        <div className="border-t border-foreground/15 pt-4">
-          <h3 className="text-sm font-medium text-foreground/60">History</h3>
-          <ul className="mt-2 space-y-2">
-            {details.history.map((event) => (
-              <li key={event.id} className="text-sm">
-                {event.summary}
-                <span className="text-foreground/60">
-                  {" "}
-                  · {event.by} · {showTime(event.at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </form>
   );
 }

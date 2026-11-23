@@ -12,6 +12,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { draftOfRule, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { ChatsAbout } from "./chats-about";
 import { Files } from "./files";
+import { CompanyView, EventView, GoalView, KnowledgeView, PersonView, RecurrenceView } from "./details-views";
 import { button, problem, Quiet, showDay, showTime, Tag, words } from "./parts";
 import { useNow } from "./use-now";
 
@@ -19,8 +20,9 @@ import { useNow } from "./use-now";
  * The details of something in Memory (a note, link, memory, decision,
  * principle or question, a person, a company or a goal) or on the Agenda (an
  * event, or something that recurs), opened over whatever
- * page the owner is on by adding `?item=<type>:<id>` to the address. Below the
- * record's own fields are what it is linked to, where it came from and its history.
+ * page the owner is on by adding `?item=<type>:<id>` to the address. It opens
+ * laid out for reading (`details-views.tsx`); Edit swaps in the form. Below
+ * the record are what it is linked to, where it came from and its history.
  */
 
 const TYPES = ["knowledge", "person", "company", "goal", "event", "recurrence"] as const;
@@ -71,7 +73,7 @@ export function ItemDetails() {
         onClick={(event) => event.stopPropagation()}
         className="mx-auto min-h-full w-full max-w-3xl bg-background p-6 sm:min-h-0 sm:rounded-lg sm:border sm:border-foreground/15"
       >
-        {type && id ? <Loaded type={type} id={id} onClose={close} /> : <Missing onClose={close} />}
+        {type && id ? <Loaded key={param} type={type} id={id} onClose={close} /> : <Missing onClose={close} />}
       </div>
     </div>
   );
@@ -90,30 +92,55 @@ function Missing({ onClose }: { onClose: () => void }) {
 
 function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: () => void }) {
   const bundle = useQuery(api.viewerMemory.item, { type, id, now: useNow() });
+  // The window opens for reading. Edit swaps in the form; saving or cancelling comes back here.
+  const [editing, setEditing] = useState(false);
   if (bundle === undefined) return <Quiet>Loading…</Quiet>;
   if (bundle === null) return <Missing onClose={onClose} />;
+  const kind = type === "knowledge" ? words((bundle.record as Knowledge).kind) : type === "recurrence" ? "repeating" : type;
+  // A copy of an event from the owner's calendar is changed in that calendar, so it has no form.
+  const fixed = type === "event" && (bundle.record as EventItem).origin !== "skippy";
+  const done = () => setEditing(false);
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg font-semibold">
-          {type === "knowledge" ? words((bundle.record as Knowledge).kind) : type === "recurrence" ? "repeating" : type}
-        </h2>
-        <button type="button" onClick={onClose} aria-label="Close" className="text-sm text-foreground/60 underline underline-offset-2">
-          Close
-        </button>
+      <div className="flex items-center justify-between gap-4">
+        {editing ? <h2 className="text-lg font-semibold">Edit {kind}</h2> : <p className="text-sm text-foreground/60 first-letter:uppercase">{kind}</p>}
+        <div className="flex items-center gap-4">
+          {!editing && !fixed ? (
+            <button type="button" onClick={() => setEditing(true)} className={button}>
+              Edit
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
+            Close
+          </button>
+        </div>
       </div>
-      {type === "knowledge" ? (
-        <KnowledgeForm key={id} item={bundle.record as Knowledge} onClose={onClose} />
+      {!editing ? (
+        type === "knowledge" ? (
+          <KnowledgeView item={bundle.record as Knowledge} />
+        ) : type === "person" ? (
+          <PersonView person={bundle.record as Person} />
+        ) : type === "company" ? (
+          <CompanyView company={bundle.record as Company} />
+        ) : type === "event" ? (
+          <EventView event={bundle.record as EventItem} />
+        ) : type === "recurrence" ? (
+          <RecurrenceView item={bundle.record as RecurrenceItem} />
+        ) : (
+          <GoalView goal={bundle.record as Goal} />
+        )
+      ) : type === "knowledge" ? (
+        <KnowledgeForm item={bundle.record as Knowledge} onClose={done} />
       ) : type === "person" ? (
-        <PersonForm key={id} person={bundle.record as Person} onClose={onClose} />
+        <PersonForm person={bundle.record as Person} onClose={done} />
       ) : type === "company" ? (
-        <CompanyForm key={id} company={bundle.record as Company} onClose={onClose} />
+        <CompanyForm company={bundle.record as Company} onClose={done} />
       ) : type === "event" ? (
-        <EventForm key={id} event={bundle.record as EventItem} onClose={onClose} />
+        <EventForm event={bundle.record as EventItem} onClose={done} />
       ) : type === "recurrence" ? (
-        <RecurrenceForm key={id} item={bundle.record as RecurrenceItem} onClose={onClose} />
+        <RecurrenceForm item={bundle.record as RecurrenceItem} onClose={done} />
       ) : (
-        <GoalForm key={id} goal={bundle.record as Goal} onClose={onClose} />
+        <GoalForm goal={bundle.record as Goal} onClose={done} />
       )}
       <section className="border-t border-foreground/15 pt-4">
         <h3 className="mb-2 text-sm font-medium text-foreground/60">Chats</h3>
@@ -447,7 +474,6 @@ function CompanyForm({ company, onClose }: { company: Company; onClose: () => vo
 
 function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }) {
   const save = useMutation(api.viewer.saveEvent);
-  const mine = event.origin === "skippy";
   const [title, setTitle] = useState(event.title);
   const [day, setDay] = useState(event.start.date);
   const [from, setFrom] = useState(event.allDay ? "" : event.start.time);
@@ -486,20 +512,6 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
     }
     if (Object.keys(changes).length === 1) return onClose();
     void run(changes);
-  }
-
-  if (!mine) {
-    return (
-      <div className="space-y-2">
-        <p className="text-base font-medium">{event.title}</p>
-        <p className="text-sm text-foreground/70">
-          {showDay(event.start.date)}
-          {event.location ? ` · ${event.location}` : ""}
-        </p>
-        {event.description ? <p className="text-base whitespace-pre-wrap">{event.description}</p> : null}
-        <p className="text-sm text-foreground/60">This is a copy from your Google calendar. Change it there.</p>
-      </div>
-    );
   }
 
   const cancelled = event.status === "cancelled";

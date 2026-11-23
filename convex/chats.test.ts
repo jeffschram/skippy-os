@@ -99,6 +99,40 @@ describe("a chat", () => {
     expect((await owner.query(api.viewerChat.chats, {})).chats.map((row) => row.title)).toEqual(["I want to build a garden shed."]);
   });
 
+  it("carries images and PDFs to the mini, needs no words with them, and takes nothing else", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const store = (type: string) => t.run((ctx) => ctx.storage.store(new Blob(["bytes"], { type }))) as Promise<Id<"_storage">>;
+    const photo = await store("image/jpeg");
+    const scan = await store("application/pdf");
+
+    const { chatId } = await owner.mutation(api.viewerChat.start, { text: "  ", files: [{ storageId: photo, fileName: "fence.jpg" }] });
+    let chat = (await owner.query(api.viewerChat.chat, { id: chatId }))!;
+    expect(chat.title).toBe("fence.jpg");
+    expect(chat.messages[0]).toMatchObject({ content: "", files: [{ fileName: "fence.jpg", contentType: "image/jpeg", sizeBytes: 5 }] });
+    expect(chat.messages[0].files[0].url).toEqual(expect.any(String));
+    expect(chat.messages[1].files).toEqual([]);
+
+    const claimed = (await t.mutation(api.runner.claim, mini)) as Claimed & { files: { fileName: string; contentType: string; url: string }[] };
+    expect(claimed.text).toBe("");
+    expect(claimed.files).toEqual([expect.objectContaining({ fileName: "fence.jpg", contentType: "image/jpeg", url: expect.any(String) })]);
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "A fence." });
+
+    vi.advanceTimersByTime(1000);
+    await owner.mutation(api.viewerChat.send, { chatId, text: "And this quote?", files: [{ storageId: scan, fileName: "quote.pdf" }] });
+    chat = (await owner.query(api.viewerChat.chat, { id: chatId }))!;
+    expect(chat.messages[2]).toMatchObject({ content: "And this quote?", files: [{ fileName: "quote.pdf" }] });
+    const next = (await t.mutation(api.runner.claim, mini)) as typeof claimed;
+    expect(next.files.map((file) => file.fileName)).toEqual(["quote.pdf"]);
+    await t.mutation(api.runner.finish, { ...mini, turnId: next.turnId, status: "done", text: "Looks fair." });
+
+    // Anything a session cannot read is refused, and so is a message with neither words nor files.
+    const sheet = await store("text/csv");
+    expect(await refusal(owner.mutation(api.viewerChat.send, { chatId, text: "Read this", files: [{ storageId: sheet, fileName: "costs.csv" }] }))).toBe("invalid_arguments");
+    expect(await refusal(owner.mutation(api.viewerChat.send, { chatId, text: " " }))).toBe("invalid_arguments");
+    expect((await owner.query(api.viewerChat.chat, { id: chatId }))!.messages).toHaveLength(4);
+  });
+
   it("fails a turn the runner dropped, keeps what was written, and lets the owner send again", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });

@@ -17,6 +17,7 @@ If the runner is not going, nothing is lost: your message waits, the page says "
 - Use the Skippy OS connector on your claude.ai account, to read and change your records.
 - Search the web.
 - In a chat about a code project, read that project's files.
+- Read the images and PDFs the owner attaches to a message. The runner copies them into `~/.skippy-os/chat-workspace/files/<chat>/` and tells the session where they are. That folder is inside the one idea chats run in, which is the only place such a session can read; a code project's session could already read files. The copies are removed after fourteen days; the originals stay in Skippy OS.
 
 It may not edit files or run commands. Code changes happen in a real Claude Code session.
 

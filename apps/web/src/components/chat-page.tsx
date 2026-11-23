@@ -6,7 +6,10 @@ import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { FilePdf } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
+import { Composer, ComposerBar, CHAT_FILE_TYPES } from "./composer";
+import { showSize, useUpload } from "./files";
 import { itemHref } from "./item-details";
 import { OwnerPage } from "./owner-page";
 import { button, problem, Quiet, showTime, Tag } from "./parts";
@@ -21,7 +24,6 @@ type Chat = NonNullable<FunctionReturnType<typeof api.viewerChat.chat>>;
 
 /** The mini says "alive" every half minute. Three missed in a row means it is away. */
 const AWAY_AFTER_MS = 100_000;
-const field = "w-full resize-none rounded-md border border-foreground/20 bg-transparent px-3 py-2 text-base";
 const quiet = "text-foreground/60 underline underline-offset-2";
 
 export function ChatPage() {
@@ -68,7 +70,10 @@ function Conversation({ chat }: { chat: Chat }) {
   const archive = useMutation(api.viewerChat.archive);
   const [copied, setCopied] = useState(false);
   const now = useClock();
+  const upload = useUpload();
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
   const end = useRef<HTMLDivElement>(null);
   const busy = chat.turn !== null && ["queued", "claimed", "running"].includes(chat.turn.status);
@@ -81,22 +86,21 @@ function Conversation({ chat }: { chat: Chat }) {
   }, [chat.messages.length, last?.content.length]);
 
   async function submit() {
-    if (!text.trim() || busy) return;
+    if ((!text.trim() && files.length === 0) || busy || sending) return;
     setError(undefined);
-    const sending = text;
+    setSending(true);
+    const words = text;
+    const attached = files;
     setText("");
     try {
-      await send({ chatId: chat.id, text: sending });
+      const sent = await Promise.all(attached.map((file) => upload(file)));
+      await send({ chatId: chat.id, text: words, ...(sent.length > 0 ? { files: sent } : {}) });
+      setFiles([]);
     } catch (caught) {
-      setText(sending);
-      setError(problem(caught));
-    }
-  }
-
-  function onKey(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      void submit();
+      setText(words);
+      setError(caught instanceof Error && !("data" in caught) ? caught.message : problem(caught));
+    } finally {
+      setSending(false);
     }
   }
 
@@ -155,6 +159,34 @@ function Conversation({ chat }: { chat: Chat }) {
             <p className="text-xs text-foreground/60">
               {message.role === "user" ? "You" : "Skippy"} · {showTime(message.at)}
             </p>
+            {message.files.length > 0 ? (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {message.files.map((file) => (
+                  <li key={file.id}>
+                    {file.url && file.contentType.startsWith("image/") ? (
+                      <a href={file.url} target="_blank" rel="noreferrer" title={`Open ${file.fileName}`}>
+                        {/* Storage hands out an address meant for the browser to load as it is. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={file.url} alt={file.fileName} loading="lazy" className="h-28 max-w-56 rounded-lg border border-foreground/15 object-cover" />
+                      </a>
+                    ) : (
+                      <a
+                        href={file.url ?? undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 rounded-lg border border-foreground/15 px-2.5 py-2 text-sm hover:bg-foreground/5"
+                      >
+                        <FilePdf aria-hidden size={24} className="text-foreground/60" />
+                        <span>
+                          <span className="block max-w-56 truncate">{file.fileName}</span>
+                          <span className="block text-xs text-foreground/60">{showSize(file.sizeBytes)}</span>
+                        </span>
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {message.content ? (
               <p className={`mt-1 text-base leading-7 whitespace-pre-wrap ${message.role === "user" ? "" : "text-foreground/90"}`}>{message.content}</p>
             ) : null}
@@ -190,37 +222,27 @@ function Conversation({ chat }: { chat: Chat }) {
           </li>
         ))}
       </ol>
-      <div ref={end} />
+      {/* Room for the box pinned below, so the newest words are never under it. */}
+      <div ref={end} className="h-44" />
 
-      <form
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          void submit();
-        }}
-        className="sticky bottom-0 mt-8 border-t border-foreground/15 bg-background py-3"
-      >
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={onKey}
-          rows={Math.min(Math.max(text.split("\n").length, 1), 8)}
+      <ComposerBar>
+        <Composer
+          text={text}
+          onText={setText}
+          files={files}
+          onFiles={setFiles}
+          onSend={submit}
+          onStop={busy ? () => cancel({ chatId: chat.id }) : undefined}
+          accept={CHAT_FILE_TYPES}
+          refusal="A chat reads images and PDFs. Keep any other file with Capture, from another page."
+          label="Message"
+          placeholder={chat.state === "archived" ? "This chat is archived." : busy ? "Waiting for the reply…" : "Say something"}
+          sendLabel="Send"
+          canSend={!busy && !sending && chat.state !== "archived" && (text.trim() !== "" || files.length > 0)}
           disabled={chat.state === "archived"}
-          placeholder={chat.state === "archived" ? "This chat is archived." : busy ? "Waiting for the reply…" : "Say something. Enter sends it."}
-          aria-label="Message"
-          className={field}
+          status={sending ? "Sending…" : error ? <span className="text-red-700 dark:text-red-300">{error}</span> : undefined}
         />
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button type="submit" disabled={busy || !text.trim()} className={`${button} disabled:opacity-50`}>
-            Send
-          </button>
-          {busy ? (
-            <button type="button" onClick={() => cancel({ chatId: chat.id })} className={button}>
-              Stop waiting
-            </button>
-          ) : null}
-          {error ? <span className="text-sm text-red-700 dark:text-red-300">{error}</span> : null}
-        </div>
-      </form>
+      </ComposerBar>
     </div>
   );
 }

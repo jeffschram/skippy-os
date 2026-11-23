@@ -16,14 +16,15 @@
  * Run it by hand with `node tools/chat-runner/runner.mjs`, or install it as a
  * background job with tools/chat-runner/install.sh.
  */
-import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
-const VERSION = "3";
+const VERSION = "4";
 const HEARTBEAT_MS = 30_000;
 const IDLE_POLL_MS = 2_000;
 const REPORT_MS = 800;
@@ -32,11 +33,17 @@ const KEEPALIVE_MS = 40_000;
 /** A session that prints nothing for this long is taken to be stuck. */
 const STALL_MS = 5 * 60_000;
 const TURN_LIMIT_MS = 20 * 60_000;
+/** Copies of what the owner attached are kept here this long. The originals stay in Skippy OS. */
+const KEEP_FILES_MS = 14 * 86_400_000;
+/** A photo straight off a phone is larger than a session needs. Longest side, in pixels. */
+const IMAGE_MAX_SIDE = 2000;
+const SHRINK_OVER_BYTES = 1_500_000;
 
 const log = (...parts) => console.log(new Date().toISOString(), ...parts);
 
 function readConfig() {
-  const file = join(homedir(), ".skippy-os", "runner.env");
+  // SKIPPY_RUNNER_ENV points at another file, for trying the runner against the test database.
+  const file = process.env.SKIPPY_RUNNER_ENV || join(homedir(), ".skippy-os", "runner.env");
   if (!existsSync(file)) throw new Error(`${file} is missing. See docs/chat-runner.md.`);
   const values = Object.fromEntries(
     readFileSync(file, "utf8")
@@ -55,7 +62,58 @@ const identity = { token: config.RUNNER_TOKEN, host: hostname() };
 const call = (name, args = {}) => convex.mutation(anyApi.runner[name], { ...identity, ...args });
 const claudeBinary = process.env.SKIPPY_CLAUDE_BIN || "claude";
 const scratch = join(homedir(), ".skippy-os", "chat-workspace");
-mkdirSync(scratch, { recursive: true });
+// Inside the folder every chat's session runs in, so a session can read what is here and nothing outside it.
+const attachments = join(scratch, "files");
+mkdirSync(attachments, { recursive: true });
+
+/** Removes the copies of attached files from chats that have been quiet for a while. */
+function clearOldFiles() {
+  for (const name of readdirSync(attachments)) {
+    const folder = join(attachments, name);
+    try {
+      if (Date.now() - statSync(folder).mtimeMs > KEEP_FILES_MS) rmSync(folder, { recursive: true, force: true });
+    } catch (error) {
+      log("could not clear", folder, error.message);
+    }
+  }
+}
+
+/**
+ * Fetches what the owner attached to a message into this chat's folder, and
+ * returns where each file is. A large photo is made smaller on the way.
+ */
+async function fetchFiles(turn) {
+  const files = turn.files ?? [];
+  if (files.length === 0) return [];
+  const folder = join(attachments, turn.chatId);
+  mkdirSync(folder, { recursive: true });
+  const fetched = [];
+  for (const file of files) {
+    if (!file.url) throw new Error(`"${file.fileName}" is no longer in Skippy OS.`);
+    const response = await fetch(file.url);
+    if (!response.ok) throw new Error(`"${file.fileName}" could not be fetched (${response.status}).`);
+    // The name is the owner's; only its plain characters are used in the path.
+    const safe = file.fileName.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-80) || "file";
+    const path = join(folder, `${file.id.slice(-8)}-${safe}`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    await writeFile(path, bytes, { mode: 0o600 });
+    if ((file.contentType === "image/jpeg" || file.contentType === "image/png") && bytes.length > SHRINK_OVER_BYTES) {
+      // If sips fails, the file is used as it came.
+      await new Promise((resolve) => execFile("/usr/bin/sips", ["-Z", String(IMAGE_MAX_SIDE), path], () => resolve()));
+      chmodSync(path, 0o600);
+    }
+    fetched.push({ path, fileName: file.fileName, contentType: file.contentType });
+  }
+  return fetched;
+}
+
+/** The owner's words, followed by where to find what they attached. */
+function prompt(turn, fetched) {
+  if (fetched.length === 0) return turn.text;
+  const list = fetched.map((file) => `- ${file.path} (${file.contentType === "application/pdf" ? "a PDF" : "an image"}, sent as "${file.fileName}")`).join("\n");
+  const words = turn.text.trim() || "(The owner sent this without a message. Look at it and say what you make of it.)";
+  return `${words}\n\n[Attached to this message. Open each one with the Read tool before you answer:\n${list}]`;
+}
 
 /** What the session is told on top of the owner's message. */
 function instructions(turn) {
@@ -73,26 +131,28 @@ function instructions(turn) {
     "Write plain text: short paragraphs, and lines starting with a hyphen for a list. No headings, bold, tables or code blocks; the page shows your words exactly as you write them. Keep replies short.",
     turn.folder
       ? "You are in the project's code folder and may read its files to answer questions. You cannot change files or run commands here; code changes happen in a Claude Code session."
-      : "You cannot read files or run commands here.",
+      : "You cannot run commands here, and the only files you can read are the ones the owner attaches to a message.",
+    "When the owner attaches an image or a PDF, its path comes with the message. Read it with the Read tool, and do not mention the path in your reply.",
   ].join("\n");
 }
 
 /** What a tool call looks like to the owner while they wait. */
-function describeTool(name) {
+function describeTool(name, input) {
   const short = name.replace(/^mcp__claude_ai_Skippy_OS__/, "");
   if (short !== name) return `Using Skippy: ${short.replaceAll("_", " ")}`;
   if (name === "WebSearch") return "Searching the web";
+  if (name === "Read" && String(input?.file_path ?? "").startsWith(attachments)) return "Looking at what you attached";
   if (name === "Read" || name === "Grep" || name === "Glob") return "Reading the project's files";
   return `Using ${name}`;
 }
 
-function runTurn(turn) {
+function runTurn(turn, fetched) {
   return new Promise((resolve) => {
     const folder = turn.folder && existsSync(turn.folder) ? turn.folder : undefined;
     const tools = ["mcp__claude_ai_Skippy_OS", "WebSearch", ...(folder ? ["Read", "Grep", "Glob"] : [])];
     const args = [
       "-p",
-      turn.text,
+      prompt(turn, fetched),
       "--output-format",
       "stream-json",
       "--verbose",
@@ -174,7 +234,7 @@ function runTurn(turn) {
               paragraphs.push(block.text.trim());
               activity = "Writing";
             }
-            if (block.type === "tool_use") activity = describeTool(block.name);
+            if (block.type === "tool_use") activity = describeTool(block.name, block.input);
           }
           dirty = true;
         }
@@ -210,10 +270,19 @@ function runTurn(turn) {
 
 async function work(turn) {
   log("turn", turn.turnId, turn.resume ? "resuming" : "starting", "session", turn.sessionId);
-  let outcome = await runTurn(turn);
+  let fetched;
+  try {
+    fetched = await fetchFiles(turn);
+  } catch (error) {
+    log("turn", turn.turnId, "could not fetch its files:", error.message);
+    await call("finish", { turnId: turn.turnId, status: "failed", error: `What you attached could not be fetched: ${error.message} Send the message again.`.slice(0, 500) });
+    return;
+  }
+  if (fetched.length > 0) log("turn", turn.turnId, "has", fetched.length, "attached");
+  let outcome = await runTurn(turn, fetched);
   if (!outcome.ok && outcome.retryAs && !outcome.text) {
     log("retrying turn as", outcome.retryAs);
-    outcome = await runTurn({ ...turn, resume: outcome.retryAs === "resume" });
+    outcome = await runTurn({ ...turn, resume: outcome.retryAs === "resume" }, fetched);
   }
   await call("finish", {
     turnId: turn.turnId,
@@ -230,6 +299,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => (running = 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 log("chat runner", VERSION, "on", identity.host, "talking to", new URL(config.CONVEX_URL).host);
+clearOldFiles();
 let lastBeat = 0;
 while (running) {
   try {
