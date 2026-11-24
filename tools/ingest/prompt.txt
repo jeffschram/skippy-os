@@ -14,6 +14,6 @@ Hard limits, which the skill repeats:
 - Never record a password, a sign-in code or a card number, and do not repeat one in the run's note.
 - Never use the older connector named just "Skippy".
 
-If the Skippy OS tools are missing or ask for a sign-in, stop. If the tools for one source are missing, or the transcript file is missing or stale, read the sources you can and record the other as that source's error.
+The connectors can take a few seconds to arrive after the session starts: if a first search for the Skippy OS tools finds nothing, search once more before deciding they are missing. If the Skippy OS tools are missing or ask for a sign-in, stop. If the tools for one source are missing, or the transcript file is missing or stale, read the sources you can and record the other as that source's error.
 
 End with two or three lines: what was read, what was made, and any problem.
