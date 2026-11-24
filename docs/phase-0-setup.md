@@ -117,7 +117,7 @@ For each client: discovery → sign-in and consent → `whoami` → `capture` �
 | Claude Code | Step 1 | not run |
 | claude.ai connector, then Claude iOS | Step 2 | claude.ai passed discovery, sign-in and consent, `capture`, and `whoami` reading it back (2026-11-21). It registered itself by CIMD and was granted `offline_access`, `skippy:read` and `skippy:write`. The capture is stored in Convex production with the owner and Claude's client ID recorded. Token refresh and reconnect not checked yet (access tokens last a day). Claude iOS used the same connector with no extra setup and `whoami` worked, as reported by the owner (2026-11-21). |
 | Claude desktop | Step 2 | not run |
-| ChatGPT | Step 2 | First try 2026-11-24: connector made, no tools seen. Clerk accepts ChatGPT's CIMD client; the token most likely lacked the Skippy scopes. The endpoint now challenges such tokens. Second try pending. |
+| ChatGPT | Step 2 | First try 2026-11-24 failed: ChatGPT's OIDC option adds `openid`, `private_metadata` and `public_metadata`, which Clerk refuses for CIMD clients (`invalid_scope`). Settings that reach sign-in: CIMD, OIDC off, default scopes `skippy:read` and `skippy:write`, base scope `offline_access`. Second try pending. |
 | Codex | Step 1 | not run |
 
 Negative checks, each of which must fail: an expired token, a token for another audience, a read-only consent attempting `capture`, and a Clerk account that is not the owner.
