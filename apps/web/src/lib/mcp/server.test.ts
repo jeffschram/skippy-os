@@ -1,5 +1,5 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
-import type { OperationName } from "@skippy/shared";
+import { OPERATIONS, type OperationName } from "@skippy/shared";
 import { describe, expect, it } from "vitest";
 import { GatewayRefusal } from "./gateway";
 import { buildServer, type RunOperation } from "./server";
@@ -7,7 +7,11 @@ import { buildServer, type RunOperation } from "./server";
 const READ = ["skippy:read"];
 const BOTH = ["skippy:read", "skippy:write"];
 
-type Tool = { name: string; inputSchema: { type: string } };
+type Tool = {
+  name: string;
+  inputSchema: { type: string };
+  _meta?: { securitySchemes?: { type: string; scopes: string[] }[] };
+};
 type Reply = {
   result?: { tools?: Tool[]; isError?: boolean; content?: { type: string; text: string }[] };
   error?: { code: number; message: string };
@@ -151,5 +155,13 @@ describe("the MCP server", () => {
     const tools = (await rpc(BOTH, "tools/list", {})).result?.tools ?? [];
     expect(tools.length).toBeGreaterThan(0);
     for (const tool of tools) expect(tool.inputSchema.type, tool.name).toBe("object");
+  });
+
+  it("tags every tool with the one scope it needs, for clients that read it when linking", async () => {
+    const tools = (await rpc(BOTH, "tools/list", {})).result?.tools ?? [];
+    for (const tool of tools) {
+      const scope = tool.name === "get_skill" ? "skippy:read" : OPERATIONS[tool.name as OperationName].scope;
+      expect(tool._meta?.securitySchemes, tool.name).toEqual([{ type: "oauth2", scopes: [scope] }]);
+    }
   });
 });

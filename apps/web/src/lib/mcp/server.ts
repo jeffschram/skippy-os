@@ -1,5 +1,5 @@
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
-import { OPERATIONS, SCOPE_READ, type OperationName, type OAuthPrincipal } from "@skippy/shared";
+import { OPERATIONS, SCOPE_READ, type OperationName, type OAuthPrincipal, type Scope } from "@skippy/shared";
 import { z } from "zod";
 import { GatewayRefusal } from "./gateway";
 import { SKILLS, type SkillName } from "./skills.generated";
@@ -17,6 +17,14 @@ const INSTRUCTIONS = [
   "An ingestion pass uses get_importance_rubric, record_ingestion_run, sync_calendar, ingest_objects, advance_source_cursor and record_briefing; leave those alone outside a pass.",
   "Every write is logged with you as its author.",
 ].join(" ");
+
+/**
+ * The OAuth scope a tool needs, in the form ChatGPT reads from a tool's `_meta`
+ * to decide what to ask for when it links an account. Other clients ignore it.
+ */
+function securitySchemes(scope: Scope) {
+  return { securitySchemes: [{ type: "oauth2", scopes: [scope] }] };
+}
 
 /** Runs one operation for the caller and returns what Convex answered. */
 export type RunOperation = (operation: OperationName, args: Record<string, unknown>) => Promise<unknown>;
@@ -53,6 +61,7 @@ export function buildServer(principal: Pick<OAuthPrincipal, "scopes">, run: RunO
           tool.kind === "read"
             ? { readOnlyHint: true }
             : { readOnlyHint: false, destructiveHint: false, idempotentHint: tool.idempotent ?? false },
+        _meta: securitySchemes(OPERATIONS[name].scope),
       },
       (args: Record<string, unknown>) => answer(name, args ?? {}),
     );
@@ -70,6 +79,7 @@ export function buildServer(principal: Pick<OAuthPrincipal, "scopes">, run: RunO
           name: z.enum(Object.keys(SKILLS) as [SkillName, ...SkillName[]]).describe("The skill to read."),
         },
         annotations: { readOnlyHint: true },
+        _meta: securitySchemes(SCOPE_READ),
       },
       ({ name }): CallToolResult => ({ content: [{ type: "text", text: SKILLS[name] }] }),
     );
