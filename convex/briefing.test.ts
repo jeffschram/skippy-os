@@ -86,13 +86,15 @@ describe("the briefing", () => {
     // The same words again change nothing; new words replace the note.
     expect(await asClaude<Written>(t, "record_briefing", { text: "Two things today.\n- Dentist at 3.\n- Rent is due." })).toMatchObject({ changed: false });
     await asClaude(t, "record_briefing", { text: "Three things today." });
-    expect((await owner.query(api.viewer.briefing, { now: NOW }))!.text).toBe("Three things today.");
+    const shown = await owner.query(api.viewer.briefing, { now: NOW });
+    expect(shown).toMatchObject({ text: "Three things today." });
+    expect(shown).not.toHaveProperty("problem");
     // A later pass reads the note as it now stands, to bring it up to date.
     expect((await asClaude<Rubric>(t, "get_importance_rubric", {})).briefing?.text).toBe("Three things today.");
     expect(await t.run((ctx) => ctx.db.query("briefings").collect())).toHaveLength(1);
 
     // Tomorrow, yesterday's note is still the latest, and says so.
-    expect((await owner.query(api.viewer.briefing, { now: NOW + 86_400_000 }))!.isToday).toBe(false);
+    expect(await owner.query(api.viewer.briefing, { now: NOW + 86_400_000 })).toMatchObject({ isToday: false, problem: null });
     expect(await refusal(asClaude(t, "record_briefing", { text: "x", date: "tomorrow" }))).toBe("invalid_arguments");
     expect(await refusal(t.query(api.viewer.briefing, { now: NOW }))).toBe("not_signed_in");
   });
@@ -171,7 +173,7 @@ describe("the weekly review", () => {
     expect((await asClaude<Written>(t, "record_briefing", { kind: "weekly", text: "Three, in fact." })).notification).toBe("duplicate");
 
     // Both exist for the same day, and neither replaced the other.
-    expect((await owner.query(api.viewer.briefing, { now: NOW }))!.text).toBe("Today: the dentist.");
+    expect(await owner.query(api.viewer.briefing, { now: NOW })).toMatchObject({ text: "Today: the dentist." });
     expect((await owner.query(api.viewer.weeklyReview, { now: NOW }))!.text).toBe("Three, in fact.");
     expect((await asClaude<{ briefingWritten: boolean }>(t, "get_importance_rubric", {})).briefingWritten).toBe(true);
     const { recent } = await owner.query(api.viewer.notifications, {});

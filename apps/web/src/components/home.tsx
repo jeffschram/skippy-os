@@ -34,16 +34,35 @@ export function Home() {
   );
 }
 
-/** The morning note. Shown once one has been written; an older one says which day it is from. */
+/**
+ * The day's note. Shown once one has been written; an older one says which day
+ * it is from. With no note for today and a failed last pass, it says why.
+ */
 function Briefing() {
-  const briefing = useQuery(api.viewer.briefing, { now: useNow() });
-  if (!briefing) return null;
+  const data = useQuery(api.viewer.briefing, { now: useNow() });
+  if (!data) return null;
+  const briefing = "text" in data ? data : null;
+  const problem = "problem" in data ? data.problem : null;
   return (
-    <Panel title="Briefing" icon={NewspaperClipping} note={briefing.isToday ? showDay(briefing.date) : `from ${showDay(briefing.date)}`}>
-      <p className={`text-base leading-7 whitespace-pre-wrap ${briefing.isToday ? "" : "text-foreground/70"}`}>{briefing.text}</p>
-      <p className="mt-3 text-xs text-foreground/60">
-        {briefing.by} · {showTime(briefing.writtenAt)}
-      </p>
+    <Panel
+      title="Briefing"
+      icon={NewspaperClipping}
+      note={briefing ? (briefing.isToday ? showDay(briefing.date) : `from ${showDay(briefing.date)}`) : undefined}
+    >
+      {problem ? (
+        <p className="mb-4 rounded-md border border-red-600/40 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+          Today&apos;s briefing has not been written: the {problem.pass ? `${problem.pass} ` : ""}ingestion pass failed at {showTime(problem.at)}.
+          {problem.note ? ` ${problem.note}` : ""}
+        </p>
+      ) : null}
+      {briefing ? (
+        <>
+          <p className={`text-base leading-7 whitespace-pre-wrap ${briefing.isToday ? "" : "text-foreground/70"}`}>{briefing.text}</p>
+          <p className="mt-3 text-xs text-foreground/60">
+            {briefing.by} · {showTime(briefing.writtenAt)}
+          </p>
+        </>
+      ) : null}
     </Panel>
   );
 }

@@ -754,7 +754,14 @@ export const briefing = query({
   args: { now: v.number() },
   handler: async (ctx, args) => {
     await requireOwner(ctx);
-    return await latestBriefing(ctx, args.now);
+    const briefing = await latestBriefing(ctx, args.now);
+    if (briefing?.isToday) return briefing;
+    // No note for today yet. If the last pass failed, that is why: say so.
+    const last = await ctx.db.query("ingestionRuns").withIndex("by_started").order("desc").first();
+    const problem =
+      last?.status === "failed" ? { pass: last.pass ?? null, note: last.note ?? null, at: iso(last.finishedAt ?? last.startedAt)! } : null;
+    if (!briefing) return problem ? { problem } : null;
+    return { ...briefing, problem };
   },
 });
 

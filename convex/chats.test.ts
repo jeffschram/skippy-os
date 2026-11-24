@@ -352,6 +352,10 @@ describe("a scheduled ingestion pass that could not run", () => {
     expect(seen.runs.map((run) => [run.pass, run.status, run.note])).toEqual([["3pm", "failed", "The session could not reach Skippy OS."]]);
     const { events } = await owner.query(api.viewer.activityLog, { who: "agents" });
     expect(events[0].summary).toBe("Ingestion (3pm) failed: The session could not reach Skippy OS.");
+    // Home says why there is no briefing for today.
+    expect(await owner.query(api.viewer.briefing, { now: NOW })).toMatchObject({
+      problem: { pass: "3pm", note: "The session could not reach Skippy OS." },
+    });
 
     // A run the pass had opened and never closed is closed, not doubled.
     await asClaude(t, "record_ingestion_run", { status: "started", pass: "5pm" });
@@ -361,6 +365,9 @@ describe("a scheduled ingestion pass that could not run", () => {
       ["5pm", "failed"],
       ["3pm", "failed"],
     ]);
+    // The phone is told once a day, not once per failed pass.
+    const { recent } = await owner.query(api.viewer.notifications, {});
+    expect(recent.map((sent) => sent.title)).toEqual(["The 3pm ingestion pass failed"]);
     // And the next pass is not locked out by it.
     expect(await asClaude<{ status: string }>(t, "record_ingestion_run", { status: "started", pass: "7pm" })).toMatchObject({ status: "running" });
     expect(await refusal(t.mutation(api.runner.ingestFailed, { token: "wrong", host: "mini", reason: "x" }))).toBe("bad_runner_token");

@@ -9,7 +9,8 @@
  * tool is refused by the program itself, whatever the session reads.
  *
  * If the session ends without having closed its run in Skippy OS, this says
- * so to Skippy OS, so a pass that could not reach its tools is not silent.
+ * so to Skippy OS, so a pass that could not reach its tools is not silent. A
+ * session that starts without the Skippy OS connector is stopped at once.
  *
  *   node tools/ingest/pass.mjs [pass label]
  */
@@ -88,7 +89,17 @@ const child = spawn(
 const transcript = createWriteStream(join(workspace, "last-pass.jsonl"), { mode: 0o600 });
 child.stdout.pipe(transcript);
 
+/**
+ * Said when the session starts without the Skippy OS connector. It has happened
+ * when Claude Code's sign-in on this Mac lost its access to claude.ai
+ * connectors; signing in again brought them back.
+ */
+const NO_CONNECTORS =
+  "Claude Code on the Mac mini started without its claude.ai connectors, so the pass had no Skippy OS tools and read nothing. Its sign-in has most likely lost connector access. Fix: in Terminal on the mini, run claude auth login.";
+const NO_SKIPPY = "The pass started without the Skippy OS connector, though other claude.ai connectors were there, so it read nothing.";
+
 let buffered = "";
+let missing; // why the session was stopped at its start, if it was
 let closed; // how the session closed its run in Skippy OS, if it did
 let made = 0;
 let result;
@@ -118,6 +129,13 @@ child.stdout.on("data", (chunk) => {
         if (count) made = Number(count[1]);
       }
     }
+    // The session lists its connectors as it starts. Without Skippy OS there is nothing to do.
+    if (event.type === "system" && event.subtype === "init" && !missing) {
+      const servers = (event.mcp_servers ?? []).map((server) => String(server.name));
+      if (!servers.some((name) => /^claude\.ai /i.test(name))) missing = NO_CONNECTORS;
+      else if (!servers.some((name) => /^claude\.ai skippy os$/i.test(name))) missing = NO_SKIPPY;
+      if (missing) child.kill("SIGTERM");
+    }
     if (event.type === "result") result = event;
   }
 });
@@ -135,6 +153,8 @@ child.on("close", async (code) => {
     log(`done: made ${made} record${made === 1 ? "" : "s"}`);
   } else if (closed === "failed") {
     log("the pass recorded itself as failed");
+  } else if (missing) {
+    await reportFailure(missing);
   } else {
     // Its own last words say why it stopped. They are the session's account, kept short.
     const said = String(result?.result ?? "").replace(/\s+/g, " ").trim().slice(0, 400);

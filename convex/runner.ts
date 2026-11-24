@@ -1,8 +1,11 @@
+import { localDate } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
 import { describeScope, failTurn, keepBrief, LEASE_MS } from "./chats";
 import { filesOnMessage } from "./files";
+import { getSettings } from "./lib/common";
+import { notify } from "./push";
 
 /**
  * What the chat runner on the mini calls. These are public functions, so each
@@ -81,6 +84,15 @@ export const ingestFailed = mutation({
       actor: { kind: "agent", harness: "claude", clientId: "skippy-ingest-job", surface: "scheduled" },
       at: now,
       summary: `Ingestion ${args.pass ? `(${args.pass}) ` : ""}failed: ${reason}`,
+    });
+    // A failed pass also means no new briefing, so say so on the phone. Once a day: the next ones usually fail for the same reason.
+    const settings = await getSettings(ctx);
+    await notify(ctx, {
+      dedupeKey: `ingest-failed:${localDate(now, settings.timeZone)}`,
+      type: "ingestion",
+      title: `The ${args.pass ? `${args.pass} ` : ""}ingestion pass failed`,
+      body: reason.length > 180 ? `${reason.slice(0, 177)}…` : reason,
+      url: "/activity",
     });
     return null;
   },
