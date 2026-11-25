@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Composer, ComposerBar, CHAT_FILE_TYPES, MAX_CHAT_FILES } from "./composer";
 import { showSize, useUpload } from "./files";
-import { itemHref } from "./item-details";
+import { itemHref } from "./item-href";
 import { Panel, problem, showDay, showTime } from "./parts";
 import { useNow } from "./use-now";
 

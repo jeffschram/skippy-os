@@ -6,7 +6,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { itemHref } from "./item-details";
+import { itemHref } from "./item-href";
 import { button, Panel, problem, Quiet, showTime, Tag } from "./parts";
 
 /**

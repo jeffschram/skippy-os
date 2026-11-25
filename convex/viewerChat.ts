@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention, type Ref } from "./lib/entities";
-import { BRIEF_REQUEST, describeScope, failTurn, queueTurn, startChat } from "./chats";
+import { BRIEF_REQUEST, chatOfRecord, describeScope, failTurn, queueTurn, startChat } from "./chats";
 import { filesOnMessage, presentFile } from "./files";
 import { refuse } from "./lib/common";
 import { cardDraft, entityType } from "./schema";
@@ -17,7 +17,11 @@ import { OWNER, requireOwner } from "./viewer";
 /** An image or PDF the browser has already sent to storage, to go with a message. */
 const upload = v.object({ storageId: v.id("_storage"), fileName: v.string() });
 
-/** Starts a chat with its first message. `about` makes it a chat about one record; without it, an idea chat. */
+/**
+ * Starts a chat with its first message. `about` makes it a chat about one
+ * record; without it, an idea chat. A record other than a project has one chat,
+ * so a message about it goes on the end of that chat when there is one.
+ */
 export const start = mutation({
   args: { text: v.string(), about: v.optional(v.object({ type: entityType, id: v.string() })), files: v.optional(v.array(upload)) },
   handler: async (ctx, args): Promise<{ chatId: string }> => {
@@ -66,40 +70,71 @@ export const chat = query({
     await requireOwner(ctx);
     const id = ctx.db.normalizeId("chats", args.id);
     const found = id ? await ctx.db.get(id) : null;
-    if (!found) return null;
-    const messages = await ctx.db
-      .query("chatMessages")
-      .withIndex("by_chat", (q) => q.eq("chatId", found._id))
-      .take(400);
-    const turn = await ctx.db
-      .query("chatTurns")
-      .withIndex("by_chat", (q) => q.eq("chatId", found._id))
+    return found ? await presentChat(ctx, found) : null;
+  },
+});
+
+/**
+ * The one chat about a record other than a project, in full, or null when
+ * nothing has been said about it yet. Chats made before a record had only one
+ * are listed under `earlier`, newest first.
+ */
+export const itemChat = query({
+  args: { type: entityType, id: v.string() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    if (args.type === "project") throw refuse("invalid_arguments", "A project can have many chats. Use chatsAbout.");
+    const record = await findEntity(ctx, args.type, args.id);
+    if (!record) return { chat: null, earlier: [] };
+    const found = await chatOfRecord(ctx, { kind: "item", entityRef: record.ref });
+    if (!found) return { chat: null, earlier: [] };
+    const others = await ctx.db
+      .query("chats")
+      .withIndex("by_item", (q) => q.eq("scope.entityRef.entityId", record.ref.entityId))
       .order("desc")
-      .first();
-    const hosts = await ctx.db.query("agentHosts").collect();
+      .take(20);
     return {
-      id: found._id,
-      title: found.title,
-      state: found.state,
-      continuedAt: found.continuedAt ? new Date(found.continuedAt).toISOString() : undefined,
-      scope: await describeScope(ctx, found.scope),
-      messages: await Promise.all(
-        messages.map(async (message) => ({
-          id: message._id,
-          role: message.role,
-          content: message.content,
-          status: message.status,
-          at: new Date(message.createdAt).toISOString(),
-          files: message.role === "user" ? await Promise.all((await filesOnMessage(ctx, message._id)).map((file) => presentFile(ctx, file))) : [],
-          cards: await Promise.all((message.cards ?? []).map((card) => presentCard(ctx, card))),
-        })),
-      ),
-      turn: turn ? { status: turn.status, activity: turn.activity, error: turn.error, kind: turn.kind, replyId: turn.assistantMessageId } : null,
-      /** When the chat runner last said it was alive. The page works out from this whether the mini is there. */
-      miniSeenAt: hosts.length > 0 ? Math.max(...hosts.map((host) => host.lastSeenAt)) : null,
+      chat: await presentChat(ctx, found),
+      earlier: others
+        .filter((row) => row._id !== found._id)
+        .map((row) => ({ id: row._id, title: row.title, updatedAt: new Date(row.updatedAt).toISOString() })),
     };
   },
 });
+
+async function presentChat(ctx: QueryCtx, found: Doc<"chats">) {
+  const messages = await ctx.db
+    .query("chatMessages")
+    .withIndex("by_chat", (q) => q.eq("chatId", found._id))
+    .take(400);
+  const turn = await ctx.db
+    .query("chatTurns")
+    .withIndex("by_chat", (q) => q.eq("chatId", found._id))
+    .order("desc")
+    .first();
+  const hosts = await ctx.db.query("agentHosts").collect();
+  return {
+    id: found._id,
+    title: found.title,
+    state: found.state,
+    continuedAt: found.continuedAt ? new Date(found.continuedAt).toISOString() : undefined,
+    scope: await describeScope(ctx, found.scope),
+    messages: await Promise.all(
+      messages.map(async (message) => ({
+        id: message._id,
+        role: message.role,
+        content: message.content,
+        status: message.status,
+        at: new Date(message.createdAt).toISOString(),
+        files: message.role === "user" ? await Promise.all((await filesOnMessage(ctx, message._id)).map((file) => presentFile(ctx, file))) : [],
+        cards: await Promise.all((message.cards ?? []).map((card) => presentCard(ctx, card))),
+      })),
+    ),
+    turn: turn ? { status: turn.status, activity: turn.activity, error: turn.error, kind: turn.kind, replyId: turn.assistantMessageId } : null,
+    /** When the chat runner last said it was alive. The page works out from this whether the mini is there. */
+    miniSeenAt: hosts.length > 0 ? Math.max(...hosts.map((host) => host.lastSeenAt)) : null,
+  };
+}
 
 type Card = NonNullable<Doc<"chatMessages">["cards"]>[number];
 

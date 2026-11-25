@@ -6,7 +6,7 @@ import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { itemHref } from "./item-details";
+import { itemHref } from "./item-href";
 import { OwnerPage } from "./owner-page";
 import { button, problem, Quiet, showTime, Tag, words } from "./parts";
 

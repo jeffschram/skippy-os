@@ -63,6 +63,25 @@ export async function queueTurn(
   });
 }
 
+/**
+ * The chat about one record: its newest, archived or not. A project can have
+ * many chats, so it has none of its own and this gives undefined for it.
+ */
+export async function chatOfRecord(ctx: QueryCtx, ref: Extract<Scope, { kind: "item" }>): Promise<Doc<"chats"> | undefined> {
+  if (ref.entityRef.entityType === "project") return undefined;
+  const row = await ctx.db
+    .query("chats")
+    .withIndex("by_item", (q) => q.eq("scope.entityRef.entityId", ref.entityRef.entityId))
+    .order("desc")
+    .first();
+  return row ?? undefined;
+}
+
+/**
+ * Starts a chat with its first message. A record other than a project has one
+ * chat: a message about it goes on the end of that chat, which is brought back
+ * if it was archived.
+ */
 export async function startChat(ctx: MutationCtx, args: { text: string; about?: { type: EntityType; id: string }; files?: Upload[] }) {
   const now = Date.now();
   const files = args.files ?? [];
@@ -72,6 +91,12 @@ export async function startChat(ctx: MutationCtx, args: { text: string; about?: 
     const record = await findEntity(ctx, args.about.type, args.about.id);
     if (!record) throw refuse("not_found", `There is no ${args.about.type} with the id "${args.about.id}".`);
     scope = { kind: "item", entityRef: record.ref };
+    const existing = await chatOfRecord(ctx, scope);
+    if (existing) {
+      if (existing.state === "archived") await ctx.db.patch(existing._id, { state: existing.promotedTo ? "promoted" : "open" });
+      await queueTurn(ctx, existing._id, text, { files });
+      return existing._id;
+    }
   }
   // A chat that starts with only a file is named after the file.
   const firstLine = text.split("\n")[0].trim() || files[0].fileName.trim() || "A file";

@@ -322,6 +322,28 @@ describe("chats about a record, the brief, and archiving", () => {
     expect(page.project.notesPad).toContain("Skippy project: garden-shed.");
   });
 
+  it("gives a record other than a project one chat, and brings it back when it was archived", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const { id } = ((await asClaude(t, "upsert_task", { title: "Build the shed" })) as unknown as { task: { id: string } }).task;
+    const about = { type: "task" as const, id };
+    expect(await owner.query(api.viewerChat.itemChat, about)).toEqual({ chat: null, earlier: [] });
+
+    const first = await owner.mutation(api.viewerChat.start, { text: "Which wood?", about });
+    const claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "Cedar." });
+    await owner.mutation(api.viewerChat.archive, { chatId: first.chatId });
+
+    vi.setSystemTime(new Date(NOW + 60_000));
+    const second = await owner.mutation(api.viewerChat.start, { text: "How much of it?", about });
+    expect(second.chatId).toBe(first.chatId);
+    const { chat, earlier } = await owner.query(api.viewerChat.itemChat, about);
+    expect(chat).toMatchObject({ id: first.chatId, state: "open", title: "Which wood?" });
+    expect(chat!.messages.map((message) => message.content)).toEqual(["Which wood?", "Cedar.", "How much of it?", ""]);
+    expect(earlier).toEqual([]);
+    expect(await refusal(owner.query(api.viewerChat.itemChat, { type: "project", id: "garden-shed" }))).toBe("invalid_arguments");
+  });
+
   it("keeps an idea chat's brief as a note, and takes an archived chat off the lists", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });

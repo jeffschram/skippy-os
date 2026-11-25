@@ -10,7 +10,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { draftOfRule, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
-import { ChatsAbout } from "./chats-about";
+import { ItemChat } from "./chats-about";
+import { ITEM_TYPES, itemHref } from "./item-href";
 import { Files } from "./files";
 import { CompanyView, EventView, GoalView, KnowledgeView, PersonView, RecurrenceView } from "./details-views";
 import { button, problem, Quiet, showDay, showTime, Tag, words } from "./parts";
@@ -25,7 +26,7 @@ import { useNow } from "./use-now";
  * the record are what it is linked to, where it came from and its history.
  */
 
-const TYPES = ["knowledge", "person", "company", "goal", "event", "recurrence"] as const;
+const TYPES = ITEM_TYPES;
 type ItemType = (typeof TYPES)[number];
 type Bundle = NonNullable<FunctionReturnType<typeof api.viewerMemory.item>>;
 type Knowledge = ReturnType<typeof presentKnowledge>;
@@ -36,14 +37,6 @@ type Goal = ReturnType<typeof presentGoal>;
 const KINDS = ["note", "link", "memory", "decision", "principle", "question"] as const;
 const LABELS = ["client", "vendor", "employer", "partner", "prospect", "other"] as const;
 const field = "w-full rounded-md border border-foreground/20 bg-background px-2 py-1.5 text-sm";
-
-/** Where a record opens: a project has its page, a task its own details, and the rest open here. */
-export function itemHref(type: string, id: string): string | undefined {
-  if (type === "project") return `/projects/${id}`;
-  if (type === "task") return `?task=${id}`;
-  if ((TYPES as readonly string[]).includes(type)) return `?item=${type}:${id}`;
-  return undefined;
-}
 
 export function ItemDetails() {
   const param = useSearchParams().get("item");
@@ -143,8 +136,8 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
         <GoalForm goal={bundle.record as Goal} onClose={done} />
       )}
       <section className="border-t border-foreground/15 pt-4">
-        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chats</h3>
-        <ChatsAbout type={type} id={id} />
+        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chat</h3>
+        <ItemChat type={type} id={id} />
       </section>
       <section className="border-t border-foreground/15 pt-4">
         <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
