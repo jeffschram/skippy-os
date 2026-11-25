@@ -74,7 +74,7 @@ export function buildServer(principal: Pick<OAuthPrincipal, "scopes">, run: RunO
       {
         title: "Get skill",
         description:
-          "Returns the working instructions for a Skippy skill: skippy-status (when and how to report on a Skippy project), skippy-capture (what to save where), skippy-ingest (how to run an ingestion pass), skippy-nightly-sweep (how to write a report from unreported commits), skippy-weekly-review (how to write the weekly review) or skippy-plan-project (how to turn a brief into phases and tasks). Call it when instructions say to follow one of these skills and you do not already have its text loaded.",
+          "Returns the working instructions for a Skippy skill: skippy-status (when and how to report on a Skippy project), skippy-capture (what to save where), skippy-ingest (how to run an ingestion pass), skippy-nightly-sweep (how to write a report from unreported commits), skippy-weekly-review (how to write the weekly review), skippy-plan-project (how to turn a brief into phases and tasks) or skippy-delegate (how to work a task the owner handed over from the dashboard). Call it when instructions say to follow one of these skills and you do not already have its text loaded.",
         inputSchema: {
           name: z.enum(Object.keys(SKILLS) as [SkillName, ...SkillName[]]).describe("The skill to read."),
         },

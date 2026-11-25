@@ -224,11 +224,9 @@ export const DELEGATE_SHOWN = "Work on this task for me.";
  * and sending forms; this widens what it may do to the task itself.
  */
 export const DELEGATE_REQUEST = [
-  "The owner has handed this task to you. Do as much of it as you can now, with the tools you have: look things up on the web and in your browser, read their records, work things out, and draft what needs writing.",
-  "- Read the task first. Write what you find as you go, in short paragraphs, so the owner can follow along in the chat.",
-  "- You may change this task without asking: add what you found to its description, or set its status to in progress while you work. Do not change other records; offer anything new with propose_promotion as usual.",
-  "- Never buy, book, sign in, or send anything to anyone. Where the task needs one of those, get it ready (the link, the details, a draft) and leave that step to the owner.",
-  "- End with what is done and what is left for the owner. If nothing is left for them, mark the task done with complete_task and say so.",
+  "The owner has handed this task to you. Follow the skippy-delegate skill: call get_skill for it first, then work the task as it says.",
+  "In short: do as much as you can now and write what you find as you go. You may change this task without asking, but no other record. Never buy, book, sign in, or send anything to anyone; get those steps ready and leave them to the owner.",
+  "If get_skill is not there, work the task on those rules, and end with what is done and what is left for the owner.",
 ].join("\n");
 
 /** What the owner's "Continue in Claude" asks the chat's session to write. */
