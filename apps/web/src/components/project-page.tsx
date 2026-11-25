@@ -1,12 +1,13 @@
 "use client";
 
-import { ChatsCircle, CheckSquare, Files as FilesIcon, Flag, NotePencil, Steps } from "@phosphor-icons/react";
+import { CalendarBlank, ChatsCircle, CheckSquare, Files as FilesIcon, Flag, NotePencil, Steps } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { EventRow } from "./calendar-parts";
 import { ChatsAbout } from "./chats-about";
 import { Files } from "./files";
 import { OwnerPage } from "./owner-page";
@@ -89,6 +90,8 @@ function Loaded() {
 
       <Phases project={project.slug} phases={page.phases} />
 
+      {page.events.length > 0 ? <Events events={page.events} /> : null}
+
       <Panel title="Tasks" icon={CheckSquare} note={`${page.openTasks.length} open`}>
         {page.openTasks.length === 0 ? <Quiet>Nothing open.</Quiet> : <ByPhase tasks={page.openTasks} phases={page.phases} />}
         <AddTask project={project.slug} />
@@ -119,6 +122,28 @@ function Loaded() {
 }
 
 /** The title and summary, with an edit form behind a button. */
+/** The project's events still to come, by day. */
+function Events({ events }: { events: Page["events"] }) {
+  const days = new Map<string, Page["events"]>();
+  for (const event of events) days.set(event.start.date, [...(days.get(event.start.date) ?? []), event]);
+  return (
+    <Panel title="Coming up" icon={CalendarBlank} note={`${events.length} ${events.length === 1 ? "event" : "events"}`}>
+      <div className="space-y-6">
+        {[...days].map(([day, list]) => (
+          <div key={day}>
+            <h3 className="mb-2 text-sm font-medium text-foreground/60">{showDay(day)}</h3>
+            <ul className="space-y-2">
+              {list.map((event) => (
+                <EventRow key={event.id} event={event} showProject={false} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
 function Header({ project }: { project: Project }) {
   const save = useMutation(api.viewer.saveProject);
   const [editing, setEditing] = useState(false);

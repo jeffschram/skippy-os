@@ -258,7 +258,7 @@ export function EventView({ event }: { event: EventItem }) {
       <Prose>{event.description}</Prose>
       {event.origin !== "skippy" ? (
         <p className="text-sm text-foreground/60">
-          This is a copy from your calendar, so it is changed there, not here.
+          This is a copy from your calendar, so it is changed there; only its project can be set here.
           {event.link ? (
             <>
               {" "}

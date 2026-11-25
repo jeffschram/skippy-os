@@ -72,7 +72,7 @@ function EventBox({ state, className = "" }: { state: ReturnType<typeof useEvent
   );
 }
 
-export function EventRow({ event }: { event: EventItem }) {
+export function EventRow({ event, showProject = true }: { event: EventItem; showProject?: boolean }) {
   const state = useEventDone(event);
   return (
     <li className="flex items-start gap-3">
@@ -86,7 +86,7 @@ export function EventRow({ event }: { event: EventItem }) {
           {event.title}
         </Link>
         <p className="truncate text-sm text-foreground/60">
-          {[eventTime(event), event.location, event.project].filter(Boolean).join(" · ")}
+          {[eventTime(event), event.location, showProject ? event.project : undefined].filter(Boolean).join(" · ")}
         </p>
         {state.error ? <p className="mt-1 text-sm text-red-700 dark:text-red-300">{state.error}</p> : null}
       </div>

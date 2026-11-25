@@ -272,7 +272,8 @@ export default defineSchema({
     ...authored,
   })
     .index("by_start", ["startAt"])
-    .index("by_external", ["externalId"]),
+    .index("by_external", ["externalId"])
+    .index("by_project", ["projectId", "startAt"]),
 
   // A light address book. Emails and phone numbers are also kept in
   // personHandles, where one can be looked up to find its person.

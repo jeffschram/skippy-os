@@ -96,7 +96,7 @@ describe("events", () => {
     expect((await owner.query(api.viewer.calendar, { now: NOW })).events.map((event) => event.title)).toEqual(["Dentist", "Next month"]);
   });
 
-  it("copied from Google cannot be changed here", async () => {
+  it("copied from Google are changed there, but take a project here", async () => {
     const t = start();
     const id = await t.run((ctx) =>
       ctx.db.insert("calendarEvents", {
@@ -110,6 +110,22 @@ describe("events", () => {
       }),
     );
     expect(await refusal(asClaude(t, "upsert_event", { id, title: "Mine now" }))).toBe("read_only");
+    expect(await refusal(asClaude(t, "upsert_event", { id, project: "trip", location: "Here" }))).toBe("read_only");
+
+    await asClaude(t, "upsert_project", { slug: "trip", title: "Trip" });
+    expect(await asClaude(t, "upsert_event", { id, project: "trip" })).toMatchObject({ changed: true, event: { project: "trip", origin: "google" } });
+    // The owner sets it from the event's window too.
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.saveEvent, { id, project: null });
+    await owner.mutation(api.viewer.saveEvent, { id, project: "trip" });
+
+    // The project lists its events still to come, and not those that are over or called off.
+    await owner.mutation(api.viewer.saveEvent, { title: "Last week", startAt: "2026-11-18T10:00", project: "trip" });
+    const off = await owner.mutation(api.viewer.saveEvent, { title: "Called off", startAt: "2026-11-27T10:00", project: "trip" });
+    await owner.mutation(api.viewer.saveEvent, { id: off.id, status: "cancelled" });
+    await owner.mutation(api.viewer.saveEvent, { title: "Flight home", startAt: "2026-11-28T11:58", project: "trip" });
+    const page = await owner.query(api.viewer.project, { slug: "trip", now: NOW });
+    expect(page!.events.map((event) => event.title)).toEqual(["From Google", "Flight home"]);
   });
 
   it("say when they are over, and can be ticked off early, Google copies too", async () => {

@@ -17,6 +17,7 @@ import { describeFile, filesOn } from "./files";
 import { detach } from "./lib/remove";
 import { indexProject } from "./lib/searchIndex";
 import { actor, claudeHome, phaseStatus, projectHealth, projectKind, projectStatus } from "./schema";
+import { eventOverAt, presentEvent } from "./agenda";
 import { presentTask } from "./tasks";
 import { areaNames } from "./lib/areas";
 
@@ -412,7 +413,7 @@ export const removePhase = internalMutation({
   },
 });
 
-/** One project in full: details, notes, phases, tasks and the latest status reports. */
+/** One project in full: details, notes, phases, tasks, coming events and the latest status reports. */
 export async function readProject(ctx: QueryCtx, args: { project: string; now: number }) {
   const now = args.now;
   const settings = await getSettings(ctx);
@@ -428,6 +429,13 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
     .withIndex("by_project", (q) => q.eq("projectId", project._id))
     .order("desc")
     .take(5);
+  // Its events that are not over yet, soonest first. One that began a day ago may still be running.
+  const events = (
+    await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_project", (q) => q.eq("projectId", project._id).gte("startAt", now - 31 * 86_400_000))
+      .collect()
+  ).filter((event) => event.status !== "cancelled" && eventOverAt(event, settings.timeZone) > now);
   const open = tasks.filter((task) => task.status !== "done" && task.status !== "cancelled");
   const closed = tasks
     .filter((task) => task.status === "done" || task.status === "cancelled")
@@ -442,6 +450,8 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
       status: phase.status,
     })),
     openTasks: open.map((task) => presentTask(task, project.slug, settings.timeZone, areas)),
+    /** Its events still to come or under way, from Skippy's calendar and copies of the owner's Google calendar. */
+    events: events.map((event) => presentEvent(event, project.slug, settings.timeZone)),
     recentlyClosedTasks: closed.slice(0, 10).map((task) => presentTask(task, project.slug, settings.timeZone, areas)),
     closedTaskCount: closed.length,
     /** What files the project holds. They are opened from the dashboard; there is no tool that reads one. */

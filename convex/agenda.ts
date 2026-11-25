@@ -113,8 +113,18 @@ export const upsertEvent = internalMutation({
       const id = ctx.db.normalizeId("calendarEvents", args.id);
       existing = id ? await ctx.db.get(id) : null;
       if (!existing) throw refuse("not_found", `There is no event with the id "${args.id}".`);
+      // A copy from the owner's Google calendar is changed there. Its project and links are
+      // Skippy's own, like the done mark, so those can be set here and a pass never touches them.
       if (existing.origin !== "skippy") {
-        throw refuse("read_only", "That event is a copy from the owner's Google calendar. Change it there.");
+        const theirs = (["title", "description", "location", "startAt", "endAt", "allDay", "status"] as const).filter(
+          (name) => args[name] !== undefined,
+        );
+        if (theirs.length > 0) {
+          throw refuse(
+            "read_only",
+            `That event is a copy from the owner's Google calendar, so ${theirs.join(", ")} can only be changed there. Its project and links can be set here.`,
+          );
+        }
       }
     }
 

@@ -83,8 +83,6 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
   if (bundle === undefined) return <Quiet>Loading…</Quiet>;
   if (bundle === null) return <Missing onClose={onClose} />;
   const kind = type === "knowledge" ? words((bundle.record as Knowledge).kind) : type === "recurrence" ? "repeating" : type;
-  // A copy of an event from the owner's calendar is changed in that calendar, so it has no form.
-  const fixed = type === "event" && (bundle.record as EventItem).origin !== "skippy";
   const done = () => setEditing(false);
   return (
     <WindowLayout
@@ -94,7 +92,7 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
           {editing ? <h2 className="text-lg font-semibold">Edit {kind}</h2> : <p className="text-sm text-foreground/60 first-letter:uppercase">{kind}</p>}
           <div className="flex items-center gap-4">
             {type === "event" && !editing ? <EventDoneBox event={bundle.record as EventItem} /> : null}
-            <WindowButtons onEdit={editing || fixed ? undefined : () => setEditing(true)} onClose={onClose} />
+            <WindowButtons onEdit={editing ? undefined : () => setEditing(true)} onClose={onClose} />
           </div>
         </>
       }
@@ -459,8 +457,30 @@ function CompanyForm({ company, onClose }: { company: Company; onClose: () => vo
   );
 }
 
+/** The project picker for an event. An archived project the event already belongs to stays in the list. */
+function ProjectField({ value, current, onChange }: { value: string; current?: string; onChange: (slug: string) => void }) {
+  const projects = useQuery(api.viewer.projects, { now: useNow() });
+  const options = (projects?.projects ?? []).map((item) => ({ slug: item.slug, title: item.title }));
+  if (current && !options.some((item) => item.slug === current)) options.push({ slug: current, title: current });
+  return (
+    <label className="block text-sm">
+      Project
+      <select value={value} onChange={(change) => onChange(change.target.value)} className={`mt-1 ${field}`}>
+        <option value="">No project</option>
+        {options.map((item) => (
+          <option key={item.slug} value={item.slug}>
+            {item.title}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }) {
   const save = useMutation(api.viewer.saveEvent);
+  const copy = event.origin !== "skippy";
+  const [project, setProject] = useState(event.project ?? "");
   const [title, setTitle] = useState(event.title);
   const [day, setDay] = useState(event.start.date);
   const [from, setFrom] = useState(event.allDay ? "" : event.start.time);
@@ -486,6 +506,12 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
   function submit(submitted: FormEvent) {
     submitted.preventDefault();
     const changes: Parameters<typeof save>[0] = { id: event.id };
+    if (project !== (event.project ?? "")) changes.project = project || null;
+    // A copy from the owner's calendar takes only its project here; the rest is changed in the calendar.
+    if (copy) {
+      if (Object.keys(changes).length === 1) return onClose();
+      return void run(changes);
+    }
     if (title !== event.title) changes.title = title;
     if (location !== (event.location ?? "")) changes.location = text(location);
     if (description !== (event.description ?? "")) changes.description = text(description);
@@ -502,6 +528,19 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
   }
 
   const cancelled = event.status === "cancelled";
+  if (copy) {
+    return (
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-base font-medium">{event.title}</p>
+        <ProjectField value={project} current={event.project} onChange={setProject} />
+        <p className="text-sm text-foreground/60">
+          This is a copy from your calendar, so its title, time and details are changed there. The project is kept in Skippy only.
+        </p>
+        {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+        <Buttons busy={busy} onClose={onClose} />
+      </form>
+    );
+  }
   return (
     <form onSubmit={submit} className="space-y-4">
       {cancelled ? <Tag>cancelled</Tag> : null}
@@ -531,6 +570,7 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
         Where
         <input value={location} onChange={(change) => setLocation(change.target.value)} className={`mt-1 ${field}`} />
       </label>
+      <ProjectField value={project} current={event.project} onChange={setProject} />
       <label className="block text-sm">
         Details
         <textarea value={description} onChange={(change) => setDescription(change.target.value)} rows={5} className={`mt-1 ${field}`} />

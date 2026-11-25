@@ -131,7 +131,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   get_project: {
     title: "Get project",
     description:
-      "Reads one project in full: its details and notes, phases, open tasks, recently closed tasks, the last five status reports, and what files it holds. Files are listed by name and size only; they are opened from the dashboard.",
+      "Reads one project in full: its details and notes, phases, open tasks, recently closed tasks, its events still to come, the last five status reports, and what files it holds. Files are listed by name and size only; they are opened from the dashboard.",
     input: { project: projectSlug },
     kind: "read",
   },
@@ -508,7 +508,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   upsert_event: {
     title: "Create or update event",
     description:
-      "Adds an event to the owner's Skippy calendar, or changes one when `id` is given: an appointment, a trip, a call, anything with a time. A start given as a bare date makes an all-day event. To call an event off, set status to \"cancelled\". Events copied from the owner's Google calendar cannot be changed here. Use get_agenda first so the same event is not added twice.",
+      "Adds an event to the owner's Skippy calendar, or changes one when `id` is given: an appointment, a trip, a call, anything with a time. A start given as a bare date makes an all-day event. To call an event off, set status to \"cancelled\". Events copied from the owner's Google calendar are changed there; here only their project and links can be set. Use get_agenda first so the same event is not added twice.",
     input: {
       id: z.string().optional().describe("The event to change."),
       title: z.string().max(300).optional().describe("Required for a new event."),
