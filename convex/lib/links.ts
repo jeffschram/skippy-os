@@ -6,7 +6,7 @@ import type { Ref } from "./entities";
 /** Relationship helpers. They do not write to the activity log; the calling operation does. */
 
 /** How many links are read in each direction. Keeps one busy record inside Convex's read limits. */
-export const LINK_LIMIT = 50;
+export const LINK_LIMIT = 200;
 
 export async function findLink(ctx: QueryCtx, from: Ref, to: Ref, type: Relation): Promise<Doc<"relationships"> | null> {
   const rows = await ctx.db

@@ -141,6 +141,26 @@ describe("the MCP server", () => {
     expect(reply.error ?? reply.result?.isError).toBeTruthy();
   });
 
+  it("takes a list sent as JSON text, as a client with an older tool definition sends it", async () => {
+    const seen: unknown[] = [];
+    const reply = await rpc(
+      BOTH,
+      "tools/call",
+      { name: "upsert_person", arguments: { id: "p1", aliases: '["Sammy", "Sam R"]' } },
+      async (operation, args) => {
+        seen.push([operation, args]);
+        return { updated: true };
+      },
+    );
+    expect(reply.result?.isError).toBeFalsy();
+    expect(seen).toEqual([["upsert_person", { id: "p1", aliases: ["Sammy", "Sam R"] }]]);
+    const tools = (await rpc(BOTH, "tools/list", {})).result?.tools ?? [];
+    const person = tools.find((tool) => tool.name === "upsert_person") as unknown as {
+      inputSchema: { properties: { aliases: unknown } };
+    };
+    expect(JSON.stringify(person.inputSchema.properties.aliases)).toContain('"array"');
+  });
+
   it("reports a refusal from Convex as a tool error the model can read", async () => {
     const reply = await rpc(BOTH, "tools/call", { name: "get_project", arguments: { project: "missing" } }, async () => {
       throw new GatewayRefusal("not_found", 'There is no project with the slug "missing".');

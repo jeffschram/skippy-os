@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { ConvexError } from "convex/values";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "./_generated/api";
+import { everyWordFirst, wordsOf } from "./read";
 import schema from "./schema";
 
 const modules = import.meta.glob(["./**/*.ts", "./**/*.js", "!./**/*.test.ts", "!./**/*.d.ts"]);
@@ -126,6 +127,33 @@ describe("the Memory page", () => {
     const people = await owner.query(api.viewerMemory.search, { query: "sourdough", section: "people" });
     expect(people.results.map((result) => result.title)).toEqual(["Sam Baker"]);
     expect((await owner.query(api.viewerMemory.search, { query: "  " })).results).toEqual([]);
+  });
+
+  it("puts the records that hold every word of a search first", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    for (const title of ["Rivera family reunion", "Call the Riveras about Rivera Street", "Rivera Rivera Rivera"]) {
+      await owner.mutation(api.viewerMemory.saveKnowledge, { kind: "note", title });
+    }
+    await owner.mutation(api.viewerMemory.saveKnowledge, { kind: "note", title: "Lunch with Sam", body: "Sam Rivera picked the place." });
+
+    const found = await owner.query(api.viewerMemory.search, { query: "Sam Rivera" });
+    expect(found.results[0].title).toBe("Lunch with Sam");
+    expect(found.results.length).toBeGreaterThan(1);
+  });
+
+  it("ranks by every word, the last one possibly cut short", () => {
+    const rows = [{ text: "Rivera only" }, { text: "Samantha Rivera" }, { text: "Sam and Rivera" }];
+    expect(everyWordFirst(rows, wordsOf("Rivera Sam")).map((row) => row.text)).toEqual([
+      "Samantha Rivera",
+      "Sam and Rivera",
+      "Rivera only",
+    ]);
+    expect(everyWordFirst(rows, wordsOf("Sam Rivera")).map((row) => row.text)).toEqual([
+      "Sam and Rivera",
+      "Rivera only",
+      "Samantha Rivera",
+    ]);
   });
 
   it("lists goals, live ones first", async () => {

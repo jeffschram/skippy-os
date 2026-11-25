@@ -33,6 +33,19 @@ const when = (what: string) =>
       `${what} A date like 2026-11-25, a local time like 2026-11-25T15:00, or a full ISO time. Dates and local times are read in the owner's time zone.`,
     );
 const clearable = <T extends z.ZodType>(schema: T) => schema.nullable().optional();
+/**
+ * A list that also takes its JSON text. A client holding a tool definition from
+ * before the field existed does not know it is a list, and sends it as a string.
+ */
+const list = <T extends z.ZodType>(schema: z.ZodArray<T>) =>
+  z.preprocess((value) => {
+    if (typeof value !== "string" || !value.trim().startsWith("[")) return value;
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      return value;
+    }
+  }, schema);
 
 const projectStatus = z.enum(["idea", "active", "paused", "completed", "archived"]);
 const projectHealth = z.enum(["on_track", "at_risk", "blocked"]);
@@ -232,7 +245,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
     input: {
       id: z.string().optional().describe("The id of the person to update."),
       name: z.string().max(200).optional().describe("Their full name. Required for a new person."),
-      aliases: clearable(z.array(z.string().max(100)).max(20)).describe(
+      aliases: clearable(list(z.array(z.string().max(100)).max(20))).describe(
         'Other names they go by, such as the first name the owner calls them by ("Kate") or another spelling ("Cate"). Replaces the list on file. Every record whose words use their full name, one of these names or one of their numbers is linked to them by itself, so give a name here only when it means this person and no one else on file.',
       ),
       emails: z.array(z.string().max(320)).max(20).optional().describe("Email addresses to add."),

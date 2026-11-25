@@ -140,6 +140,31 @@ function snippet(text: string, title: string, query: string): string | undefined
   return `${start > 0 ? "…" : ""}${piece}${start + 220 < flat.length ? "…" : ""}`;
 }
 
+/** How many index matches a search of several words reads before putting the best ones first. */
+const SEARCH_CANDIDATES = 100;
+
+/** A text's words, lower case, the way the search index splits them. */
+export function wordsOf(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+}
+
+/**
+ * The rows that hold every word of the query, then the rest, each in the index's order.
+ * The last word may be the start of a longer one, as it is in the index.
+ */
+export function everyWordFirst<T extends { text: string }>(rows: T[], words: string[]): T[] {
+  const last = words.length - 1;
+  const holdsAll = (row: T) => {
+    const own = new Set(wordsOf(row.text));
+    return words.every((word, at) => own.has(word) || (at === last && [...own].some((w) => w.startsWith(word))));
+  };
+  const all = rows.filter(holdsAll);
+  return [...all, ...rows.filter((row) => !all.includes(row))];
+}
+
 /** Word search across every searchable record, best match first. */
 export async function runSearch(
   ctx: QueryCtx,
@@ -149,12 +174,16 @@ export async function runSearch(
     const query = requireText(args.query, "query");
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 10), 1), 25);
     const type = args.type;
-    const rows = await ctx.db
+    // The index matches any one word. With more than one word, read a wider set and put the
+    // records that hold every word first, so "Sam Rivera" finds Sam Rivera before every other Sam.
+    const words = wordsOf(query);
+    const found = await ctx.db
       .query("searchDocs")
       .withSearchIndex("by_text", (q) =>
         type ? q.search("text", query).eq("entityType", type) : q.search("text", query),
       )
-      .take(limit);
+      .take(words.length > 1 ? SEARCH_CANDIDATES : limit);
+    const rows = words.length > 1 ? everyWordFirst(found, words).slice(0, limit) : found;
     const results: { type: EntityType | "capture"; id: string; title: string; state?: string; snippet?: string }[] = [];
     for (const row of rows) {
       const entity = await findEntity(ctx, row.entityType, row.entityId);
