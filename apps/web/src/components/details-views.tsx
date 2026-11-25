@@ -179,6 +179,7 @@ export function PersonView({ person }: { person: Person }) {
       <Facts
         rows={[
           ["How you know them", person.relationshipContext],
+          ["Also called", person.aliases.length > 0 ? person.aliases.join(", ") : null],
           [
             "Email",
             person.emails.length > 0 ? (

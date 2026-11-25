@@ -7,10 +7,10 @@ const html = (text: string) => renderToStaticMarkup(createElement(MarkdownText, 
 
 describe("a chat reply in Markdown", () => {
   it("links a bare site name, a full address and a Markdown link, and opens each in a new tab", () => {
-    const out = html("Celebration Cinema (celebrationcinema.com, read just now). See https://example.org/a?b=1 or [the times](https://www.celebrationcinema.com/showtimes).");
-    expect(out).toContain('<a href="https://celebrationcinema.com" target="_blank" rel="noreferrer"');
+    const out = html("Riverside Cinema (riversidecinema.com, read just now). See https://example.org/a?b=1 or [the times](https://www.riversidecinema.com/showtimes).");
+    expect(out).toContain('<a href="https://riversidecinema.com" target="_blank" rel="noreferrer"');
     expect(out).toContain('href="https://example.org/a?b=1"');
-    expect(out).toContain('href="https://www.celebrationcinema.com/showtimes"');
+    expect(out).toContain('href="https://www.riversidecinema.com/showtimes"');
     expect(out).toContain(">the times</a>");
   });
 

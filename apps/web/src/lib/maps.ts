@@ -1,7 +1,7 @@
 /**
  * Google Maps links for the places written on events and tasks. A place is
- * either one spot ("Westchester County HPN", a street address) or a trip
- * written with arrows ("Home → Westchester County Airport (HPN)"). "Home"
+ * either one spot ("City Airport", a street address) or a trip
+ * written with arrows ("Home → City Airport"). "Home"
  * stands for the owner's home address from Settings; with none saved, a trip
  * from home starts wherever the owner is.
  */

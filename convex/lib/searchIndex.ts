@@ -2,10 +2,12 @@ import type { SearchableType } from "@skippy/shared";
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { knowledgeTitle } from "./entities";
+import { linkPeopleNamed } from "./mentions";
 
 /**
  * Keeps `searchDocs` in step with the records it describes. Every write to a
- * searchable record ends by calling the matching function here.
+ * searchable record ends by calling the matching function here. It also links
+ * the record to the people its words name (see mentions.ts).
  */
 
 const MAX_TEXT = 20_000;
@@ -27,6 +29,8 @@ async function index(
     .unique();
   if (!existing) await ctx.db.insert("searchDocs", { entityType, entityId, title, text });
   else if (existing.title !== title || existing.text !== text) await ctx.db.patch(existing._id, { title, text });
+  else return;
+  await linkPeopleNamed(ctx, { entityType, entityId }, text);
 }
 
 export const indexProject = (ctx: MutationCtx, doc: Doc<"projects">) =>
@@ -37,6 +41,7 @@ export const indexTask = (ctx: MutationCtx, doc: Doc<"tasks">) =>
 
 export const indexPerson = (ctx: MutationCtx, doc: Doc<"people">) =>
   index(ctx, "person", doc._id, doc.name, [
+    ...(doc.aliases ?? []),
     ...doc.emails,
     ...doc.phoneNumbers,
     doc.roleTitle,

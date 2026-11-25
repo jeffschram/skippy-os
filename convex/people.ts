@@ -5,6 +5,7 @@ import { internalMutation, type MutationCtx, type QueryCtx } from "./_generated/
 import { buildPatch, cleanText, getSettings, iso, logActivity, refuse, requireText, showWhen, when } from "./lib/common";
 import type { Ref } from "./lib/entities";
 import { ensureLink, linksFrom } from "./lib/links";
+import { linkRecordsNaming } from "./lib/mentions";
 import { indexCompany, indexPerson } from "./lib/searchIndex";
 import { actor, companyLabel } from "./schema";
 
@@ -53,11 +54,25 @@ export function presentCompany(company: Doc<"companies">) {
   };
 }
 
+/** Other names, trimmed, without repeats or the full name itself. Null when there are none. */
+function cleanAliases(aliases: string[] | null, name: string): string[] | null {
+  const seen = new Set([name.trim().toLowerCase()]);
+  const kept: string[] = [];
+  for (const alias of aliases ?? []) {
+    const clean = alias.trim().replace(/\s+/g, " ").slice(0, 100);
+    if (!clean || seen.has(clean.toLowerCase())) continue;
+    seen.add(clean.toLowerCase());
+    kept.push(clean);
+  }
+  return kept.length > 0 ? kept.slice(0, 20) : null;
+}
+
 export async function presentPerson(ctx: QueryCtx, person: Doc<"people">, timeZone: string) {
   const company = await companyOf(ctx, person._id);
   return {
     id: person._id,
     name: person.name,
+    aliases: person.aliases ?? [],
     emails: person.emails,
     phoneNumbers: person.phoneNumbers,
     company: company ? { id: company._id, name: company.name } : undefined,
@@ -143,6 +158,8 @@ export const upsert = internalMutation({
     favorite: nullable(v.boolean()),
     lastContactAt: nullable(v.string()),
     contactCadenceDays: nullable(v.number()),
+    /** Other names they go by. Replaces the list on file; null or an empty list clears it. */
+    aliases: nullable(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -214,6 +231,7 @@ export const upsert = internalMutation({
       favorite: args.favorite,
       lastContactAt: when(args.lastContactAt, settings.timeZone, "start", "lastContactAt"),
       contactCadenceDays: args.contactCadenceDays,
+      aliases: args.aliases === undefined ? undefined : cleanAliases(args.aliases, name ?? existing?.name ?? args.name ?? ""),
     };
     const company = args.company === undefined ? undefined : cleanText(args.company);
 
@@ -242,6 +260,7 @@ export const upsert = internalMutation({
       }
       const updated = (await ctx.db.get(personId))!;
       await indexPerson(ctx, updated);
+      if ("name" in patch || "aliases" in patch || "phoneNumbers" in patch) await linkRecordsNaming(ctx, updated);
       delete diff.nameKey;
       const what = [...Object.keys(diff), ...(companyChange ? [companyChange] : [])].join(", ");
       await logActivity(ctx, {
@@ -281,6 +300,7 @@ export const upsert = internalMutation({
       ...(typeof fields.favorite === "boolean" ? { favorite: fields.favorite } : {}),
       ...(typeof fields.lastContactAt === "number" ? { lastContactAt: fields.lastContactAt } : {}),
       ...(typeof fields.contactCadenceDays === "number" ? { contactCadenceDays: fields.contactCadenceDays } : {}),
+      ...(fields.aliases && fields.aliases.length > 0 ? { aliases: fields.aliases } : {}),
       createdBy: args.actor,
       updatedBy: args.actor,
       updatedAt: now,
@@ -290,6 +310,7 @@ export const upsert = internalMutation({
     const companyChange = company ? await setCompany(ctx, personId, company, args.actor, now) : null;
     const created = (await ctx.db.get(personId))!;
     await indexPerson(ctx, created);
+    await linkRecordsNaming(ctx, created);
     await logActivity(ctx, {
       entityType: "person",
       entityId: personId,

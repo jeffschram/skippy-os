@@ -210,7 +210,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       dueAt: clearable(when("The deadline.")),
       scheduledFor: clearable(when("When the owner plans to do it.")),
       waitingOn: clearable(z.string().max(300)).describe("Who or what the task is waiting on."),
-      location: clearable(z.string().max(500)).describe('Where it gets done, such as a shop or an office, with its address when known. The app links it to Google Maps. For a trip write "From → To", such as "Home → Westchester County Airport (HPN)"; Home means the owner\'s home address.'),
+      location: clearable(z.string().max(500)).describe('Where it gets done, such as a shop or an office, with its address when known. The app links it to Google Maps. For a trip write "From → To", such as "Home → City Airport"; Home means the owner\'s home address.'),
     },
     kind: "write",
     idempotent: true,
@@ -232,6 +232,9 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
     input: {
       id: z.string().optional().describe("The id of the person to update."),
       name: z.string().max(200).optional().describe("Their full name. Required for a new person."),
+      aliases: clearable(z.array(z.string().max(100)).max(20)).describe(
+        'Other names they go by, such as the first name the owner calls them by ("Kate") or another spelling ("Cate"). Replaces the list on file. Every record whose words use their full name, one of these names or one of their numbers is linked to them by itself, so give a name here only when it means this person and no one else on file.',
+      ),
       emails: z.array(z.string().max(320)).max(20).optional().describe("Email addresses to add."),
       phoneNumbers: z.array(z.string().max(40)).max(20).optional().describe("Phone numbers to add."),
       separate: z.boolean().optional().describe("Without an id, a new address or number under a name that exactly one person on file has is added to that person. Set this to true only when it is a different person who shares the name."),
@@ -516,7 +519,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       startAt: when("When it starts. Required for a new event.").optional(),
       endAt: clearable(when("When it ends.")),
       allDay: z.boolean().optional().describe("Defaults to true when startAt is a bare date."),
-      location: clearable(z.string().max(500)).describe('Where it is, with the address when known. The app links it to Google Maps. For travel write "From → To", such as "Home → Westchester County Airport (HPN)"; Home means the owner\'s home address.'),
+      location: clearable(z.string().max(500)).describe('Where it is, with the address when known. The app links it to Google Maps. For travel write "From → To", such as "Home → City Airport"; Home means the owner\'s home address.'),
       description: clearable(z.string().max(4000)),
       status: z.enum(["confirmed", "cancelled"]).optional(),
       project: clearable(projectSlug),

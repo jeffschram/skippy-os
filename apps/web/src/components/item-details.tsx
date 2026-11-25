@@ -101,7 +101,10 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
           type === "knowledge" ? (
             <KnowledgeView item={bundle.record as Knowledge} />
           ) : type === "person" ? (
-            <PersonView person={bundle.record as Person} />
+            <div className="space-y-8">
+              <PersonView person={bundle.record as Person} />
+              <MentionedIn person={bundle.record as Person} />
+            </div>
           ) : type === "company" ? (
             <CompanyView company={bundle.record as Company} />
           ) : type === "event" ? (
@@ -288,6 +291,7 @@ function PersonForm({ person, onClose }: { person: Person; onClose: () => void }
   const [context, setContext] = useState(person.relationshipContext ?? "");
   const [birthday, setBirthday] = useState(person.birthday ?? "");
   const [notes, setNotes] = useState(person.notes ?? "");
+  const [aliases, setAliases] = useState(person.aliases.join(", "));
   const [favorite, setFavorite] = useState(person.favorite ?? false);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -304,6 +308,8 @@ function PersonForm({ person, onClose }: { person: Person; onClose: () => void }
     if (birthday !== (person.birthday ?? "")) changes.birthday = text(birthday);
     if (notes !== (person.notes ?? "")) changes.notes = text(notes);
     if (favorite !== (person.favorite ?? false)) changes.favorite = favorite;
+    const otherNames = aliases.split(",").map((alias) => alias.trim()).filter(Boolean);
+    if (otherNames.join(", ") !== person.aliases.join(", ")) changes.aliases = otherNames.length > 0 ? otherNames : null;
     if (email.trim()) changes.emails = [email];
     if (phone.trim()) changes.phoneNumbers = [phone];
     if (Object.keys(changes).length === 1) return onClose();
@@ -323,6 +329,11 @@ function PersonForm({ person, onClose }: { person: Person; onClose: () => void }
       <label className="block text-sm">
         Name
         <input value={name} onChange={(event) => setName(event.target.value)} required className={`mt-1 text-base ${field}`} />
+      </label>
+      <label className="block text-sm">
+        Also called
+        <input value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="Other names or spellings, separated by commas" className={`mt-1 ${field}`} />
+        <span className="mt-1 block text-xs text-foreground/60">Anything that uses one of these names is linked to them by itself.</span>
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
@@ -762,6 +773,73 @@ function GoalForm({ goal, onClose }: { goal: Goal; onClose: () => void }) {
       {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       <Buttons busy={busy} onClose={onClose} />
     </form>
+  );
+}
+
+/**
+ * Records whose words name the person but are not linked to them: mostly ones
+ * that use only a first name, which could mean someone else. Each can be
+ * linked here, or all at once. Not shown when there are none.
+ */
+function MentionedIn({ person }: { person: Person }) {
+  const data = useQuery(api.viewerMemory.mentionsOf, { id: person.id });
+  const link = useMutation(api.viewerMemory.linkMentions);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  if (!data || data.items.length === 0) return null;
+
+  async function linkAll(records: Parameters<typeof link>[0]["records"]) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await link({ person: person.id, records });
+    } catch (caught) {
+      setError(problem(caught));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <section>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-foreground/15 pb-2">
+        <h3 className="text-base font-semibold">
+          Mentioned in <span className="text-sm font-normal text-foreground/60">· not linked yet</span>
+        </h3>
+        {data.items.length > 1 ? (
+          <button type="button" disabled={busy} onClick={() => void linkAll(data.items.map(({ type, id }) => ({ type, id })))} className={button}>
+            Link all {data.items.length}
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-2 text-sm text-foreground/60">
+        These name {person.name} but are not linked to them.
+        {data.firstName ? ` If ${data.firstName} always means them, add it under Also called and these link by themselves.` : ""}
+      </p>
+      <ul className="mt-3 space-y-3">
+        {data.items.map((item) => {
+          const href = itemHref(item.type, item.id);
+          return (
+            <li key={`${item.type}:${item.id}`} className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                {href ? (
+                  <Link href={href} scroll={false} className="underline-offset-2 hover:underline">
+                    {item.title}
+                  </Link>
+                ) : (
+                  item.title
+                )}
+                <span className="text-sm text-foreground/60"> · {item.type} · says “{item.named}”</span>
+                {item.excerpt !== item.title ? <p className="mt-0.5 line-clamp-2 text-sm text-foreground/70">{item.excerpt}</p> : null}
+              </div>
+              <button type="button" disabled={busy} onClick={() => void linkAll([{ type: item.type, id: item.id }])} className={`shrink-0 ${button}`}>
+                Link
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+    </section>
   );
 }
 

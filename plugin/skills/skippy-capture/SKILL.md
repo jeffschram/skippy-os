@@ -47,6 +47,7 @@ Call `search` with the plainest words that would be in the record. If it is alre
 ## Tie it to what it concerns
 
 - On knowledge, list the people, projects or other records it is about in `about`.
+- Write a person's full name, as Skippy OS has it, at least once in what you save. Any record whose words use someone's full name, one of their other names (`aliases`) or one of their numbers is linked to them by itself; a first name alone is not.
 - For anything else, relate two records with `link_entities`.
 - On a capture, pass `about` when it concerns a project or another record.
 - When it came from somewhere, fill `source`: "conversation" for this chat, or the system and a link back for an email, message or page. Keep any excerpt short. Never copy a whole email or message.

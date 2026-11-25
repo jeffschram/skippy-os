@@ -283,6 +283,8 @@ export default defineSchema({
     name: v.string(),
     /** The name lowercased, for matching. */
     nameKey: v.string(),
+    /** Other names they go by, such as a first name or another spelling. Records using one are linked to them. */
+    aliases: v.optional(v.array(v.string())),
     emails: v.array(v.string()),
     phoneNumbers: v.array(v.string()),
     roleTitle: v.optional(v.string()),
@@ -420,7 +422,7 @@ export default defineSchema({
     /** No notifications from this hour to that one, by the owner's clock (0 to 23). */
     quietFrom: v.optional(v.number()),
     quietTo: v.optional(v.number()),
-    /** Where "Home" is in a place such as "Home → HPN", for directions. Kept here, never in the code. */
+    /** Where "Home" is in a place such as "Home → City Airport", for directions. Kept here, never in the code. */
     homeAddress: v.optional(v.string()),
     updatedAt: v.number(),
   }),

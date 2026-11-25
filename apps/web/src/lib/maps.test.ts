@@ -5,21 +5,21 @@ const query = (url: string) => Object.fromEntries(new URL(url).searchParams);
 
 describe("placeLinks", () => {
   it("opens one place and offers directions there", () => {
-    const links = placeLinks("Celebration Cinema Crossroads, 6600 Ring Rd, Portage MI")!;
+    const links = placeLinks("Riverside Cinema, 100 River Rd, Springfield")!;
     expect(links.open.startsWith("https://www.google.com/maps/search/")).toBe(true);
-    expect(query(links.open)).toEqual({ api: "1", query: "Celebration Cinema Crossroads, 6600 Ring Rd, Portage MI" });
-    expect(query(links.directions!)).toEqual({ api: "1", destination: "Celebration Cinema Crossroads, 6600 Ring Rd, Portage MI" });
+    expect(query(links.open)).toEqual({ api: "1", query: "Riverside Cinema, 100 River Rd, Springfield" });
+    expect(query(links.directions!)).toEqual({ api: "1", destination: "Riverside Cinema, 100 River Rd, Springfield" });
   });
 
   it("turns a trip into directions, starting from the home address", () => {
-    const links = placeLinks("Home → Westchester County Airport (HPN)", "1 Main St, Somewhere NY")!;
+    const links = placeLinks("Home → City Airport", "1 Main St, Somewhere NY")!;
     expect(links.open.startsWith("https://www.google.com/maps/dir/")).toBe(true);
-    expect(query(links.open)).toEqual({ api: "1", origin: "1 Main St, Somewhere NY", destination: "Westchester County Airport (HPN)" });
+    expect(query(links.open)).toEqual({ api: "1", origin: "1 Main St, Somewhere NY", destination: "City Airport" });
     expect(links.directions).toBeUndefined();
   });
 
   it("starts a trip from home where the owner is when no home address is saved", () => {
-    expect(query(placeLinks("Home -> HPN")!.open)).toEqual({ api: "1", destination: "HPN" });
+    expect(query(placeLinks("Home -> City Airport")!.open)).toEqual({ api: "1", destination: "City Airport" });
   });
 
   it("keeps the stops of a longer trip", () => {

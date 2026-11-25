@@ -7,7 +7,7 @@ import { placeLinks } from "@/lib/maps";
 
 /**
  * Places on events and tasks, as links to Google Maps. A trip such as
- * "Home → HPN" opens as directions, from the home address saved in Settings.
+ * "Home → City Airport" opens as directions, from the home address saved in Settings.
  */
 
 /** A small pin in front of a place that opens in Google Maps, sized to the text around it. */

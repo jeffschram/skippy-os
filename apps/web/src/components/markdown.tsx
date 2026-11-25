@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
  * A chat reply written in Markdown: paragraphs, lists, bold and italics,
  * links, inline code, and the odd heading or table. Raw HTML in the text is
  * shown as text, never run. Web addresses written out in full become links
- * too, and so does a bare site name such as celebrationcinema.com. Every link
+ * too, and so does a bare site name such as riversidecinema.com. Every link
  * opens in a new tab.
  */
 

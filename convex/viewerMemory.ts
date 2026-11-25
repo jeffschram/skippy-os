@@ -1,14 +1,15 @@
-import { KNOWLEDGE_KINDS } from "@skippy/shared";
+import { KNOWLEDGE_KINDS, type EntityType } from "@skippy/shared";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { knowledgeTitle } from "./lib/entities";
-import { getSettings, iso } from "./lib/common";
+import { findEntity, knowledgeTitle, mention } from "./lib/entities";
+import { getSettings, iso, refuse } from "./lib/common";
+import { firstNameOf, unlinkedMentionsOf } from "./lib/mentions";
 import { presentCompany, presentPerson } from "./people";
 import { readBundle, runSearch } from "./read";
-import { companyLabel, goalStatus, knowledgeKind, lifecycle, readState } from "./schema";
+import { companyLabel, entityType, goalStatus, knowledgeKind, lifecycle, readState } from "./schema";
 import { OWNER, requireOwner } from "./viewer";
 
 /**
@@ -187,6 +188,7 @@ export const savePerson = mutation({
     birthday: nullable(v.string()),
     notes: nullable(v.string()),
     favorite: nullable(v.boolean()),
+    aliases: nullable(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<{ id: string; created: boolean; changed: boolean }> => {
     await requireOwner(ctx);
@@ -224,5 +226,46 @@ export const saveCompany = mutation({
     await requireOwner(ctx);
     const result = await ctx.runMutation(internal.people.updateCompany, { actor: OWNER, ...args });
     return { changed: result.changed };
+  },
+});
+
+/**
+ * Records whose words name a person but are not linked to them, for the
+ * "Mentioned in" list on their window. Most use only the first name, which
+ * could mean someone else, so the owner decides. Null when there is no such person.
+ */
+export const mentionsOf = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const id = ctx.db.normalizeId("people", args.id);
+    const person = id ? await ctx.db.get(id) : null;
+    if (!person) return null;
+    const items = [];
+    for (const found of await unlinkedMentionsOf(ctx, person)) {
+      const entity = await findEntity(ctx, found.type as EntityType, found.entityId);
+      if (entity) items.push({ ...mention(entity), named: found.named, excerpt: found.excerpt });
+    }
+    return { firstName: firstNameOf(person), items };
+  },
+});
+
+/** Links records to a person as mentioning them: the owner's answer to "Mentioned in". */
+export const linkMentions = mutation({
+  args: { person: v.string(), records: v.array(v.object({ type: entityType, id: v.string() })) },
+  handler: async (ctx, args): Promise<{ linked: number }> => {
+    await requireOwner(ctx);
+    if (args.records.length > 100) throw refuse("invalid_arguments", "Link at most 100 records at a time.");
+    let linked = 0;
+    for (const record of args.records) {
+      const result = await ctx.runMutation(internal.links.link, {
+        actor: OWNER,
+        from: record,
+        relation: "mentions",
+        to: { type: "person", id: args.person },
+      });
+      if (result.changed) linked += 1;
+    }
+    return { linked };
   },
 });

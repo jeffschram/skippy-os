@@ -68,6 +68,7 @@ Only when the prompt names it. Use the Gmail connector's `search_threads` to lis
    - **An event** for something with a time that is not on the calendar already.
    - **A person** for someone new who wrote to the owner as a person, not a company's system. Give their email. Skippy OS adds to a person it already has, so a known person is not doubled.
    - **Knowledge** of kind "memory" for a lasting fact about the owner or the people around them. One fact per record.
+   - Name people as Skippy OS has them: see "Naming people" below.
    - One message can make more than one record. Use `part` to tell apart two of the same kind.
 8. Read each result. "already" and "undone" mean Skippy OS has a record from that message from before; that is expected. "refused" comes with a reason: fix the item and send it again once, or leave it out.
 9. Call `advance_source_cursor` for `gmail` with the time of the newest message you saw, as an ISO time, whether or not it made anything.
@@ -96,7 +97,7 @@ Only when the prompt names it and gives the path of the transcript file. A small
 2. The cursor is the time of the newest message handled on the last pass. Leave out every message at or before it, and any conversation the block list names. Read the earlier lines of a conversation only to understand the new ones.
 3. Judge each conversation as a whole, by the rubric and the owner's rules. Almost all of it makes nothing: chatter, plans already carried out, thanks, photos. Leave out verification codes and messages from short numbers.
 4. These are private conversations. Record only what the owner has to act on or would want kept about their own life. Do not record other people's private matters, such as their health, money or relationships, unless the owner has to do something about it.
-5. A person appears as a phone number or an email address. To learn who it is, call `search` with it. If Skippy OS does not know them, refer to them by that number or address in the summary. Do not make a person from a number alone; make one only when the conversation gives their name.
+5. A person appears as a phone number or an email address. To learn who it is, call `search` with it. If Skippy OS does not know them, refer to them by that number or address in the summary. Do not make a person from a number alone; make one only when the conversation gives their name. When the conversation makes plain that the number belongs to someone already on file, such as the owner calling them by name, add the number to that person with `upsert_person` and their id. Name people as described under "Naming people".
 6. Check before making a record, exactly as for mail: `get_agenda` before an event, `search` before a task.
 7. Send records with `ingest_objects`, source `imessage`. `externalId` is the message's id from its line, `at` its time, and `summary` one or two lines in your own words. There is no link back. Never quote the message.
    - **A task** when someone asks the owner to do something, or the owner says they will ("I'll send it tomorrow"), and it is not done within the same conversation.
@@ -105,6 +106,14 @@ Only when the prompt names it and gives the path of the transcript file. A small
 8. Call `advance_source_cursor` for `imessage` with the time of the newest message in the file, whether or not it made anything.
 
 For the run's counts, "read" is the number of new messages and "skipped" the number that made nothing.
+
+## Naming people
+
+Skippy OS links a record to every person on file whose full name, other name or phone number its words use, so the record shows on that person's page. A first name alone links nothing, because several people can share one.
+
+1. When a record concerns someone on file, write their name in the title, summary or body as `search` returns it, in full, at least once: "Kate Morgan confirmed for dinner", not only "Kate confirmed". After that, the first name is fine.
+2. When someone is known by a number only, keep the number in the summary, so the record is linked once the number is added to a person.
+3. When the owner's messages show that a name or spelling always means one person on file, such as a nickname, add it to that person's `aliases` with `upsert_person`, keeping the ones already there. Records using it are then linked by themselves. Never add a name that could mean someone else.
 
 ## The briefing
 
