@@ -6,7 +6,7 @@ import { showSize } from "./files";
 
 /**
  * The box things are typed into: on the chat page and docked at the bottom of
- * every other page. One rounded box that grows with the words, with a row of
+ * every other page. One rounded box, two lines tall to start, that grows with the words, with a row of
  * buttons inside it: add a file on the left, send on the right. Files come in
  * by the button, by pasting, or by being dragged onto the box, and each shows
  * as a chip that can be taken off again before sending.
@@ -24,7 +24,7 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export function ComposerBar({ wide, children }: { wide?: boolean; children: ReactNode }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 bg-background before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-6 before:bg-linear-to-t before:from-background before:to-transparent">
-      <div className={`mx-auto w-full px-6 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] ${wide ? "max-w-5xl" : "max-w-3xl"}`}>{children}</div>
+      <div className={`mx-auto w-full px-6 pt-1 pb-[max(1.5rem,calc(env(safe-area-inset-bottom)+0.75rem))] sm:pb-6 ${wide ? "max-w-5xl" : "max-w-3xl"}`}>{children}</div>
     </div>
   );
 }
@@ -172,7 +172,7 @@ export function Composer({
           setOver(false);
           add([...event.dataTransfer.files]);
         }}
-        className={`rounded-2xl border bg-background px-3 pt-2.5 pb-2 shadow-sm focus-within:border-foreground/45 ${over ? "border-foreground/60 bg-foreground/5" : "border-foreground/20"}`}
+        className={`rounded-2xl border bg-background px-3 pt-3 pb-2.5 shadow-sm focus-within:border-foreground/45 ${over ? "border-foreground/60 bg-foreground/5" : "border-foreground/20"}`}
       >
         {files.length > 0 ? (
           <ul className="mb-2 flex flex-wrap gap-2">
@@ -217,9 +217,9 @@ export function Composer({
           placeholder={placeholder}
           aria-label={label}
           enterKeyHint="send"
-          className="block max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-1 text-base leading-7 outline-none placeholder:text-foreground/50"
+          className="block min-h-14 max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-1 text-base leading-7 outline-none placeholder:text-foreground/50"
         />
-        <div className="mt-1.5 flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2">
           <input
             ref={picker}
             type="file"

@@ -160,7 +160,7 @@ export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
       )}
       {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       {/* On the page, room for the box pinned below, so the newest words are never under it. */}
-      {boxed ? null : <div ref={end} className="h-44" />}
+      {boxed ? null : <div ref={end} className="h-56" />}
     </>
   );
 }

@@ -80,7 +80,7 @@ function ForOwner({ wide, dock, children }: { wide?: boolean; dock: boolean; chi
     );
   }
   return (
-    <div className={`mx-auto w-full px-6 pt-8 ${dock ? "pb-44" : "pb-8"} ${wide ? "max-w-5xl" : "max-w-3xl"}`}>
+    <div className={`mx-auto w-full px-6 pt-8 ${dock ? "pb-56" : "pb-8"} ${wide ? "max-w-5xl" : "max-w-3xl"}`}>
       <TopBar />
       <main className="mt-10">{children}</main>
       <ServiceWorker />
