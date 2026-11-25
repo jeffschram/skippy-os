@@ -39,8 +39,8 @@ function Title({ children, tags }: { children: ReactNode; tags?: ReactNode }) {
 function Prose({ children, quiet }: { children: string | undefined | null; quiet?: boolean }) {
   if (!children?.trim()) return null;
   return (
-    // Kept short, with its own scroll, so a details window fits on the screen.
-    <p className={`max-h-[16dvh] max-w-prose overflow-y-auto text-base leading-7 break-words whitespace-pre-wrap ${quiet ? "text-foreground/70" : ""}`}>
+    // Kept short, with its own scroll, so a details window fits on the screen, unless the chat is on its own pane.
+    <p className={`max-h-[16dvh] max-w-prose overflow-y-auto in-data-[pane=details]:max-h-none text-base leading-7 break-words whitespace-pre-wrap ${quiet ? "text-foreground/70" : ""}`}>
       {children.split(/(https?:\/\/[^\s<>"]+)/g).map((part, index) =>
         index % 2 === 1 ? (
           <a key={index} href={part} target="_blank" rel="noreferrer" className={link}>

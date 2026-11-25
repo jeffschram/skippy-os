@@ -1,7 +1,7 @@
 "use client";
 
 import { PencilSimple, X } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 
 /**
  * The window a task, or anything in Memory or on the Agenda, opens in, over
@@ -9,7 +9,8 @@ import type { ReactNode } from "react";
  * the top row (what it is, Edit, Close) stays put, the record's text scrolls
  * in its own short box, and the chat's messages fill whatever height is left
  * (`ChatSection`), so the window itself scrolls only on a screen too short
- * for even a small chat.
+ * for even a small chat. On a small screen there is not room for both, so a
+ * Details / Chat switch under the top row shows one at a time.
  */
 export function DetailsWindow({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
   return (
@@ -46,19 +47,65 @@ export function WindowButtons({ onEdit, onClose }: { onEdit?: () => void; onClos
   );
 }
 
-/** Inside the window: the top row, then everything else below it. */
-export function WindowLayout({ header, children }: { header: ReactNode; children: ReactNode }) {
+/** A phone, or a screen too short for the record and a readable chat at once. */
+const SMALL_SCREEN = "(max-width: 639px), (max-height: 720px)";
+
+function useSmallScreen(): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      const query = window.matchMedia(SMALL_SCREEN);
+      query.addEventListener("change", changed);
+      return () => query.removeEventListener("change", changed);
+    },
+    () => window.matchMedia(SMALL_SCREEN).matches,
+    () => false,
+  );
+}
+
+/**
+ * Inside the window: the top row, then the record, its chat, and the rest
+ * (files, history). On a small screen a switch shows either the record with
+ * the rest, or the chat alone with the whole height. Both stay mounted, so a
+ * half-written message survives a switch. While editing, the record shows.
+ */
+export function WindowLayout({ header, record, chat, rest, editing }: { header: ReactNode; record: ReactNode; chat: ReactNode; rest: ReactNode; editing?: boolean }) {
+  const small = useSmallScreen();
+  const [pane, setPane] = useState<"details" | "chat">("details");
+  const split = small && !editing;
+  const showing = split ? pane : undefined;
+  const tab = (value: "details" | "chat", label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={pane === value}
+      onClick={() => setPane(value)}
+      className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium ${pane === value ? "bg-background text-foreground shadow-sm" : "text-foreground/60 hover:text-foreground"}`}
+    >
+      {label}
+    </button>
+  );
   return (
     <>
       <div className="flex shrink-0 items-center justify-between gap-4 pb-4">{header}</div>
-      <div className="-mx-6 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6">{children}</div>
+      {split ? (
+        <div role="tablist" aria-label="Show" className="mb-4 flex shrink-0 gap-1 rounded-lg bg-foreground/10 p-1">
+          {tab("details", "Details")}
+          {tab("chat", "Chat")}
+        </div>
+      ) : null}
+      {/* `data-pane` lets the record's text drop its height limit when the chat is not beside it. */}
+      <div data-pane={showing} className="-mx-6 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6">
+        <div className={showing === "chat" ? "hidden" : "contents"}>{record}</div>
+        <div className={showing === "details" ? "hidden" : "contents"}>{chat}</div>
+        <div className={showing === "chat" ? "hidden" : "contents"}>{rest}</div>
+      </div>
     </>
   );
 }
 
 /** The chat's part of the window: it takes the height the other parts leave, down to a small minimum. */
 export function ChatSection({ children }: { children: ReactNode }) {
-  return <section className="flex flex-1 flex-col border-t border-foreground/15 pt-4">{children}</section>;
+  return <section className="flex flex-1 flex-col border-t border-foreground/15 pt-4 in-data-[pane=chat]:border-t-0 in-data-[pane=chat]:pt-0">{children}</section>;
 }
 
 /**

@@ -88,6 +88,7 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
   const done = () => setEditing(false);
   return (
     <WindowLayout
+      editing={editing}
       header={
         <>
           {editing ? <h2 className="text-lg font-semibold">Edit {kind}</h2> : <p className="text-sm text-foreground/60 first-letter:uppercase">{kind}</p>}
@@ -97,40 +98,47 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
           </div>
         </>
       }
-    >
-      {!editing ? (
-        type === "knowledge" ? (
-          <KnowledgeView item={bundle.record as Knowledge} />
+      record={
+        !editing ? (
+          type === "knowledge" ? (
+            <KnowledgeView item={bundle.record as Knowledge} />
+          ) : type === "person" ? (
+            <PersonView person={bundle.record as Person} />
+          ) : type === "company" ? (
+            <CompanyView company={bundle.record as Company} />
+          ) : type === "event" ? (
+            <EventView event={bundle.record as EventItem} />
+          ) : type === "recurrence" ? (
+            <RecurrenceView item={bundle.record as RecurrenceItem} />
+          ) : (
+            <GoalView goal={bundle.record as Goal} />
+          )
+        ) : type === "knowledge" ? (
+          <KnowledgeForm item={bundle.record as Knowledge} onClose={done} />
         ) : type === "person" ? (
-          <PersonView person={bundle.record as Person} />
+          <PersonForm person={bundle.record as Person} onClose={done} />
         ) : type === "company" ? (
-          <CompanyView company={bundle.record as Company} />
+          <CompanyForm company={bundle.record as Company} onClose={done} />
         ) : type === "event" ? (
-          <EventView event={bundle.record as EventItem} />
+          <EventForm event={bundle.record as EventItem} onClose={done} />
         ) : type === "recurrence" ? (
-          <RecurrenceView item={bundle.record as RecurrenceItem} />
+          <RecurrenceForm item={bundle.record as RecurrenceItem} onClose={done} />
         ) : (
-          <GoalView goal={bundle.record as Goal} />
+          <GoalForm goal={bundle.record as Goal} onClose={done} />
         )
-      ) : type === "knowledge" ? (
-        <KnowledgeForm item={bundle.record as Knowledge} onClose={done} />
-      ) : type === "person" ? (
-        <PersonForm person={bundle.record as Person} onClose={done} />
-      ) : type === "company" ? (
-        <CompanyForm company={bundle.record as Company} onClose={done} />
-      ) : type === "event" ? (
-        <EventForm event={bundle.record as EventItem} onClose={done} />
-      ) : type === "recurrence" ? (
-        <RecurrenceForm item={bundle.record as RecurrenceItem} onClose={done} />
-      ) : (
-        <GoalForm goal={bundle.record as Goal} onClose={done} />
-      )}
-      <ChatSection>
-        <ItemChat type={type} id={id} />
-      </ChatSection>
-      <Files type={type} id={id} folded />
-      <Around bundle={bundle} />
-    </WindowLayout>
+      }
+      chat={
+        <ChatSection>
+          <ItemChat type={type} id={id} />
+        </ChatSection>
+      }
+      rest={
+        <>
+          <Files type={type} id={id} folded />
+          <Around bundle={bundle} />
+        </>
+      }
+    />
   );
 }
 

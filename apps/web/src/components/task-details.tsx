@@ -79,6 +79,7 @@ function Opened({ details, onClose }: { details: Details; onClose: () => void })
   const closed = task.status === "done" || task.status === "cancelled";
   return (
     <WindowLayout
+      editing={editing}
       header={
         <>
           {editing ? <h2 className="text-lg font-semibold">Edit task</h2> : <p className="text-sm text-foreground/60">Task</p>}
@@ -88,26 +89,31 @@ function Opened({ details, onClose }: { details: Details; onClose: () => void })
           </div>
         </>
       }
-    >
-      {editing ? <Form details={details} onDone={() => setEditing(false)} onClose={onClose} /> : <TaskView details={details} />}
-      <ChatSection>
-        <ItemChat type="task" id={task.id} delegable={!closed} />
-      </ChatSection>
-      <Files type="task" id={task.id} folded />
-      <Background parts={details.history.length > 0 ? ["History"] : []}>
-        <ul className="space-y-2">
-          {details.history.map((event) => (
-            <li key={event.id} className="text-sm">
-              {event.summary}
-              <span className="text-foreground/60">
-                {" "}
-                · {event.by} · {showTime(event.at)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Background>
-    </WindowLayout>
+      record={editing ? <Form details={details} onDone={() => setEditing(false)} onClose={onClose} /> : <TaskView details={details} />}
+      chat={
+        <ChatSection>
+          <ItemChat type="task" id={task.id} delegable={!closed} />
+        </ChatSection>
+      }
+      rest={
+        <>
+          <Files type="task" id={task.id} folded />
+          <Background parts={details.history.length > 0 ? ["History"] : []}>
+            <ul className="space-y-2">
+              {details.history.map((event) => (
+                <li key={event.id} className="text-sm">
+                  {event.summary}
+                  <span className="text-foreground/60">
+                    {" "}
+                    · {event.by} · {showTime(event.at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Background>
+        </>
+      }
+    />
   );
 }
 
