@@ -1,0 +1,677 @@
+<title>Skippy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script type="application/json" id="claude-artifacts-manifest">{"permissions": ["shortcuts", "menu-bar"]}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+  /* A small, tall utility window: capture box on top, today's timeline below, quiet footer. */
+  :root {
+    --bg: #f6f7f6;
+    --surface: #ffffff;
+    --fg: #17201e;
+    --muted: #5c6a66;
+    --line: #dde3e1;
+    --accent: #1d6b5f;
+    --accent-fg: #ffffff;
+    --accent-soft: #e3f0ed;
+    --warn: #a4471f;
+    --done: #6b7774;
+    --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111614; --surface: #19201e; --fg: #e8eeec; --muted: #9aa8a4; --line: #2a3431;
+      --accent: #5cc0ac; --accent-fg: #0d1a17; --accent-soft: #1c302b; --warn: #e88a5f; --done: #7f8c88;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111614; --surface: #19201e; --fg: #e8eeec; --muted: #9aa8a4; --line: #2a3431;
+    --accent: #5cc0ac; --accent-fg: #0d1a17; --accent-soft: #1c302b; --warn: #e88a5f; --done: #7f8c88;
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+  * { box-sizing: border-box; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .app {
+    display: flex; flex-direction: column; gap: 18px; min-height: 100%;
+    max-width: 560px; margin: 0 auto;
+    padding-block: 14px 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  /* Top bar. In the installed app it is the window's drag strip, clear of the traffic lights. */
+  .bar { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+  .in-app .bar { app-region: drag; padding-left: 64px; }
+  .in-app .bar button, .in-app .bar a { app-region: no-drag; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .mark { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); display: grid; place-items: center; }
+  .mark svg { width: 12px; height: 12px; }
+  h1 { font-family: var(--font-display); font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .day { margin: 0 0 0 auto; color: var(--muted); font-size: 13px; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
+    display: grid; place-items: center; cursor: pointer; color: var(--muted);
+  }
+  .icon-btn:hover { color: var(--fg); }
+  .icon-btn svg { width: 15px; height: 15px; }
+  .icon-btn.spin svg { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .icon-btn.spin svg { animation: none; } }
+
+  /* Capture. */
+  .capture { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 10px 8px 12px; }
+  .capture:focus-within { border-color: var(--accent); }
+  .capture textarea {
+    border: 0; outline: none; background: transparent; resize: none; width: 100%;
+    min-height: 44px; max-height: 160px; font-size: 15px; line-height: 1.45; padding: 2px 0;
+  }
+  .capture textarea::placeholder { color: var(--muted); }
+  .capture-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hold { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; }
+  .hold input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+  .status { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; }
+  .status.error { color: var(--warn); }
+  .primary {
+    margin-left: auto; border: 0; border-radius: 9px; padding: 7px 14px; background: var(--accent); color: var(--accent-fg);
+    font-weight: 600; font-size: 13px; cursor: pointer;
+  }
+  .primary:disabled { opacity: 0.45; cursor: default; }
+  .quiet-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  .quiet-btn:hover { border-color: var(--muted); }
+
+  /* Today. */
+  .section-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  h2 { font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+  .count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .item { display: grid; grid-template-columns: 64px 18px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .when { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--muted); padding-top: 2px; text-align: right; white-space: nowrap; }
+  .when.late { color: var(--warn); }
+  .glyph { padding-top: 3px; display: grid; place-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--accent); margin-top: 3px; }
+  .dot.allday { border-radius: 2px; }
+  .glyph input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .body { min-width: 0; }
+  .title { color: var(--fg); text-decoration: none; font-weight: 500; overflow-wrap: anywhere; }
+  .title:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .meta { font-size: 12.5px; color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
+  .item.next { background: var(--accent-soft); border-radius: 10px; border-top-color: transparent; padding-inline: 6px; margin-inline: -6px; }
+  .item.next + .item { border-top-color: transparent; }
+  .item.next .when { color: var(--accent); font-weight: 600; }
+  .item.over .title, .item.over .when, .item.over .meta, .item.finished .title { color: var(--done); }
+  .item.finished .title { text-decoration: line-through; }
+  .item .problem { color: var(--warn); font-size: 12.5px; margin-top: 2px; }
+  .state { color: var(--muted); margin: 6px 0 0; }
+  .state.error { color: var(--warn); }
+  .state button { margin-top: 8px; }
+
+  .setup { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; }
+  .setup p { margin: 0; flex: 1 1 100%; color: var(--muted); font-size: 13px; }
+  kbd { font-family: var(--font-ui); font-size: 12px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; }
+
+  footer { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--fg); }
+</style>
+
+<div class="app" id="app">
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M2.5 6.3l2.3 2.2 4.7-5" fill="none" stroke="var(--accent-fg)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <h1>Skippy</h1>
+    </div>
+    <p class="day" id="day"></p>
+    <button type="button" class="icon-btn" id="refresh" aria-label="Refresh today" title="Refresh today">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4M13.5 2.5V5h-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </header>
+
+  <section id="install" class="setup" hidden>
+    <p>Install Skippy as an app for its own window, a menu bar item showing what's next, and a shortcut to capture from anywhere.</p>
+    <button type="button" class="primary" id="install-btn" style="margin-left:0">Install as app</button>
+  </section>
+
+  <form class="capture" id="capture" autocomplete="off">
+    <label for="capture-text" class="sr" hidden>Capture</label>
+    <textarea id="capture-text" rows="2" placeholder="Capture a thought, a link, something to do…" aria-label="Capture"></textarea>
+    <div class="capture-row">
+      <label class="hold" title="A private hand-off to your other devices: never filed, gone after seven days"><input type="checkbox" id="capture-hold"> Hold for another device</label>
+      <span class="status" id="capture-status" aria-live="polite"></span>
+      <button type="submit" class="primary" id="capture-send" disabled>Capture</button>
+    </div>
+  </form>
+
+  <section aria-labelledby="today-head">
+    <div class="section-head"><h2 id="today-head">Today</h2><span class="count" id="count"></span></div>
+    <ol class="list" id="list"></ol>
+    <div class="state" id="today-state">Loading your day…</div>
+  </section>
+
+  <section aria-labelledby="waiting-head" id="waiting-section" hidden>
+    <div class="section-head"><h2 id="waiting-head">Waiting on others</h2></div>
+    <ol class="list" id="waiting"></ol>
+  </section>
+
+  <section id="setup" class="setup" hidden>
+    <p id="setup-text"></p>
+    <button type="button" class="quiet-btn" id="setup-tray" hidden>Add to the menu bar</button>
+    <button type="button" class="quiet-btn" id="setup-key" hidden>Turn on <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd></button>
+    <button type="button" class="quiet-btn" id="setup-manage" hidden>Permissions…</button>
+  </section>
+
+  <footer>
+    <span id="updated"></span>
+    <a href="https://www.skippyos.app" target="_blank" rel="noreferrer">Open Skippy OS</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const SERVER = "Skippy OS";
+  const SITE = "https://www.skippyos.app";
+  const SHORTCUT = "Alt+Shift+S";
+  const $ = (id) => document.getElementById(id);
+
+  let mcp = null;
+  let desktop = null;
+  let inApp = false;
+  let latest = null; // the last good answer from get_today
+  let unwatch = null;
+  const finishing = new Set(); // task ids being ticked off
+
+  // ---------- small helpers ----------
+  const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const zone = () => latest?.timeZone || undefined;
+  const clock = (iso) => new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit", timeZone: zone() }).format(new Date(iso));
+  const hhmm = (iso) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: zone() }).format(new Date(iso));
+  const shortDay = (date) => new Date(`${date}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric" });
+  const longDay = (date) => new Date(`${date}T12:00:00`).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  const clockOf = (time) => { const [h, m] = time.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+
+  // ---------- today ----------
+  /** Everything with a time today, in time order: events, tasks and things that recur. */
+  function timeline(data) {
+    const entries = [];
+    const endOfDay = (date) => new Date(`${date}T23:59:59`).getTime();
+    for (const event of data.events || []) {
+      entries.push({ kind: "event", at: Date.parse(event.start.at), item: event });
+    }
+    const tasks = [...(data.overdue || []), ...(data.dueToday || []), ...(data.scheduled || [])];
+    const seen = new Set();
+    for (const task of tasks) {
+      if (seen.has(task.id)) continue;
+      seen.add(task.id);
+      const when = task.due || task.scheduledFor;
+      entries.push({ kind: "task", at: when ? Date.parse(when.at) : endOfDay(data.date), item: task });
+    }
+    for (const item of data.recurrences || []) {
+      if (item.status !== "active") continue;
+      entries.push({ kind: "recurrence", at: endOfDay(item.nextDue), item });
+    }
+    const order = { event: 0, task: 1, recurrence: 2 };
+    return entries.sort((a, b) => a.at - b.at || order[a.kind] - order[b.kind]);
+  }
+
+  function eventWhen(event, date) {
+    if (event.allDay) return event.start.date < date ? "On" : "All day";
+    if (event.start.date < date) return "Since";
+    return clockOf(event.start.time);
+  }
+
+  function eventMeta(event, date) {
+    const parts = [];
+    if (!event.allDay && event.end && event.end.date === date && event.start.date === date) parts.push(`until ${clockOf(event.end.time)}`);
+    if (event.allDay && event.end && event.end.date > date) parts.push(`until ${shortDay(event.end.date)}`);
+    if (!event.allDay && event.start.date < date) parts.push(`since ${shortDay(event.start.date)}`);
+    if (event.location) parts.push(event.location);
+    return parts.join(" · ");
+  }
+
+  function taskWhen(task, date) {
+    const when = task.due || task.scheduledFor;
+    if (!when) return { text: "", late: false };
+    if (when.date < date) return { text: shortDay(when.date), late: !!task.due };
+    // A deadline with only a date is kept at the very end of its day.
+    return { text: hhmm(when.at) === "23:59" ? "Today" : clock(when.at), late: false };
+  }
+
+  function link(path) {
+    const anchor = el("a", "title");
+    anchor.href = `${SITE}/${path}`;
+    anchor.target = "_blank";
+    anchor.rel = "noreferrer";
+    return anchor;
+  }
+
+  function row(entry, data, now, isNext) {
+    const li = el("li", "item");
+    const when = el("span", "when");
+    const glyph = el("span", "glyph");
+    const body = el("div", "body");
+    li.append(when, glyph, body);
+
+    if (entry.kind === "event") {
+      const event = entry.item;
+      const over = now > Date.parse(event.overAt || (event.end && event.end.at) || event.start.at);
+      if (over) li.classList.add("over");
+      if (isNext) li.classList.add("next");
+      when.textContent = eventWhen(event, data.date);
+      glyph.append(el("span", event.allDay ? "dot allday" : "dot"));
+      const title = link(`?item=event:${encodeURIComponent(event.id)}`);
+      title.textContent = event.title;
+      body.append(title);
+      const meta = eventMeta(event, data.date);
+      if (meta) body.append(el("div", "meta", meta));
+      return li;
+    }
+
+    if (entry.kind === "recurrence") {
+      const item = entry.item;
+      when.textContent = item.overdue ? shortDay(item.nextDue) : "Due";
+      if (item.overdue) when.classList.add("late");
+      glyph.append(el("span", "dot allday"));
+      const title = link(`?item=recurrence:${encodeURIComponent(item.id)}`);
+      title.textContent = item.title;
+      body.append(title, el("div", "meta", [item.overdue ? "was due" : "due today", item.repeats && item.repeats.toLowerCase()].filter(Boolean).join(" · ")));
+      return li;
+    }
+
+    const task = entry.item;
+    const due = taskWhen(task, data.date);
+    when.textContent = due.text;
+    if (due.late) when.classList.add("late");
+    const box = el("input");
+    box.type = "checkbox";
+    box.id = `task-${task.id}`;
+    box.setAttribute("aria-label", `Mark "${task.title}" done`);
+    box.checked = finishing.has(task.id);
+    box.disabled = finishing.has(task.id);
+    if (finishing.has(task.id)) li.classList.add("finished");
+    box.addEventListener("change", () => finish(task, li, box));
+    glyph.append(box);
+    const title = link(`?task=${encodeURIComponent(task.id)}`);
+    title.textContent = task.title;
+    body.append(title);
+    const meta = [
+      due.late ? "overdue" : null,
+      task.status === "in_progress" ? "in progress" : null,
+      task.status === "waiting" ? `waiting${task.waitingOn ? ` on ${task.waitingOn}` : ""}` : null,
+      task.project || null,
+    ].filter(Boolean).join(" · ");
+    if (meta) body.append(el("div", "meta", meta));
+    return li;
+  }
+
+  function render(data, fromCache) {
+    latest = data;
+    $("day").textContent = longDay(data.date);
+    const now = Date.now();
+    const entries = timeline(data);
+    const list = $("list");
+    list.replaceChildren();
+    // The next timed event still to come gets picked out.
+    const next = entries.find((e) => e.kind === "event" && !e.item.allDay && Date.parse(e.item.start.at) > now - 15 * 60_000 && now < Date.parse(e.item.overAt || e.item.start.at));
+    for (const entry of entries) list.append(row(entry, data, now, entry === next));
+
+    const placed = new Set(entries.filter((e) => e.kind === "task").map((e) => e.item.id));
+    const waiting = (data.waiting || []).filter((t) => !placed.has(t.id));
+    const waitingList = $("waiting");
+    waitingList.replaceChildren();
+    for (const task of waiting) waitingList.append(row({ kind: "task", item: task, at: 0 }, data, now, false));
+    $("waiting-section").hidden = waiting.length === 0;
+
+    const open = entries.filter((e) => e.kind === "task" && !finishing.has(e.item.id)).length;
+    const events = entries.filter((e) => e.kind === "event").length;
+    $("count").textContent = [events ? `${events} ${events === 1 ? "event" : "events"}` : "", open ? `${open} ${open === 1 ? "task" : "tasks"}` : ""].filter(Boolean).join(" · ");
+
+    const state = $("today-state");
+    state.className = "state";
+    state.replaceChildren();
+    state.hidden = entries.length > 0;
+    if (entries.length === 0) state.textContent = "Nothing on today. Enjoy it.";
+
+    $("updated").textContent = `Updated ${new Date(fromCache || now).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    updateDesktop(entries, next, now);
+  }
+
+  function showProblem(text, action) {
+    const state = $("today-state");
+    state.hidden = false;
+    state.className = "state error";
+    state.replaceChildren(el("div", "", text));
+    if (action) {
+      const button = el("button", "quiet-btn", action.label);
+      button.type = "button";
+      button.addEventListener("click", action.run);
+      state.append(button);
+    }
+  }
+
+  /** What to say for each way reading Skippy OS can fail, and whether to keep the last list. */
+  function readProblem(error) {
+    switch (error?.code) {
+      case "server_not_connected":
+      case "selection_required":
+      case "server_not_found":
+        return { text: "Skippy OS isn't connected to your Claude account. Add it in claude.ai under Settings, Connectors.", clear: true };
+      case "needs_reauth":
+        return { text: "Skippy OS needs you to sign in again. Reconnect it in claude.ai under Settings, Connectors.", clear: true };
+      case "not_in_manifest":
+      case "approval_required":
+        return { text: "Skippy needs your OK to read Skippy OS.", clear: true, action: { label: "Allow", run: askOnce } };
+      case "blocked_by_policy":
+        return { text: "Your organization doesn't allow this app to use Skippy OS.", clear: true };
+      case "not_granted":
+      case "capability_disabled":
+      case "capability_removed":
+        return { text: "This view can't reach your connectors. Open Skippy in the Claude app.", clear: true };
+      case "tool_error":
+        return { text: `Skippy OS said: ${error.message || "it could not read today."}`, clear: false };
+      default:
+        return { text: "Skippy OS didn't answer just now. It will try again in a few minutes.", clear: false, action: { label: "Try now", run: refresh } };
+    }
+  }
+
+  function onToday(event) {
+    $("refresh").classList.remove("spin");
+    if (event.type === "data") {
+      const data = event.result.payload;
+      if (data && typeof data === "object" && Array.isArray(data.events)) {
+        render(data, event.result.cache?.storedAt);
+      } else {
+        showProblem("Skippy OS answered in a shape this app doesn't know.");
+      }
+      return;
+    }
+    const problem = readProblem(event.error);
+    if (problem.clear || !latest) {
+      latest = null;
+      $("list").replaceChildren();
+      $("waiting-section").hidden = true;
+      $("count").textContent = "";
+      updateDesktop([], null, Date.now());
+    }
+    showProblem(latest ? `${problem.text} Showing the list from ${$("updated").textContent.replace("Updated ", "")}.` : problem.text, problem.action);
+  }
+
+  /** One read from a click, which lets claude.ai ask for permission when it needs to. */
+  async function askOnce() {
+    try {
+      const result = await mcp.callTool(SERVER, "get_today", {}, { cache: { refresh: true } });
+      onToday({ type: "data", result });
+    } catch (error) {
+      onToday({ type: "error", error });
+    }
+  }
+
+  async function refresh() {
+    if (!mcp) return;
+    $("refresh").classList.add("spin");
+    try {
+      await mcp.invalidate(SERVER, "get_today");
+    } catch {
+      await askOnce();
+    }
+    setTimeout(() => $("refresh").classList.remove("spin"), 1500);
+  }
+
+  async function finish(task, li, box) {
+    if (!mcp) return;
+    finishing.add(task.id);
+    li.classList.add("finished");
+    box.disabled = true;
+    li.querySelector(".problem")?.remove();
+    try {
+      await mcp.callTool(SERVER, "complete_task", { id: task.id });
+      await mcp.invalidate(SERVER, "get_today").catch(() => {});
+    } catch (error) {
+      finishing.delete(task.id);
+      li.classList.remove("finished");
+      const unsure = error?.code === "server_unavailable" || error?.code === "upstream_error";
+      box.checked = false;
+      box.disabled = false;
+      const words = unsure
+        ? "Skippy OS didn't confirm this. Refresh before ticking it again."
+        : error?.code === "tool_error" ? `Not done: ${error.message}` : "Not saved. Check that Skippy OS is connected.";
+      li.querySelector(".body").append(el("div", "problem", words));
+      if (unsure) mcp.invalidate(SERVER, "get_today").catch(() => {});
+    }
+  }
+
+  // ---------- capture ----------
+  const text = $("capture-text");
+  const send = $("capture-send");
+  const status = $("capture-status");
+  const hold = $("capture-hold");
+  const syncSend = () => {
+    send.disabled = !mcp || !text.value.trim();
+    send.textContent = hold.checked ? "Hold" : "Capture";
+  };
+  const grow = () => { text.style.height = "auto"; text.style.height = `${Math.min(text.scrollHeight, 160)}px`; };
+  text.addEventListener("input", () => { syncSend(); grow(); status.textContent = ""; status.className = "status"; });
+  hold.addEventListener("change", syncSend);
+  text.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      $("capture").requestSubmit();
+    }
+  });
+  $("capture").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const words = text.value.trim();
+    if (!words || !mcp) return;
+    send.disabled = true;
+    status.className = "status";
+    status.textContent = "Saving…";
+    const input = { text: words };
+    if (/^https:\/\/\S+$/.test(words)) input.url = words;
+    if (hold.checked) input.intent = "hold";
+    try {
+      await mcp.callTool(SERVER, "capture", input);
+      text.value = "";
+      grow();
+      status.textContent = hold.checked ? "Held for your other devices." : "In your inbox.";
+      hold.checked = false;
+    } catch (error) {
+      status.className = "status error";
+      status.textContent =
+        error?.code === "server_unavailable" || error?.code === "upstream_error"
+          ? "Skippy OS didn't confirm. Check your inbox before sending again."
+          : error?.code === "needs_reauth" ? "Reconnect Skippy OS in claude.ai, Settings, Connectors."
+          : error?.code === "server_not_connected" ? "Add Skippy OS in claude.ai, Settings, Connectors."
+          : error?.code === "not_in_manifest" || error?.code === "approval_required" ? "Skippy needs your OK to write to Skippy OS. Press Capture again to be asked."
+          : error?.code === "tool_error" ? `Not saved: ${error.message}`
+          : "Not saved. Try again in a moment.";
+    } finally {
+      syncSend();
+    }
+  });
+
+  $("refresh").addEventListener("click", refresh);
+
+  // ---------- the installed app ----------
+  function drawIcon() {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    const g = canvas.getContext("2d");
+    g.fillStyle = "#1d6b5f";
+    g.beginPath();
+    g.roundRect(16, 16, 224, 224, 52);
+    g.fill();
+    g.fillStyle = "rgba(255,255,255,0.12)";
+    g.beginPath();
+    g.roundRect(16, 16, 224, 112, [52, 52, 0, 0]);
+    g.fill();
+    g.strokeStyle = "#ffffff";
+    g.lineWidth = 24;
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    g.beginPath();
+    g.moveTo(74, 134);
+    g.lineTo(112, 172);
+    g.lineTo(184, 90);
+    g.stroke();
+    return canvas.toDataURL("image/png");
+  }
+
+  function drawTrayIcon() {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 36;
+    const g = canvas.getContext("2d");
+    g.strokeStyle = "#000";
+    g.lineWidth = 3;
+    g.beginPath();
+    g.roundRect(3, 3, 30, 30, 8);
+    g.stroke();
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    g.beginPath();
+    g.moveTo(10, 18.5);
+    g.lineTo(15.5, 24);
+    g.lineTo(26, 12);
+    g.stroke();
+    return canvas.toDataURL("image/png");
+  }
+  const trayIcon = drawTrayIcon();
+
+  async function focusCapture() {
+    await desktop?.window?.show().catch(() => {});
+    text.focus();
+  }
+
+  let trayOn = false;
+  let keyOn = false;
+
+  async function updateDesktop(entries, next, now) {
+    if (!inApp) return;
+    const late = entries.filter((e) => e.kind === "task" && !finishing.has(e.item.id) && taskWhen(e.item, latest?.date).late).length;
+    const open = entries.filter((e) => e.kind === "task" && !finishing.has(e.item.id)).length;
+    desktop.app.dock.setBadge(open ? String(open) : "").catch(() => {});
+    if (!trayOn) return;
+    const nextLine = next ? `${clockOf(next.item.start.time)} ${next.item.title}` : "";
+    const upcoming = entries
+      .filter((e) => e.kind === "event" && !e.item.allDay && Date.parse(e.item.start.at) > now)
+      .slice(0, 4)
+      .map((e) => ({ label: `${clockOf(e.item.start.time)}  ${e.item.title}`.slice(0, 80), href: `${SITE}/?item=event:${encodeURIComponent(e.item.id)}` }));
+    desktop.tray
+      .set({
+        icon: trayIcon,
+        title: nextLine.length > 30 ? `${nextLine.slice(0, 29)}…` : nextLine,
+        toolTip: [open ? `${open} open ${open === 1 ? "task" : "tasks"} today` : "No tasks today", late ? `${late} overdue` : ""].filter(Boolean).join(", ").slice(0, 100),
+        menu: [
+          { label: "Capture…", click: focusCapture },
+          { label: "Show today", click: () => desktop.window.show().catch(() => {}) },
+          ...(upcoming.length ? [{ type: "separator" }, ...upcoming] : []),
+          { type: "separator" },
+          { label: "Open Skippy OS", href: SITE },
+        ],
+      })
+      .catch(() => { trayOn = false; showSetup(); });
+  }
+
+  async function turnOnTray() {
+    try {
+      trayOn = await desktop.tray.set({ icon: trayIcon, title: "", toolTip: "Skippy", menu: [{ label: "Capture…", click: focusCapture }, { label: "Open Skippy OS", href: SITE }] });
+    } catch {
+      trayOn = false;
+    }
+    if (trayOn && latest) render(latest);
+  }
+
+  async function turnOnKey() {
+    try {
+      keyOn = await desktop.globalShortcut.register(SHORTCUT, focusCapture);
+    } catch {
+      keyOn = false;
+    }
+  }
+
+  async function showSetup() {
+    if (!inApp) return;
+    let states;
+    try {
+      states = await desktop.permissions.state();
+    } catch {
+      return;
+    }
+    const tray = states["menu-bar"];
+    const key = states.shortcuts;
+    const ask = (s) => s === "prompt";
+    $("setup-tray").hidden = !(ask(tray) && !trayOn);
+    $("setup-key").hidden = !(ask(key) && !keyOn);
+    $("setup-manage").hidden = !(tray === "denied" || key === "denied");
+    const any = !$("setup-tray").hidden || !$("setup-key").hidden || !$("setup-manage").hidden;
+    $("setup").hidden = !any;
+    $("setup-text").textContent = any
+      ? $("setup-manage").hidden
+        ? "Show what's next in the menu bar, and capture from anywhere with a shortcut."
+        : "The menu bar item or the shortcut is turned off. You can turn them on in Permissions."
+      : "";
+  }
+
+  $("setup-tray").addEventListener("click", async () => { await turnOnTray(); showSetup(); });
+  $("setup-key").addEventListener("click", async () => { await turnOnKey(); showSetup(); });
+  $("setup-manage").addEventListener("click", async () => {
+    await desktop.permissions.manage().catch(() => {});
+    const states = await desktop.permissions.state().catch(() => ({}));
+    if (states["menu-bar"] === "granted" && !trayOn) await turnOnTray();
+    if (states.shortcuts === "granted" && !keyOn) await turnOnKey();
+    showSetup();
+  });
+
+  async function startDesktop() {
+    if (!desktop?.window) {
+      // Outside its own window: offer the install where Claude can do it.
+      const state = await desktop?.install?.state().catch(() => "unavailable");
+      if (state === "available") {
+        $("install").hidden = false;
+        $("install-btn").addEventListener("click", () => desktop.install.request().catch(() => {}));
+      }
+      return;
+    }
+    inApp = true;
+    document.documentElement.classList.add("in-app");
+    desktop.app.dock.setIcon(drawIcon()).catch(() => {});
+    desktop.window
+      .setOptions({ titleBarStyle: "hiddenInset", dragHeight: 46, width: 420, height: 680, minWidth: 340, minHeight: 440 })
+      .catch(() => {});
+    const states = await desktop.permissions.state().catch(() => ({}));
+    if (states["menu-bar"] === "granted") await turnOnTray();
+    if (states.shortcuts === "granted") await turnOnKey();
+    showSetup();
+    if (latest) render(latest);
+  }
+
+  // ---------- start ----------
+  async function start() {
+    const claude = window.claude;
+    if (!claude?.use) {
+      showProblem("Open Skippy in the Claude app or on claude.ai to see your day.");
+      return;
+    }
+    claude.use("desktop").then((d) => { desktop = d; return startDesktop(); }).catch(() => {});
+    mcp = await claude.use("mcp").catch(() => null);
+    syncSend();
+    if (!mcp) {
+      showProblem("This view can't reach your connectors. Open Skippy in the Claude app or on claude.ai.");
+      return;
+    }
+    unwatch = mcp.watchTool(SERVER, "get_today", {}, onToday, { refetchInterval: 5 * 60_000 });
+  }
+  start();
+})();
+</script>
