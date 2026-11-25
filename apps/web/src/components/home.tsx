@@ -5,7 +5,7 @@ import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { AllDayLine, EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./calendar-parts";
-import { MarkdownText } from "./markdown";
+import { BriefingText } from "./briefing-text";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime } from "./parts";
@@ -57,7 +57,7 @@ function Briefing() {
       ) : null}
       {briefing ? (
         <>
-          <MarkdownText text={briefing.text} className={`text-base leading-7 ${briefing.isToday ? "" : "text-foreground/70"}`} />
+          <BriefingText text={briefing.text} className={briefing.isToday ? "" : "text-foreground/70"} />
           <p className="mt-3 text-xs text-foreground/60">
             {briefing.by} · {showTime(briefing.writtenAt)}
           </p>
@@ -76,7 +76,7 @@ function WeeklyReview() {
       <summary className="cursor-pointer border-b border-foreground/15 pb-2 text-lg font-semibold">
         Weekly review <span className="text-sm font-normal text-foreground/60">· {showDay(review.date)}</span>
       </summary>
-      <MarkdownText text={review.text} className="mt-4 text-base leading-7" />
+      <BriefingText text={review.text} className="mt-4" />
       <p className="mt-3 text-xs text-foreground/60">
         {review.by} · {showTime(review.writtenAt)}
       </p>
