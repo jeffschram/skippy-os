@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Composer, CHAT_FILE_TYPES } from "./composer";
 import { showSize, useUpload } from "./files";
 import { itemHref } from "./item-href";
-import { button, problem, showTime, Tag } from "./parts";
+import { button, problem, Tag } from "./parts";
 
 /**
  * The parts of a chat that the chat page and a details window share: the
@@ -41,7 +41,10 @@ export const replyIsComing = (chat: Chat | null) => chat?.turn != null && ["queu
 /**
  * The messages of a chat, oldest first, kept scrolled to the newest. On the
  * chat page the page scrolls, with room left at the bottom for the pinned box;
- * in a details window (`boxed`) the messages scroll in a box of their own.
+ * in a details window (`boxed`) the messages scroll in a box of their own,
+ * which fills the height the window has left and no more. The owner's
+ * messages are on the right in a shaded box, the replies on the left in plain
+ * text, with no names or times.
  */
 export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
   const now = useClock();
@@ -61,16 +64,24 @@ export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
       end.current?.scrollIntoView({ block: "end" });
     }
   }, [boxed, chat.messages.length, last?.content.length]);
+  // The box changes height with the window and the composer. Keep the newest words at its bottom when it does.
+  useEffect(() => {
+    const element = box.current;
+    if (!boxed || !element) return;
+    const watcher = new ResizeObserver(() => {
+      element.scrollTop = element.scrollHeight;
+    });
+    watcher.observe(element);
+    return () => watcher.disconnect();
+  }, [boxed]);
 
   const list = (
     <ol className={boxed ? "space-y-6" : "mt-8 space-y-6"}>
       {chat.messages.map((message) => (
-        <li key={message.id}>
-          <p className="text-xs text-foreground/60">
-            {message.role === "user" ? "You" : "Skippy"} · {showTime(message.at)}
-          </p>
+        // The owner's messages sit on the right in a box of their own; replies run full width on the left.
+        <li key={message.id} className={message.role === "user" ? "ml-auto flex w-fit max-w-[80%] flex-col items-end" : undefined}>
           {message.files.length > 0 ? (
-            <ul className="mt-2 flex flex-wrap gap-2">
+            <ul className={`flex flex-wrap gap-2 ${message.role === "user" ? "mb-1.5 justify-end" : ""}`}>
               {message.files.map((file) => (
                 <li key={file.id}>
                   {file.url && file.contentType.startsWith("image/") ? (
@@ -98,7 +109,11 @@ export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
             </ul>
           ) : null}
           {message.content ? (
-            <p className={`mt-1 text-base leading-7 whitespace-pre-wrap ${message.role === "user" ? "" : "text-foreground/90"}`}>{message.content}</p>
+            message.role === "user" ? (
+              <p className="rounded-2xl bg-foreground/10 px-4 py-2.5 text-base leading-7 break-words whitespace-pre-wrap text-foreground">{message.content}</p>
+            ) : (
+              <p className="text-base leading-7 break-words whitespace-pre-wrap text-foreground/80">{message.content}</p>
+            )
           ) : null}
           {message.role === "assistant" && message.id === last?.id ? <Status chat={chat} away={away} /> : null}
           {chat.turn?.kind === "brief" && chat.turn.replyId === message.id && message.status === "done" ? (
@@ -136,7 +151,7 @@ export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
   return (
     <>
       {boxed ? (
-        <div ref={box} className="max-h-[55vh] overflow-y-auto rounded-md border border-foreground/10 p-3">
+        <div ref={box} className="min-h-24 flex-1 basis-0 overflow-y-auto rounded-md border border-foreground/10 p-3">
           {list}
         </div>
       ) : (

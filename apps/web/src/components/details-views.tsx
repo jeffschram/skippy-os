@@ -35,11 +35,12 @@ function Title({ children, tags }: { children: ReactNode; tags?: ReactNode }) {
   );
 }
 
-/** Text as it was written, with its line breaks, and with any web address in it made a link. */
+/** Text as it was written, with its line breaks, and with any web address in it made a link. Long text scrolls in place. */
 function Prose({ children, quiet }: { children: string | undefined | null; quiet?: boolean }) {
   if (!children?.trim()) return null;
   return (
-    <p className={`max-w-prose text-base leading-7 break-words whitespace-pre-wrap ${quiet ? "text-foreground/70" : ""}`}>
+    // Kept short, with its own scroll, so a details window fits on the screen.
+    <p className={`max-h-[16dvh] max-w-prose overflow-y-auto text-base leading-7 break-words whitespace-pre-wrap ${quiet ? "text-foreground/70" : ""}`}>
       {children.split(/(https?:\/\/[^\s<>"]+)/g).map((part, index) =>
         index % 2 === 1 ? (
           <a key={index} href={part} target="_blank" rel="noreferrer" className={link}>

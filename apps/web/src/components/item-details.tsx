@@ -11,6 +11,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { draftOfRule, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { ItemChat } from "./chats-about";
+import { Background, ChatSection, DetailsWindow, WindowLayout } from "./details-window";
 import { ITEM_TYPES, itemHref } from "./item-href";
 import { Files } from "./files";
 import { CompanyView, EventView, GoalView, KnowledgeView, PersonView, RecurrenceView } from "./details-views";
@@ -58,17 +59,9 @@ export function ItemDetails() {
   const type = TYPES.find((value) => value === param.slice(0, at));
   const id = param.slice(at + 1);
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-0 sm:p-6" onClick={close}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Details"
-        onClick={(event) => event.stopPropagation()}
-        className="mx-auto min-h-full w-full max-w-3xl bg-background p-6 sm:min-h-0 sm:rounded-lg sm:border sm:border-foreground/15"
-      >
-        {type && id ? <Loaded key={param} type={type} id={id} onClose={close} /> : <Missing onClose={close} />}
-      </div>
-    </div>
+    <DetailsWindow label="Details" onClose={close}>
+      {type && id ? <Loaded key={param} type={type} id={id} onClose={close} /> : <Missing onClose={close} />}
+    </DetailsWindow>
   );
 }
 
@@ -94,20 +87,23 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
   const fixed = type === "event" && (bundle.record as EventItem).origin !== "skippy";
   const done = () => setEditing(false);
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        {editing ? <h2 className="text-lg font-semibold">Edit {kind}</h2> : <p className="text-sm text-foreground/60 first-letter:uppercase">{kind}</p>}
-        <div className="flex items-center gap-4">
-          {!editing && !fixed ? (
-            <button type="button" onClick={() => setEditing(true)} className={button}>
-              Edit
+    <WindowLayout
+      header={
+        <>
+          {editing ? <h2 className="text-lg font-semibold">Edit {kind}</h2> : <p className="text-sm text-foreground/60 first-letter:uppercase">{kind}</p>}
+          <div className="flex items-center gap-4">
+            {!editing && !fixed ? (
+              <button type="button" onClick={() => setEditing(true)} className={button}>
+                Edit
+              </button>
+            ) : null}
+            <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
+              Close
             </button>
-          ) : null}
-          <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
-            Close
-          </button>
-        </div>
-      </div>
+          </div>
+        </>
+      }
+    >
       {!editing ? (
         type === "knowledge" ? (
           <KnowledgeView item={bundle.record as Knowledge} />
@@ -135,12 +131,12 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
       ) : (
         <GoalForm goal={bundle.record as Goal} onClose={done} />
       )}
-      <section className="border-t border-foreground/15 pt-4">
+      <ChatSection>
         <ItemChat type={type} id={id} />
-      </section>
+      </ChatSection>
       <Files type={type} id={id} folded />
       <Around bundle={bundle} />
-    </div>
+    </WindowLayout>
   );
 }
 
@@ -729,10 +725,15 @@ function GoalForm({ goal, onClose }: { goal: Goal; onClose: () => void }) {
 
 /** What surrounds a record: its links, where it came from, and what has happened to it. */
 function Around({ bundle }: { bundle: Bundle }) {
+  const parts = [
+    bundle.links.length > 0 ? "Links" : undefined,
+    bundle.sources.length > 0 ? "Source" : undefined,
+    bundle.recentActivity.length > 0 ? "History" : undefined,
+  ].filter((part): part is string => part !== undefined);
   return (
-    <>
+    <Background parts={parts}>
       {bundle.links.length > 0 ? (
-        <section className="border-t border-foreground/15 pt-4">
+        <section>
           <h3 className="text-sm font-medium text-foreground/60">Linked to</h3>
           <ul className="mt-2 space-y-1.5">
             {bundle.links.map((link, index) => {
@@ -759,7 +760,7 @@ function Around({ bundle }: { bundle: Bundle }) {
         </section>
       ) : null}
       {bundle.sources.length > 0 ? (
-        <section className="border-t border-foreground/15 pt-4">
+        <section>
           <h3 className="text-sm font-medium text-foreground/60">Where it came from</h3>
           <ul className="mt-2 space-y-2">
             {bundle.sources.map((source, index) => (
@@ -780,7 +781,7 @@ function Around({ bundle }: { bundle: Bundle }) {
         </section>
       ) : null}
       {bundle.recentActivity.length > 0 ? (
-        <section className="border-t border-foreground/15 pt-4">
+        <section>
           <h3 className="text-sm font-medium text-foreground/60">History</h3>
           <ul className="mt-2 space-y-2">
             {bundle.recentActivity.map((event, index) => (
@@ -795,6 +796,6 @@ function Around({ bundle }: { bundle: Bundle }) {
           </ul>
         </section>
       ) : null}
-    </>
+    </Background>
   );
 }

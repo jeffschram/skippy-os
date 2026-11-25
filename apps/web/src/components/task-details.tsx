@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ItemChat } from "./chats-about";
 import { TaskView } from "./details-views";
+import { Background, ChatSection, DetailsWindow, WindowLayout } from "./details-window";
 import { Files } from "./files";
 import { button } from "./parts";
 import { problem, Quiet, showTime } from "./parts";
@@ -49,17 +50,9 @@ export function TaskDetails() {
 
   if (!id) return null;
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-0 sm:p-6" onClick={close}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Task details"
-        onClick={(event) => event.stopPropagation()}
-        className="mx-auto min-h-full w-full max-w-3xl bg-background p-6 sm:min-h-0 sm:rounded-lg sm:border sm:border-foreground/15"
-      >
-        <Loaded id={id} onClose={close} />
-      </div>
-    </div>
+    <DetailsWindow label="Task details" onClose={close}>
+      <Loaded id={id} onClose={close} />
+    </DetailsWindow>
   );
 }
 
@@ -84,42 +77,42 @@ function Opened({ details, onClose }: { details: Details; onClose: () => void })
   const [editing, setEditing] = useState(false);
   const { task } = details;
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        {editing ? <h2 className="text-lg font-semibold">Edit task</h2> : <p className="text-sm text-foreground/60">Task</p>}
-        <div className="flex items-center gap-4">
-          {!editing ? (
-            <button type="button" onClick={() => setEditing(true)} className={button}>
-              Edit
+    <WindowLayout
+      header={
+        <>
+          {editing ? <h2 className="text-lg font-semibold">Edit task</h2> : <p className="text-sm text-foreground/60">Task</p>}
+          <div className="flex items-center gap-4">
+            {!editing ? (
+              <button type="button" onClick={() => setEditing(true)} className={button}>
+                Edit
+              </button>
+            ) : null}
+            <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
+              Close
             </button>
-          ) : null}
-          <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
-            Close
-          </button>
-        </div>
-      </div>
+          </div>
+        </>
+      }
+    >
       {editing ? <Form details={details} onDone={() => setEditing(false)} onClose={onClose} /> : <TaskView details={details} />}
-      <div className="border-t border-foreground/15 pt-4">
+      <ChatSection>
         <ItemChat type="task" id={task.id} />
-      </div>
+      </ChatSection>
       <Files type="task" id={task.id} folded />
-      {details.history.length > 0 ? (
-        <div className="border-t border-foreground/15 pt-4">
-          <h3 className="text-sm font-medium text-foreground/60">History</h3>
-          <ul className="mt-2 space-y-2">
-            {details.history.map((event) => (
-              <li key={event.id} className="text-sm">
-                {event.summary}
-                <span className="text-foreground/60">
-                  {" "}
-                  · {event.by} · {showTime(event.at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
+      <Background parts={details.history.length > 0 ? ["History"] : []}>
+        <ul className="space-y-2">
+          {details.history.map((event) => (
+            <li key={event.id} className="text-sm">
+              {event.summary}
+              <span className="text-foreground/60">
+                {" "}
+                · {event.by} · {showTime(event.at)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Background>
+    </WindowLayout>
   );
 }
 
