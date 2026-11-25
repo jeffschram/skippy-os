@@ -24,7 +24,7 @@ const SOURCES = { google_calendar: "Calendar", gmail: "Mail", imessage: "Message
 const field = "rounded-md border border-foreground/20 bg-transparent px-2 py-1.5 text-sm";
 const quiet = "text-sm text-foreground/60 underline underline-offset-2";
 
-/** Home's panel. It shows nothing until a first pass has run. */
+/** The panel at the top of Activity, under the inbox. It shows nothing until a first pass has run. */
 export function IngestedPanel() {
   const data = useQuery(api.viewer.ingestion, { runs: 8 });
   if (!data || data.runs.length === 0) return null;

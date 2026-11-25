@@ -1,21 +1,20 @@
 "use client";
 
-import { CalendarBlank, CalendarDot, ChatsCircle, HandPalm, Kanban, NewspaperClipping, Pulse } from "@phosphor-icons/react";
+import { CalendarBlank, CalendarDot, ChatsCircle, HandPalm, NewspaperClipping } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./calendar-parts";
-import { IngestedPanel } from "./ingested";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
-import { Panel, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
+import { Panel, Quiet, showDay, showTime } from "./parts";
 import { AddTask, TaskItem, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
 /**
  * Home: the day's briefing, today and the next seven days in time order, the
- * weekly review, the latest chats, then what needs the owner, what the passes
- * made, the live projects and the latest activity. The inbox is on Activity.
+ * weekly review, the latest chats, then what needs the owner. The inbox and
+ * what the passes made are on Activity; the projects have their own page.
  * Each panel is its own live query.
  */
 
@@ -29,9 +28,6 @@ export function Home() {
         <WeeklyReview />
         <Chats />
         <NeedsYou />
-        <IngestedPanel />
-        <Projects />
-        <Activity />
       </div>
     </OwnerPage>
   );
@@ -285,59 +281,6 @@ function NeedsYou() {
           );
         })}
       </ul>
-    </Panel>
-  );
-}
-
-function Projects() {
-  const data = useQuery(api.viewer.projects, { now: useNow() });
-  const live = data?.projects.filter((project) => project.status === "active");
-  return (
-    <Panel title="Projects" icon={Kanban} note={<Link href="/projects" className="underline underline-offset-2">All projects</Link>}>
-      {live === undefined ? (
-        <Quiet>Loading…</Quiet>
-      ) : live.length === 0 ? (
-        <Quiet>No active projects.</Quiet>
-      ) : (
-        <ul className="space-y-4">
-          {live.map((project) => (
-            <li key={project.slug}>
-              <p className="flex flex-wrap items-center gap-2">
-                <Link href={`/projects/${project.slug}`} className="text-base font-medium underline-offset-2 hover:underline">
-                  {project.title}
-                </Link>
-                {project.health ? <Tag kind={project.health}>{words(project.health)}</Tag> : null}
-                {staleNote(project) ? <Tag kind="at_risk">{staleNote(project)}</Tag> : null}
-              </p>
-              {project.statusNote ? <p className="mt-1 line-clamp-3 text-sm">{project.statusNote}</p> : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </Panel>
-  );
-}
-
-function Activity() {
-  const data = useQuery(api.viewer.activity, { limit: 20 });
-  return (
-    <Panel title="Recent activity" icon={Pulse}>
-      {data === undefined ? (
-        <Quiet>Loading…</Quiet>
-      ) : data.events.length === 0 ? (
-        <Quiet>Nothing has happened yet.</Quiet>
-      ) : (
-        <ul className="space-y-3">
-          {data.events.map((event) => (
-            <li key={event.id}>
-              <p className="text-base">{event.summary}</p>
-              <p className="text-sm text-foreground/60">
-                {event.by} · {showTime(event.at)}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
     </Panel>
   );
 }

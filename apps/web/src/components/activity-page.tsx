@@ -5,11 +5,13 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { useState } from "react";
 import { InboxPanel } from "./capture";
+import { IngestedPanel } from "./ingested";
 import { OwnerPage } from "./owner-page";
 import { button, Quiet, showTime } from "./parts";
 
 /**
- * The inbox of captures waiting to be filed, then who changed what, newest first, filtered to the owner's own changes or to
+ * The inbox of captures waiting to be filed, what the ingestion passes made
+ * (with undo), then who changed what, newest first, filtered to the owner's own changes or to
  * what agents did. The ingestion passes have their own list: every pass, with
  * what it read and its own note, including the ones that made nothing.
  */
@@ -27,6 +29,7 @@ export function ActivityPage() {
     <OwnerPage wide>
       <div className="space-y-12">
         <InboxPanel />
+        <IngestedPanel />
         <Log />
       </div>
     </OwnerPage>
