@@ -1,31 +1,34 @@
 "use client";
 
-import { CalendarDot, ChatsCircle, Eye, HandPalm, Kanban, NewspaperClipping, Pulse } from "@phosphor-icons/react";
+import { CalendarBlank, CalendarDot, ChatsCircle, HandPalm, Kanban, NewspaperClipping, Pulse } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { EventRow, RecurrenceRow } from "./calendar-parts";
-import { InboxPanel } from "./capture";
+import { EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { IngestedPanel } from "./ingested";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
-import { AddTask, TaskList, type Task } from "./tasks";
+import { AddTask, TaskItem, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
-/** Home: the day's briefing, what needs the owner, the inbox, today's tasks, the live projects and the latest activity. Each panel is its own live query. */
+/**
+ * Home: the day's briefing, today and the next seven days in time order, the
+ * weekly review, the latest chats, then what needs the owner, what the passes
+ * made, the live projects and the latest activity. The inbox is on Activity.
+ * Each panel is its own live query.
+ */
 
 export function Home() {
   return (
     <OwnerPage>
       <div className="space-y-12">
         <Briefing />
-        <WeeklyReview />
-        <NeedsYou />
-        <InboxPanel />
         <Today />
+        <Upcoming />
+        <WeeklyReview />
         <Chats />
-        <SinceLastLook />
+        <NeedsYou />
         <IngestedPanel />
         <Projects />
         <Activity />
@@ -107,6 +110,46 @@ function Chats() {
   );
 }
 
+/** One line in a day: an event, a task or something that recurs, with the instant it is placed at. */
+type Entry =
+  | { kind: "event"; at: number; event: EventItem }
+  | { kind: "task"; at: number; task: Task }
+  | { kind: "recurrence"; at: number; item: RecurrenceItem };
+
+const KIND_ORDER = { event: 0, task: 1, recurrence: 2 } as const;
+// A task with only a date is stored at the end of its day, so it falls after the timed things.
+// A recurrence has only a date, so it goes there too.
+const endOfDay = (date: string) => new Date(`${date}T23:59:59`).getTime();
+const taskAt = (task: Task) => Date.parse(task.due?.at ?? task.scheduledFor?.at ?? "");
+
+function timeline(events: EventItem[], tasks: Task[], recurrences: RecurrenceItem[]): Entry[] {
+  return [
+    ...events.map((event): Entry => ({ kind: "event", at: Date.parse(event.start.at), event })),
+    ...tasks.map((task): Entry => ({ kind: "task", at: taskAt(task), task })),
+    ...recurrences.map((item): Entry => ({ kind: "recurrence", at: endOfDay(item.nextDue), item })),
+  ].sort((a, b) => a.at - b.at || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+}
+
+function EntryList({ entries }: { entries: Entry[] }) {
+  return (
+    <ul className="space-y-2">
+      {entries.map((entry) =>
+        entry.kind === "event" ? (
+          <EventRow key={`event:${entry.event.id}`} event={entry.event} />
+        ) : entry.kind === "recurrence" ? (
+          <RecurrenceRow key={`recurrence:${entry.item.id}`} item={entry.item} showDue />
+        ) : (
+          <TaskItem key={`task:${entry.task.id}`} task={entry.task} showProject />
+        ),
+      )}
+    </ul>
+  );
+}
+
+/** What has an id, so Upcoming can leave out what Today already shows. */
+const ids = (items: { id: string }[]) => new Set(items.map((item) => item.id));
+
+/** Today's tasks and events in time order, overdue ones first, with waiting tasks that have no date at the bottom. */
 function Today() {
   const today = useQuery(api.viewer.today, { now: useNow() });
   if (today === undefined) {
@@ -116,48 +159,65 @@ function Today() {
       </Panel>
     );
   }
-  const groups: [string, Task[]][] = [
-    ["Overdue", today.overdue],
-    ["Due today", today.dueToday],
-    ["Planned for today", today.scheduled],
-    ["Waiting", today.waiting],
-  ];
-  const shown = groups.filter(([, tasks]) => tasks.length > 0);
+  // A waiting task with a date is listed on its day, here or under Upcoming. Only the undated ones are left for the bottom.
+  const entries = timeline(today.events, [...today.overdue, ...today.dueToday, ...today.scheduled], today.recurrences);
+  const waiting = today.waiting.filter((task) => !task.due && !task.scheduledFor);
   return (
     <Panel title="Today" icon={CalendarDot} note={showDay(today.date)}>
-      {shown.length + today.events.length + today.recurrences.length === 0 ? (
+      {entries.length + waiting.length === 0 ? (
         <Quiet>Nothing needs you today.</Quiet>
       ) : (
         <div className="space-y-6">
-          {today.events.length > 0 ? (
+          {entries.length > 0 ? <EntryList entries={entries} /> : null}
+          {waiting.length > 0 ? (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-foreground/60">On today</h3>
-              <ul className="space-y-2">
-                {today.events.map((event) => (
-                  <EventRow key={event.id} event={event} />
-                ))}
-              </ul>
+              <h3 className="mb-2 text-sm font-medium text-foreground/60">Waiting</h3>
+              <TaskList tasks={waiting} showProject />
             </div>
           ) : null}
-          {today.recurrences.length > 0 ? (
-            <div>
-              <h3 className="mb-2 text-sm font-medium text-foreground/60">Coming round</h3>
-              <ul className="space-y-2">
-                {today.recurrences.map((item) => (
-                  <RecurrenceRow key={item.id} item={item} showDue />
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {shown.map(([label, tasks]) => (
-            <div key={label}>
-              <h3 className="mb-2 text-sm font-medium text-foreground/60">{label}</h3>
-              <TaskList tasks={tasks} showProject />
+        </div>
+      )}
+      <AddTask />
+    </Panel>
+  );
+}
+
+/** The seven days after today, one heading a day, each in time order. Leaves out what Today already shows. */
+function Upcoming() {
+  const now = useNow();
+  const today = useQuery(api.viewer.today, { now });
+  const data = useQuery(api.viewer.upcoming, { now });
+  if (data === undefined || today === undefined) return null;
+  const shownEvents = ids(today.events);
+  const shownTasks = ids([...today.overdue, ...today.dueToday, ...today.scheduled]);
+  const shownRecurrences = ids(today.recurrences);
+  const days = new Map<string, Entry[]>();
+  const entries = timeline(
+    data.events.filter((event) => !shownEvents.has(event.id)),
+    data.tasks.filter((task) => !shownTasks.has(task.id)),
+    data.recurrences.filter((item) => !shownRecurrences.has(item.id)),
+  );
+  for (const entry of entries) {
+    const date = entry.kind === "event" ? entry.event.start.date : entry.kind === "recurrence" ? entry.item.nextDue : (entry.task.due?.date ?? entry.task.scheduledFor?.date);
+    // An event that began before tomorrow and is still running goes under tomorrow.
+    const key = date === undefined || date < data.from ? data.from : date;
+    days.set(key, [...(days.get(key) ?? []), entry]);
+  }
+  const keys = [...days.keys()].sort();
+  return (
+    <Panel title="Upcoming" icon={CalendarBlank} note={<Link href="/agenda" className="underline underline-offset-2">Agenda</Link>}>
+      {keys.length === 0 ? (
+        <Quiet>Nothing in the next seven days.</Quiet>
+      ) : (
+        <div className="space-y-6">
+          {keys.map((key) => (
+            <div key={key}>
+              <h3 className="mb-2 text-sm font-medium text-foreground/60">{showDay(key)}</h3>
+              <EntryList entries={days.get(key)!} />
             </div>
           ))}
         </div>
       )}
-      <AddTask />
     </Panel>
   );
 }
@@ -225,58 +285,6 @@ function NeedsYou() {
           );
         })}
       </ul>
-    </Panel>
-  );
-}
-
-/** What Claude and other agents recorded since the owner last cleared this list. */
-function SinceLastLook() {
-  const data = useQuery(api.viewer.sinceLastLook);
-  const markSeen = useMutation(api.viewer.markSeen);
-  if (data === undefined) {
-    return (
-      <Panel title="Since you last looked" icon={Eye}>
-        <Quiet>Loading…</Quiet>
-      </Panel>
-    );
-  }
-  const newest = data.newestAt;
-  return (
-    <Panel
-      title="Since you last looked"
-      icon={Eye}
-      note={data.count > 0 ? `${data.count} from Claude` : data.seenAt ? `cleared ${showTime(data.seenAt)}` : undefined}
-    >
-      {data.events.length === 0 || newest === undefined ? (
-        <Quiet>Nothing new from Claude.</Quiet>
-      ) : (
-        <>
-          <ul className="space-y-3">
-            {data.events.map((event) => (
-              <li key={event.id}>
-                <p className="line-clamp-4 text-base">{event.summary}</p>
-                <p className="text-sm text-foreground/60">
-                  {event.by} · {showTime(event.at)}
-                  {event.project ? (
-                    <>
-                      {" · "}
-                      <Link href={`/projects/${event.project}`} className="underline underline-offset-2">
-                        {event.project}
-                      </Link>
-                    </>
-                  ) : null}
-                </p>
-              </li>
-            ))}
-          </ul>
-          {data.count > data.events.length ? (
-            <p className="mt-3 text-sm text-foreground/60">And {data.count - data.events.length} older ones.</p>
-          ) : null}
-          <button type="button" onClick={() => markSeen({ through: newest })} className={`mt-4 ${button}`}>
-            Mark all as seen
-          </button>
-        </>
-      )}
     </Panel>
   );
 }

@@ -476,12 +476,12 @@
   <summary>Route map</summary>
   <table>
     <tr><th>Route</th><th>Purpose</th></tr>
-    <tr><td><code>/</code></td><td>Home: the input (capture or chat), idea chat, Today, Projects summary, Overnight, Briefing</td></tr>
+    <tr><td><code>/</code></td><td>Home, top to bottom: Briefing, Today, Upcoming (the next seven days), Weekly review, Chats, then Needs you, Ingested, Projects and Recent activity. The input (capture or chat) is docked below. <span class="tag new">changed 2026-11-24</span></td></tr>
     <tr><td><code>/projects</code></td><td>Board of all projects: health, staleness, Claude home link</td></tr>
     <tr><td><code>/projects/[slug]</code></td><td>Status history, phases and tasks, notes pad, chat (including origin history), links</td></tr>
     <tr><td><code>/agenda</code></td><td>Tasks, events and recurrences on one page, in day order, with waiting and undated tasks at the bottom. Views: Schedule, Tasks only, Board. Filters and editing. <span class="tag new">decided</span> (replaces separate <code>/tasks</code> and <code>/agenda</code> pages)</td></tr>
     <tr><td><code>/memory/[section]</code></td><td>Notes, links, memories, decisions, people, companies, goals; search</td></tr>
-    <tr><td><code>/activity</code></td><td>Who changed what (me vs Claude), ingestion runs</td></tr>
+    <tr><td><code>/activity</code></td><td>The inbox of captures to file, then who changed what (me vs Claude), ingestion runs</td></tr>
     <tr><td><code>/settings</code></td><td>Connections, Mac mini status, tokens, rubric, ingestion rules and block list, staleness threshold, areas</td></tr>
   </table>
   <p>Every item opens a shared details view that has its own chat. Navigation: Home, Projects, Agenda, Memory, Activity, and Settings behind an icon.</p>
@@ -853,6 +853,7 @@
     <li><strong>A chat message can carry images and PDFs:</strong> up to ten, 25 MB each, PNG, JPEG, GIF, WebP or PDF, with or without words. They are rows in the <code>files</code> table that point at the message (<code>messageId</code>), with the bytes in Convex file storage, and they show under the message. When the chat runner claims the turn it is given a link to each file, copies them into <code>~/.skippy-os/chat-workspace/files/&lt;chat&gt;/</code>, makes a large photo smaller, and tells the session where they are. A session can read inside the folder it runs in and nowhere else, so no new permission is granted. The copies are removed after fourteen days; the originals stay in Skippy OS. A capture still keeps one file of any kind.</li>
     <li><strong>The chat box is pinned to the bottom of the screen</strong> whatever the length of the chat, with the messages scrolling above it.</li>
     <li><strong>A details window opens for reading:</strong> a task, or anything in Memory or on the Agenda, opens laid out to be read: the title, its tags, the text with its line breaks and links, then the facts that have a value. An Edit button swaps in the form; saving or cancelling comes back to the reading view. A copy of a calendar event has no Edit button.</li>
+    <li><strong>Home rearranged (2026-11-24):</strong> Briefing, Today, Upcoming, Weekly review and Chats come first, in that order, with Needs you, Ingested, Projects and Recent activity after. Today is one list in time order (overdue first, timed things, then things due sometime that day), with undated waiting tasks under it. Upcoming is new: the seven days after today, a heading a day, each in time order, leaving out what Today already shows; it reads the same agenda as <code>get_agenda</code>. The inbox moved to the top of Activity. "Since you last looked" left Home: the same lines are on Activity under "Claude and other agents", and its "seen" marker is no longer shown anywhere.</li>
     <li><strong>Checked:</strong> on the local site at desktop and phone width, and the file hand-off end to end with the runner pointed at the test database: a session described an attached image correctly and read a PDF. Not checked: an iPhone with the keyboard open, and a photo picked on an iPhone.</li>
     <li><strong>Still open from that note:</strong> dictation (a microphone button, tap or hold), kept for a later pass.</li>
   </ul>
@@ -1006,6 +1007,7 @@
     <tr><td>2026-11-23</td><td>The docked box is on every page, so the switch is too, not only on Home.</td></tr>
     <tr><td>2026-11-23</td><td>Chat sessions get a browser, at the owner's request. It is a separate, signed-out, hidden Chrome and not the owner's own Chrome, because a chat started from the phone should not drive a signed-in browser with nobody at the mini.</td></tr>
     <tr><td>2026-11-23</td><td>The browser is for reading. Running script on a page and putting files into a page are refused, and the session is told not to sign in, buy, book or send personal details. The risk that a page misleads the session into sending records out is accepted and written down; <code>CHAT_BROWSER=off</code> in the runner's settings takes the browser away.</td></tr>
+    <tr><td>2026-11-24</td><td>At the owner's request, Home leads with Briefing, Today, Upcoming, Weekly review and Chats, and Today and Upcoming list tasks and events together in time order rather than in groups. The inbox moves to Activity, and "Since you last looked" leaves Home, since Activity's agents view shows the same lines.</td></tr>
     <tr><td>2026-11-22</td><td>Built 2026-11-23. The Home box gets one three-way switch, Chat / Capture / Hold, in place of its three buttons. Chat is the default and the switch returns to it after each send, so Enter on Home will start a chat where it now captures.</td></tr>
   </table>
 </details>

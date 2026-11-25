@@ -24,7 +24,7 @@ export function TaskList({ tasks, showProject }: { tasks: Task[]; showProject?: 
   );
 }
 
-function TaskItem({ task, showProject }: { task: Task; showProject?: boolean }) {
+export function TaskItem({ task, showProject }: { task: Task; showProject?: boolean }) {
   const save = useMutation(api.viewer.saveTask);
   const [error, setError] = useState<string>();
   const closed = task.status === "done" || task.status === "cancelled";

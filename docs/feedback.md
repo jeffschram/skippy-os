@@ -29,6 +29,7 @@ New things the app could do, or do differently. Things already set aside on purp
 
 ## Done or decided
 
+- [x] **Home order: Briefing, Today, Upcoming, Weekly review, Chats.** Asked and built 2026-11-24. Today lists tasks and events together in time order. Upcoming is new: the next seven days, a heading a day, in time order. The inbox moved to the Activity page, and "Since you last looked" left Home (Activity's "Claude and other agents" view has the same lines). Needs you, Ingested, Projects and Recent activity stay on Home, below Chats.
 - [x] **The chat box and the docked box work like Claude's composer.** Asked 2026-11-22, built 2026-11-23 in `ec62e4e`. One rounded box that grows with the words, add-file on the left, send on the right; files by button, paste or drag, shown as chips. A chat takes up to ten images and PDFs and its session on the mini reads them. The docked box has a Chat / Capture / Hold switch that starts on Chat and goes back to it after each send; it is on every page, not only Home. A capture still keeps one file. Not copied from Claude: the model picker and tools menu. Dictation is left open under Ideas.
 - [x] **A details window opens for reading.** Asked 2026-11-22, built 2026-11-23 in `ec62e4e`. Tasks and everything in Memory and on the Agenda open laid out to read, with an Edit button. Saving or cancelling goes back to the reading view.
 - [x] **The chat composer is pinned to the bottom of the screen.** Asked 2026-11-22, built 2026-11-23 in `ec62e4e`. Not yet tried on an iPhone with the keyboard open.

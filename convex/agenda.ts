@@ -30,7 +30,7 @@ const DAY_MS = 86_400_000;
 const HISTORY_KEPT = 50;
 
 /** A day a number of days before or after another. */
-function shiftDay(day: string, days: number): string {
+export function shiftDay(day: string, days: number): string {
   return new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 }
 

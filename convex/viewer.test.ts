@@ -147,6 +147,26 @@ describe("the web app's queries", () => {
     expect((await owner.query(api.viewer.activity, { limit: 1 })).events).toHaveLength(1);
   });
 
+  it("show the seven days after today, and nothing from today or later", async () => {
+    const t = start();
+    await asClaude(t, "upsert_task", { title: "Pick a paint color", dueAt: "2026-11-20" });
+    await asClaude(t, "upsert_task", { title: "Get three quotes", dueAt: "2026-11-25" });
+    await asClaude(t, "upsert_task", { title: "Order shingles", dueAt: "2026-11-28" });
+    await asClaude(t, "upsert_task", { title: "Call the roofer", scheduledFor: "2026-11-26T09:00" });
+    await asClaude(t, "upsert_task", { title: "Frame the walls", dueAt: "2026-12-02" });
+    await asClaude(t, "upsert_task", { title: "Paint", dueAt: "2026-12-03" });
+    await asClaude(t, "upsert_event", { title: "Inspection", startAt: "2026-11-27T10:00", endAt: "2026-11-27T11:00" });
+    await asClaude(t, "upsert_event", { title: "Lunch today", startAt: "2026-11-25T13:00" });
+    const owner = t.withIdentity({ subject: OWNER });
+    expect(await refusal(t.query(api.viewer.upcoming, { now: NOW }))).toBe("not_signed_in");
+
+    const upcoming = await owner.query(api.viewer.upcoming, { now: NOW });
+    expect(upcoming.from).toBe("2026-11-26");
+    expect(upcoming.to).toBe("2026-12-02");
+    expect(upcoming.tasks.map((task) => task.title)).toEqual(["Call the roofer", "Order shingles", "Frame the walls"]);
+    expect(upcoming.events.map((event) => event.title)).toEqual(["Inspection"]);
+  });
+
   it("work out the day and what is stale from the time the page sends", async () => {
     const t = start();
     await asClaude(t, "upsert_project", { title: "Garden Shed", status: "active" });

@@ -3,7 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { eventsBetween, liveRecurrences } from "./agenda";
+import { eventsBetween, liveRecurrences, readAgenda, shiftDay } from "./agenda";
 import { listAreas } from "./areas";
 import { latestBriefing, latestReview } from "./briefing";
 import { listCaptures } from "./captures";
@@ -78,6 +78,21 @@ export const today = query({
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     return await readToday(ctx, { now: args.now });
+  },
+});
+
+/**
+ * The seven days after today, for Home's Upcoming panel: events, recurrences
+ * falling due, and open tasks placed by their deadline, or by the day they are
+ * planned for when they have none.
+ */
+export const upcoming = query({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const settings = await getSettings(ctx);
+    const today = localDate(args.now, settings.timeZone);
+    return await readAgenda(ctx, { from: shiftDay(today, 1), days: 7, now: args.now });
   },
 });
 
