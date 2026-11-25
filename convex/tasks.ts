@@ -25,6 +25,7 @@ export function presentTask(task: Doc<"tasks">, projectSlug: string | undefined,
     due: showWhen(task.dueAt, timeZone),
     scheduledFor: showWhen(task.scheduledFor, timeZone),
     waitingOn: task.waitingOn,
+    location: task.location,
     completedAt: iso(task.completedAt),
   };
 }
@@ -44,6 +45,7 @@ export const upsert = internalMutation({
     dueAt: nullable(v.string()),
     scheduledFor: nullable(v.string()),
     waitingOn: nullable(v.string()),
+    location: nullable(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -98,6 +100,7 @@ export const upsert = internalMutation({
       dueAt: when(args.dueAt, settings.timeZone, "end", "dueAt"),
       scheduledFor: when(args.scheduledFor, settings.timeZone, "start", "scheduledFor"),
       waitingOn: cleanText(args.waitingOn),
+      location: cleanText(args.location),
       // Finishing a task stamps it; reopening it clears the stamp.
       completedAt:
         status === undefined
@@ -144,6 +147,7 @@ export const upsert = internalMutation({
       ...(typeof fields.dueAt === "number" ? { dueAt: fields.dueAt } : {}),
       ...(typeof fields.scheduledFor === "number" ? { scheduledFor: fields.scheduledFor } : {}),
       ...(fields.waitingOn ? { waitingOn: fields.waitingOn } : {}),
+      ...(fields.location ? { location: fields.location } : {}),
       ...(newStatus === "done" ? { completedAt: now } : {}),
       createdBy: args.actor,
       updatedBy: args.actor,

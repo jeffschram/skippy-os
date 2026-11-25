@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
 import { eventTime, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { showDay, showTime, Tag, words } from "./parts";
+import { PlaceFact } from "./place";
 import { useNow } from "./use-now";
 
 /**
@@ -104,6 +105,7 @@ export function TaskView({ details }: { details: TaskDetails }) {
           ["Due", task.due ? showDay(task.due.date) : null],
           ["Planned for", task.scheduledFor ? showDay(task.scheduledFor.date) : null],
           ["Waiting on", task.waitingOn],
+          ["Where", task.location ? <PlaceFact location={task.location} /> : null],
           [
             "Project",
             task.project ? (
@@ -244,7 +246,7 @@ export function EventView({ event }: { event: EventItem }) {
       <Facts
         rows={[
           ["When", `${showDay(event.start.date)}, ${eventTime(event)}`],
-          ["Where", event.location],
+          ["Where", event.location ? <PlaceFact location={event.location} /> : null],
           [
             "Project",
             event.project ? (

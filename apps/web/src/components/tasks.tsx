@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { button } from "./parts";
 import { doneBox, problem, showDay } from "./parts";
+import { PlaceLink } from "./place";
 
 /** Task rows the owner can tick off and add to. A title opens the task's details. Every change goes through `viewer.saveTask`. */
 
@@ -74,6 +75,12 @@ export function TaskItem({ task, showProject }: { task: Task; showProject?: bool
             </>
           ) : null}
           {details.join(" · ")}
+          {task.location ? (
+            <>
+              {details.length > 0 || (showProject && task.project) ? " · " : ""}
+              <PlaceLink location={task.location} />
+            </>
+          ) : null}
         </p>
         {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       </div>

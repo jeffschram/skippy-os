@@ -407,6 +407,24 @@ describe("phases, new projects, the agenda and settings", () => {
     );
     expect(await refusal(stranger.mutation(api.viewer.createProject, { title: "X" }))).toBe("account_not_authorized");
   });
+
+  it("keeps a place on a task and a home address for directions", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await asClaude(t, "upsert_task", { title: "Pick up the cake", dueAt: "2026-11-25", location: "Main Street Bakery, 12 Main St" });
+    const [task] = (await owner.query(api.viewer.openTasks, { now: NOW })).tasks;
+    expect(task.location).toBe("Main Street Bakery, 12 Main St");
+    await owner.mutation(api.viewer.saveTask, { id: task.id, location: null });
+    expect((await owner.query(api.viewer.openTasks, { now: NOW })).tasks[0].location).toBeUndefined();
+
+    await owner.mutation(api.viewer.saveSettings, { homeAddress: "  1 Elm St, Springfield  " });
+    expect((await owner.query(api.viewer.settings, {})).homeAddress).toBe("1 Elm St, Springfield");
+    // Saving other settings leaves it; null clears it.
+    await owner.mutation(api.viewer.saveSettings, { stalenessDays: 5 });
+    expect((await owner.query(api.viewer.settings, {})).homeAddress).toBe("1 Elm St, Springfield");
+    await owner.mutation(api.viewer.saveSettings, { homeAddress: null });
+    expect((await owner.query(api.viewer.settings, {})).homeAddress).toBeUndefined();
+  });
 });
 
 describe("reordering and removing phases, deleting a task, and a project's Claude home", () => {

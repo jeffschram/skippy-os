@@ -158,6 +158,7 @@ function Form({ details, onDone, onClose }: { details: Details; onDone: () => vo
   const [due, setDue] = useState(task.due?.date ?? "");
   const [planned, setPlanned] = useState(task.scheduledFor?.date ?? "");
   const [waitingOn, setWaitingOn] = useState(task.waitingOn ?? "");
+  const [location, setLocation] = useState(task.location ?? "");
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string>();
@@ -186,6 +187,7 @@ function Form({ details, onDone, onClose }: { details: Details; onDone: () => vo
     if (due !== (task.due?.date ?? "")) changes.dueAt = due || null;
     if (planned !== (task.scheduledFor?.date ?? "")) changes.scheduledFor = planned || null;
     if (waitingOn !== (task.waitingOn ?? "")) changes.waitingOn = text(waitingOn);
+    if (location !== (task.location ?? "")) changes.location = text(location);
     if (Object.keys(changes).length === 1) return onDone();
     setBusy(true);
     setError(undefined);
@@ -219,6 +221,15 @@ function Form({ details, onDone, onClose }: { details: Details; onDone: () => vo
       <label className="block text-sm">
         Details
         <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={5} className={`mt-1 ${field}`} />
+      </label>
+      <label className="block text-sm">
+        Where
+        <input
+          value={location}
+          onChange={(event) => setLocation(event.target.value)}
+          placeholder="A place or address, or Home → somewhere"
+          className={`mt-1 ${field}`}
+        />
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">

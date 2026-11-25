@@ -228,7 +228,9 @@ export const settings = query({
   args: {},
   handler: async (ctx) => {
     await requireOwner(ctx);
-    return await getSettings(ctx);
+    // The home address is only for the owner's own pages, so it is read here and not in getSettings, which agents' answers draw on.
+    const row = await ctx.db.query("settings").first();
+    return { ...(await getSettings(ctx)), homeAddress: row?.homeAddress };
   },
 });
 
@@ -368,6 +370,7 @@ export const saveTask = mutation({
     dueAt: nullable(v.string()),
     scheduledFor: nullable(v.string()),
     waitingOn: nullable(v.string()),
+    location: nullable(v.string()),
   },
   handler: async (ctx, args): Promise<{ created: boolean; changed: boolean }> => {
     await requireOwner(ctx);
@@ -932,6 +935,8 @@ export const saveSettings = mutation({
     stalenessDays: v.optional(v.number()),
     quietFrom: v.optional(v.number()),
     quietTo: v.optional(v.number()),
+    /** Null or blank clears it. */
+    homeAddress: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     await requireOwner(ctx);
@@ -958,6 +963,7 @@ export const saveSettings = mutation({
       stalenessDays: days ?? row?.stalenessDays ?? DEFAULT_SETTINGS.stalenessDays,
       quietFrom: args.quietFrom ?? row?.quietFrom ?? DEFAULT_SETTINGS.quietFrom,
       quietTo: args.quietTo ?? row?.quietTo ?? DEFAULT_SETTINGS.quietTo,
+      homeAddress: args.homeAddress === undefined ? row?.homeAddress : args.homeAddress?.trim().slice(0, 300) || undefined,
       updatedAt: Date.now(),
     };
     if (row) await ctx.db.patch(row._id, next);

@@ -7,6 +7,7 @@ import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { button, doneBox, problem, showClock, showDay } from "./parts";
+import { PlaceLink } from "./place";
 import { useNow } from "./use-now";
 
 /** Rows and forms for events and for things that recur. Shared by Home, the Agenda and the details view. */
@@ -86,7 +87,14 @@ export function EventRow({ event, showProject = true }: { event: EventItem; show
           {event.title}
         </Link>
         <p className="truncate text-sm text-foreground/60">
-          {[eventTime(event), event.location, showProject ? event.project : undefined].filter(Boolean).join(" · ")}
+          {eventTime(event)}
+          {event.location ? (
+            <>
+              {" · "}
+              <PlaceLink location={event.location} />
+            </>
+          ) : null}
+          {showProject && event.project ? ` · ${event.project}` : null}
         </p>
         {state.error ? <p className="mt-1 text-sm text-red-700 dark:text-red-300">{state.error}</p> : null}
       </div>

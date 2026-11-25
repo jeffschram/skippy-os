@@ -213,6 +213,8 @@ export default defineSchema({
     scheduledFor: v.optional(v.number()),
     /** Who or what the task is waiting on, in words. */
     waitingOn: v.optional(v.string()),
+    /** Where it gets done, such as a shop's address. The app links it to Google Maps. */
+    location: v.optional(v.string()),
     completedAt: v.optional(v.number()),
     ...authored,
   })
@@ -418,6 +420,8 @@ export default defineSchema({
     /** No notifications from this hour to that one, by the owner's clock (0 to 23). */
     quietFrom: v.optional(v.number()),
     quietTo: v.optional(v.number()),
+    /** Where "Home" is in a place such as "Home → HPN", for directions. Kept here, never in the code. */
+    homeAddress: v.optional(v.string()),
     updatedAt: v.number(),
   }),
 

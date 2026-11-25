@@ -568,7 +568,7 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
       </div>
       <label className="block text-sm">
         Where
-        <input value={location} onChange={(change) => setLocation(change.target.value)} className={`mt-1 ${field}`} />
+        <input value={location} onChange={(change) => setLocation(change.target.value)} placeholder="A place or address, or Home → somewhere" className={`mt-1 ${field}`} />
       </label>
       <ProjectField value={project} current={event.project} onChange={setProject} />
       <label className="block text-sm">

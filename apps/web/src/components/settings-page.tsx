@@ -10,7 +10,7 @@ import { NotificationSettings } from "./notifications";
 import { button, Panel, problem, Quiet, showDay, showTime } from "./parts";
 import { useNow } from "./use-now";
 
-/** The owner-wide settings: the time zone dates are read in, and when a quiet project is flagged. */
+/** The owner-wide settings: the time zone dates are read in, the home address directions start from, and when a quiet project is flagged. */
 
 const field = "rounded-md border border-foreground/20 bg-background px-2 py-1.5 text-sm";
 
@@ -64,13 +64,14 @@ function Loaded() {
       </div>
     );
   }
-  return <Form key={`${settings.timeZone}/${settings.stalenessDays}`} settings={settings} />;
+  return <Form key={`${settings.timeZone}/${settings.stalenessDays}/${settings.homeAddress ?? ""}`} settings={settings} />;
 }
 
-function Form({ settings }: { settings: { timeZone: string; stalenessDays: number } }) {
+function Form({ settings }: { settings: { timeZone: string; stalenessDays: number; homeAddress?: string } }) {
   const save = useMutation(api.viewer.saveSettings);
   const [timeZone, setTimeZone] = useState(settings.timeZone);
   const [days, setDays] = useState(String(settings.stalenessDays));
+  const [home, setHome] = useState(settings.homeAddress ?? "");
   const [note, setNote] = useState<{ ok: boolean; text: string }>();
   // Every zone the browser knows, with the saved one first in case it is not among them.
   const zones = [...new Set([settings.timeZone, ...Intl.supportedValuesOf("timeZone")])];
@@ -79,7 +80,7 @@ function Form({ settings }: { settings: { timeZone: string; stalenessDays: numbe
     event.preventDefault();
     setNote(undefined);
     try {
-      await save({ timeZone, stalenessDays: Number(days) });
+      await save({ timeZone, stalenessDays: Number(days), homeAddress: home.trim() || null });
       setNote({ ok: true, text: "Saved." });
     } catch (caught) {
       setNote({ ok: false, text: problem(caught) });
@@ -99,6 +100,18 @@ function Form({ settings }: { settings: { timeZone: string; stalenessDays: numbe
         </select>
         <span className="mt-1 block text-foreground/60">
           Dates Claude and you enter are read in this zone, and it decides when a day starts.
+        </span>
+      </label>
+      <label className="block text-sm">
+        Home address
+        <input
+          value={home}
+          onChange={(event) => setHome(event.target.value)}
+          autoComplete="street-address"
+          className={`mt-1 block w-full max-w-sm ${field}`}
+        />
+        <span className="mt-1 block text-foreground/60">
+          Where a trip written as Home → somewhere starts in Google Maps. Without it, directions start where you are.
         </span>
       </label>
       <label className="block text-sm">
