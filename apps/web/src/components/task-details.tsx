@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ItemChat } from "./chats-about";
 import { TaskView } from "./details-views";
-import { Background, ChatSection, DetailsWindow, WindowLayout } from "./details-window";
+import { Background, ChatSection, DetailsWindow, WindowButtons, WindowLayout } from "./details-window";
 import { Files } from "./files";
 import { button } from "./parts";
 import { problem, Quiet, showTime } from "./parts";
@@ -81,16 +81,7 @@ function Opened({ details, onClose }: { details: Details; onClose: () => void })
       header={
         <>
           {editing ? <h2 className="text-lg font-semibold">Edit task</h2> : <p className="text-sm text-foreground/60">Task</p>}
-          <div className="flex items-center gap-4">
-            {!editing ? (
-              <button type="button" onClick={() => setEditing(true)} className={button}>
-                Edit
-              </button>
-            ) : null}
-            <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
-              Close
-            </button>
-          </div>
+          <WindowButtons onEdit={editing ? undefined : () => setEditing(true)} onClose={onClose} />
         </>
       }
     >

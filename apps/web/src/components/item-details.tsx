@@ -11,7 +11,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { draftOfRule, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { ItemChat } from "./chats-about";
-import { Background, ChatSection, DetailsWindow, WindowLayout } from "./details-window";
+import { Background, ChatSection, DetailsWindow, WindowButtons, WindowLayout } from "./details-window";
 import { ITEM_TYPES, itemHref } from "./item-href";
 import { Files } from "./files";
 import { CompanyView, EventView, GoalView, KnowledgeView, PersonView, RecurrenceView } from "./details-views";
@@ -91,16 +91,7 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
       header={
         <>
           {editing ? <h2 className="text-lg font-semibold">Edit {kind}</h2> : <p className="text-sm text-foreground/60 first-letter:uppercase">{kind}</p>}
-          <div className="flex items-center gap-4">
-            {!editing && !fixed ? (
-              <button type="button" onClick={() => setEditing(true)} className={button}>
-                Edit
-              </button>
-            ) : null}
-            <button type="button" onClick={onClose} className="text-sm text-foreground/60 underline underline-offset-2">
-              Close
-            </button>
-          </div>
+          <WindowButtons onEdit={editing || fixed ? undefined : () => setEditing(true)} onClose={onClose} />
         </>
       }
     >

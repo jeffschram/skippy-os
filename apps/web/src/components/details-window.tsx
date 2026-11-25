@@ -1,5 +1,6 @@
 "use client";
 
+import { PencilSimple, X } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
 /**
@@ -22,6 +23,25 @@ export function DetailsWindow({ label, onClose, children }: { label: string; onC
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+const iconButton =
+  "inline-flex size-10 items-center justify-center rounded-lg border border-foreground/20 text-foreground/70 hover:bg-foreground/5 hover:text-foreground sm:size-9";
+
+/** The window's buttons at the top right: edit, when the record can be edited here, and close. */
+export function WindowButtons({ onEdit, onClose }: { onEdit?: () => void; onClose: () => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      {onEdit ? (
+        <button type="button" onClick={onEdit} aria-label="Edit" title="Edit" className={iconButton}>
+          <PencilSimple aria-hidden size={18} />
+        </button>
+      ) : null}
+      <button type="button" onClick={onClose} aria-label="Close" title="Close" className={iconButton}>
+        <X aria-hidden size={18} />
+      </button>
     </div>
   );
 }
