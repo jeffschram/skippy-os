@@ -36,7 +36,13 @@ export function useUpload() {
   };
 }
 
-export function Files({ type, id }: { type: EntityType; id: string }) {
+/**
+ * A record's files. On a project's page the list sits above an "Add a file"
+ * button. In a details window (`folded`) there is no button, since the chat
+ * box below the record takes files and they land here; the list is folded
+ * away under a "Files" line, and nothing at all is shown while there are none.
+ */
+export function Files({ type, id, folded }: { type: EntityType; id: string; folded?: boolean }) {
   const data = useQuery(api.viewer.files, { type, id });
   const add = useMutation(api.viewer.addFile);
   const remove = useMutation(api.viewer.removeFile);
@@ -61,62 +67,80 @@ export function Files({ type, id }: { type: EntityType; id: string }) {
     }
   }
 
+  const list =
+    data && data.files.length > 0 ? (
+      <ul className={folded ? "mt-3 space-y-2" : "mb-3 space-y-2"}>
+        {data.files.map((file) => (
+          <li key={file.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            {removing === file.id ? (
+              <>
+                <span className="flex-1 text-sm">Delete “{file.fileName}” for good? This cannot be undone.</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setError(undefined);
+                    try {
+                      await remove({ id: file.id });
+                    } catch (caught) {
+                      setError(problem(caught));
+                    }
+                    setRemoving(undefined);
+                  }}
+                  className={button}
+                >
+                  Delete file
+                </button>
+                <button type="button" onClick={() => setRemoving(undefined)} className={button}>
+                  Keep
+                </button>
+              </>
+            ) : (
+              <>
+                {file.url ? (
+                  <a href={file.url} target="_blank" rel="noreferrer" className="text-base underline underline-offset-2">
+                    {file.fileName}
+                  </a>
+                ) : (
+                  <span className="text-base">{file.fileName}</span>
+                )}
+                <span className="flex-1 text-xs text-foreground/60">
+                  {showSize(file.sizeBytes)}
+                  {file.addedAt ? ` · ${showTime(file.addedAt)}` : ""} · {file.addedBy}
+                  {file.note ? ` · ${file.note}` : ""}
+                </span>
+                <button type="button" onClick={() => setRemoving(file.id)} aria-label={`Delete file ${file.fileName}`} className={quiet}>
+                  Delete
+                </button>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    ) : null;
+  const problemLine = error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null;
+
+  if (folded) {
+    if (!data || data.files.length === 0) return null;
+    return (
+      <section className="border-t border-foreground/15 pt-4">
+        <details>
+          <summary className="cursor-pointer text-sm font-medium text-foreground/60">
+            Files <span className="font-normal">· {data.files.length}</span>
+          </summary>
+          {list}
+          {problemLine}
+        </details>
+      </section>
+    );
+  }
   return (
     <div>
-      {data && data.files.length > 0 ? (
-        <ul className="mb-3 space-y-2">
-          {data.files.map((file) => (
-            <li key={file.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              {removing === file.id ? (
-                <>
-                  <span className="flex-1 text-sm">Delete “{file.fileName}” for good? This cannot be undone.</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setError(undefined);
-                      try {
-                        await remove({ id: file.id });
-                      } catch (caught) {
-                        setError(problem(caught));
-                      }
-                      setRemoving(undefined);
-                    }}
-                    className={button}
-                  >
-                    Delete file
-                  </button>
-                  <button type="button" onClick={() => setRemoving(undefined)} className={button}>
-                    Keep
-                  </button>
-                </>
-              ) : (
-                <>
-                  {file.url ? (
-                    <a href={file.url} target="_blank" rel="noreferrer" className="text-base underline underline-offset-2">
-                      {file.fileName}
-                    </a>
-                  ) : (
-                    <span className="text-base">{file.fileName}</span>
-                  )}
-                  <span className="flex-1 text-xs text-foreground/60">
-                    {showSize(file.sizeBytes)}
-                    {file.addedAt ? ` · ${showTime(file.addedAt)}` : ""} · {file.addedBy}
-                    {file.note ? ` · ${file.note}` : ""}
-                  </span>
-                  <button type="button" onClick={() => setRemoving(file.id)} aria-label={`Delete file ${file.fileName}`} className={quiet}>
-                    Delete
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {list}
       <input ref={input} type="file" multiple onChange={chosen} className="hidden" aria-label="Choose files to add" />
       <button type="button" disabled={busy} onClick={() => input.current?.click()} className={`${button} disabled:opacity-50`}>
         {busy ? "Adding…" : "Add a file"}
       </button>
-      {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+      {problemLine}
     </div>
   );
 }

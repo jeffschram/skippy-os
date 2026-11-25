@@ -100,13 +100,9 @@ function Opened({ details, onClose }: { details: Details; onClose: () => void })
       </div>
       {editing ? <Form details={details} onDone={() => setEditing(false)} onClose={onClose} /> : <TaskView details={details} />}
       <div className="border-t border-foreground/15 pt-4">
-        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chat</h3>
         <ItemChat type="task" id={task.id} />
       </div>
-      <div className="border-t border-foreground/15 pt-4">
-        <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
-        <Files type="task" id={task.id} />
-      </div>
+      <Files type="task" id={task.id} folded />
       {details.history.length > 0 ? (
         <div className="border-t border-foreground/15 pt-4">
           <h3 className="text-sm font-medium text-foreground/60">History</h3>

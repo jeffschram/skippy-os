@@ -136,13 +136,9 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
         <GoalForm goal={bundle.record as Goal} onClose={done} />
       )}
       <section className="border-t border-foreground/15 pt-4">
-        <h3 className="mb-2 text-sm font-medium text-foreground/60">Chat</h3>
         <ItemChat type={type} id={id} />
       </section>
-      <section className="border-t border-foreground/15 pt-4">
-        <h3 className="mb-2 text-sm font-medium text-foreground/60">Files</h3>
-        <Files type={type} id={id} />
-      </section>
+      <Files type={type} id={id} folded />
       <Around bundle={bundle} />
     </div>
   );

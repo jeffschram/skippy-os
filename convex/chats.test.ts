@@ -342,6 +342,13 @@ describe("chats about a record, the brief, and archiving", () => {
     expect(chat!.messages.map((message) => message.content)).toEqual(["Which wood?", "Cedar.", "How much of it?", ""]);
     expect(earlier).toEqual([]);
     expect(await refusal(owner.query(api.viewerChat.itemChat, { type: "project", id: "garden-shed" }))).toBe("invalid_arguments");
+
+    // A file sent in the record's chat is one of the record's files too.
+    const claimedAgain = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimedAgain.turnId, status: "done", text: "Ten boards." });
+    const plan = (await t.run((ctx) => ctx.storage.store(new Blob(["%PDF"], { type: "application/pdf" })))) as Id<"_storage">;
+    await owner.mutation(api.viewerChat.start, { text: "Here is the plan", about, files: [{ storageId: plan, fileName: "plan.pdf" }] });
+    expect((await owner.query(api.viewer.files, about)).files.map((file) => file.fileName)).toEqual(["plan.pdf"]);
   });
 
   it("keeps an idea chat's brief as a note, and takes an archived chat off the lists", async () => {

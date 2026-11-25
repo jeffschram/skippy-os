@@ -8,7 +8,7 @@ import { EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime } from "./parts";
-import { AddTask, TaskItem, TaskList, type Task } from "./tasks";
+import { TaskItem, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
 /**
@@ -173,7 +173,6 @@ function Today() {
           ) : null}
         </div>
       )}
-      <AddTask />
     </Panel>
   );
 }

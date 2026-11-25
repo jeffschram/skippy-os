@@ -5,7 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention } from "./lib/entities";
 import { CHAT_FILE_TYPES, MAX_CHAT_FILES, recordFile } from "./files";
-import { refuse, requireText } from "./lib/common";
+import { logActivity, refuse, requireText } from "./lib/common";
 import { actor, cardDraft, cardKind } from "./schema";
 
 /**
@@ -49,7 +49,22 @@ export async function queueTurn(
     throw refuse("chat_busy", "The last message is still being answered. Wait for it, or cancel it.");
   }
   const userMessageId = await ctx.db.insert("chatMessages", { chatId, role: "user", content, status: "done", createdAt: now });
-  for (const file of files) await recordFile(ctx, { actor: { kind: "user" }, ...file, messageId: userMessageId, only: CHAT_FILE_TYPES });
+  // A file sent in a chat about a record is also one of that record's files, listed with the rest.
+  const scope = (await ctx.db.get(chatId))?.scope;
+  const attachedTo = scope?.kind === "item" ? scope.entityRef : undefined;
+  for (const file of files) {
+    const saved = await recordFile(ctx, { actor: { kind: "user" }, ...file, messageId: userMessageId, only: CHAT_FILE_TYPES, ...(attachedTo ? { attachedTo } : {}) });
+    if (attachedTo) {
+      await logActivity(ctx, {
+        entityType: attachedTo.entityType,
+        entityId: attachedTo.entityId,
+        activityType: "file.added",
+        actor: { kind: "user" },
+        at: now,
+        summary: `Added file "${saved.fileName}" to a ${attachedTo.entityType} through its chat`,
+      });
+    }
+  }
   // One millisecond later, so the reply always sorts after its question.
   const assistantMessageId = await ctx.db.insert("chatMessages", { chatId, role: "assistant", content: "", status: "waiting", createdAt: now + 1 });
   await ctx.db.patch(chatId, { updatedAt: now });
