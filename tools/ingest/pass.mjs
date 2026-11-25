@@ -43,6 +43,8 @@ const TOOLS = [
     "search",
     "get_today",
     "record_briefing",
+    "flag_for_owner",
+    "upsert_person",
   ].map((name) => SKIPPY + name),
 ];
 
