@@ -1,6 +1,7 @@
 import { actorLabel, INGEST_SOURCES, localDate, type IngestSource } from "@skippy/shared";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import { openFlags } from "./flags";
 import { dailyBriefing } from "./briefing";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
@@ -114,6 +115,8 @@ export const rubric = internalQuery({
       briefing: briefing ? { text: briefing.text, writtenAt: iso(briefing.updatedAt)! } : null,
       /** For the briefing's "Since yesterday": what was finished or reported since yesterday's first briefing. */
       progress: await progressSince(ctx, now, settings.timeZone),
+      /** What is on the owner's "Needs you" list now. Close with flag_for_owner what has been handled or is no longer true. */
+      flags: (await openFlags(ctx, now)).map(({ key, title, detail, about, until }) => ({ key, title, detail, about, until })),
       firstRunLookbackDays: LOOKBACK_DAYS,
     };
   },

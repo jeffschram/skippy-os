@@ -489,12 +489,46 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   record_briefing: {
     title: "Record briefing",
     description:
-      "Saves the owner's briefing for a day. The first ingestion pass of the day writes it, and every later pass rewrites it from what get_importance_rubric returns as `briefing`, so it stays current. For the daily briefing: up to three sections, each a **bold label** on its own line followed by lines that start with a hyphen and a space, about 120 words at most, no # headings, links or tables; it says what moved and what is worth knowing, and does not repeat the Today list shown under it. The weekly review follows its own skill. Writing a day's briefing again replaces it. The first save of today's sends the owner one notification; rewrites send none.",
+      "Saves the owner's briefing for a day. The first ingestion pass of the day writes it, and every later pass rewrites it from what get_importance_rubric returns as `briefing`, so it stays current. For the daily briefing: up to two sections, **Since yesterday** and **Worth knowing**, each a bold label on its own line followed by lines that start with a hyphen and a space, about 80 words at most, no # headings, links or tables; it says what moved and what is worth knowing, and does not repeat the Today list shown under it. Anything the owner has to act on goes to flag_for_owner instead. The weekly review follows its own skill. Writing a day's briefing again replaces it. The first save of today's sends the owner one notification; rewrites send none.",
     input: {
       text: z.string().trim().min(1).max(6000).describe("The note, written to the owner."),
       date: z.string().optional().describe("The day it is for, like 2026-11-25. Defaults to today."),
       runId: z.string().optional().describe("The ingestion run that wrote it, when one did."),
       kind: z.enum(["weekly"]).optional().describe('Pass "weekly" only when saving the weekly review. Leave out for the daily briefing.'),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  flag_for_owner: {
+    title: "Flag for the owner",
+    description:
+      "Puts something at the top of the owner's Home, under \"Needs you\": a thing to decide, answer or do soon that they would otherwise miss, such as two meetings at the same time, a check-in that has opened, or an email that asks them a question. Not every task: Home lists tasks already, so flag a task only when something makes it pressing that its row does not show, and pass it as `about`. Give `sources` so the owner can open the email or calendar event in one tap. Calling again with the same `key` updates the flag; `status: \"done\"` closes it once it is handled. It also stops showing after `until`, or once the record it is about is finished. get_importance_rubric lists the open ones. A flag the owner closed stays closed.",
+    input: {
+      key: z
+        .string()
+        .trim()
+        .min(1)
+        .max(120)
+        .describe('Your own stable name for it, such as "clash-2026-11-30-design-review" or "checkin-hotel-2026-11-25". The same key updates the same flag.'),
+      title: z.string().trim().max(160).optional().describe("What needs doing, as one short line starting with a verb. Required when raising a new one."),
+      detail: clearable(z.string().max(500)).describe("Why, in a sentence, when the title does not say it."),
+      about: clearable(record("The record it concerns, such as the event or the task.")),
+      sources: list(
+        z
+          .array(
+            z.object({
+              system: z.string().describe('Where it came from: "gmail", "google_calendar", "imessage", "web"…'),
+              url: z.string().optional().describe("The link that opens it, such as the email's or the calendar event's."),
+              threadId: z.string().optional().describe("For mail without a link: the Gmail thread id."),
+              messageId: z.string().optional(),
+            }),
+          )
+          .max(5),
+      )
+        .optional()
+        .describe("Where it came from, so Home can link to it. The record in `about` adds its own links."),
+      until: clearable(when("When it stops mattering; it stops showing then.")),
+      status: z.enum(["open", "done", "dismissed"]).optional().describe('"done" once it has been handled, "dismissed" if it turned out not to matter. Leave out to raise or update.'),
     },
     kind: "write",
     idempotent: true,

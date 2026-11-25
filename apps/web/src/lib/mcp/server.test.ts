@@ -44,6 +44,7 @@ describe("the MCP server", () => {
       "complete_recurrence",
       "complete_task",
       "create_phase",
+      "flag_for_owner",
       "get_agenda",
       "get_changes_since",
       "get_context_bundle",

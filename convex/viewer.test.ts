@@ -50,7 +50,7 @@ async function refusal(run: Promise<unknown>): Promise<string> {
 }
 
 describe("what needs the owner", () => {
-  it("lists blocked, at-risk and quiet projects, a failed pass and a silent mini, and nothing else", async () => {
+  it("lists blocked and at-risk projects, one line for the quiet ones, a failed pass and a silent mini, and nothing else", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });
     expect(await refusal(t.query(api.viewer.needsYou, { now: NOW }))).toBe("not_signed_in");
@@ -73,13 +73,13 @@ describe("what needs the owner", () => {
     expect(items.map((item) => [item.kind, "slug" in item ? item.slug : undefined])).toEqual([
       ["project_health", "kitchen"],
       ["project_health", "taxes"],
-      ["project_quiet", "garden"],
-      ["project_quiet", "portfolio"],
+      ["projects_quiet", undefined],
       ["mini_away", undefined],
     ]);
     expect(items[0]).toMatchObject({ health: "blocked", note: "Waiting on the countertop quote." });
-    expect(items[2]).toMatchObject({ days: 8 });
-    expect(items[3]).not.toHaveProperty("days");
+    // The quiet ones make one line, however many there are.
+    expect(items[2]).toMatchObject({ count: 2 });
+    expect((items[2] as { titles: string[] }).titles.sort()).toEqual(["Garden", "Portfolio"]);
 
     // The same day, the failed pass is there too; a later pass that works clears it.
     const sameDay = (await owner.query(api.viewer.needsYou, { now: NOW })).items;

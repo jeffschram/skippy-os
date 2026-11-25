@@ -7,6 +7,7 @@ import { eventsBetween, liveRecurrences, readAgenda, shiftDay } from "./agenda";
 import { listAreas } from "./areas";
 import { latestBriefing, latestReview } from "./briefing";
 import { listCaptures } from "./captures";
+import { openFlags, resolveFlag as closeFlag } from "./flags";
 import { fileOnCapture, filesOn, presentFile } from "./files";
 import { readIngestion } from "./ingestion";
 import { notify } from "./push";
@@ -105,39 +106,40 @@ const DAY = 24 * 60 * 60_000;
  * something. Worked out from what is stored, with no model involved. Tasks are
  * not here: Today lists the overdue and the waiting.
  */
+/**
+ * The top of Home: what needs the owner. First what a pass or a chat flagged,
+ * each with links back to where it came from; then a project that is blocked
+ * or at risk, one line for the projects gone quiet, a pass that failed and the
+ * mini not answering.
+ */
 export const needsYou = query({
   args: { now: v.number() },
   handler: async (ctx, args) => {
     await requireOwner(ctx);
     type Item =
+      | ({ kind: "flag" } & Awaited<ReturnType<typeof openFlags>>[number])
       | { kind: "project_health"; slug: string; title: string; health: "blocked" | "at_risk"; note?: string; since?: string }
-      | { kind: "project_quiet"; slug: string; title: string; days?: number }
+      | { kind: "projects_quiet"; count: number; titles: string[] }
       | { kind: "pass_failed"; pass?: string; at: string; note?: string }
       | { kind: "mini_away"; since: string };
-    const items: Item[] = [];
+    const items: Item[] = (await openFlags(ctx, args.now)).map((flag) => ({ kind: "flag" as const, ...flag }));
     const { projects: active } = await listProjects(ctx, { status: "active", now: args.now });
-    for (const project of active) {
-      if (project.health === "blocked" || project.health === "at_risk") {
-        items.push({
-          kind: "project_health",
-          slug: project.slug,
-          title: project.title,
-          health: project.health,
-          ...(project.statusNote ? { note: project.statusNote } : {}),
-          ...(project.statusUpdatedAt ? { since: project.statusUpdatedAt } : {}),
-        });
-      } else if (project.stale) {
-        items.push({
-          kind: "project_quiet",
-          slug: project.slug,
-          title: project.title,
-          ...(project.daysSinceStatus !== undefined ? { days: project.daysSinceStatus } : {}),
-        });
-      }
+    const troubled = active.filter((project) => project.health === "blocked" || project.health === "at_risk");
+    // Blocked first, then at risk.
+    troubled.sort((a, b) => (a.health === "blocked" ? 0 : 1) - (b.health === "blocked" ? 0 : 1));
+    for (const project of troubled) {
+      items.push({
+        kind: "project_health",
+        slug: project.slug,
+        title: project.title,
+        health: project.health as "blocked" | "at_risk",
+        ...(project.statusNote ? { note: project.statusNote } : {}),
+        ...(project.statusUpdatedAt ? { since: project.statusUpdatedAt } : {}),
+      });
     }
-    // Blocked first, then at risk, then the quiet ones.
-    const rank = (item: Item) => (item.kind === "project_health" ? (item.health === "blocked" ? 0 : 1) : 2);
-    items.sort((a, b) => rank(a) - rank(b));
+    // The quiet ones can be many, so they make one line.
+    const quiet = active.filter((project) => project.stale && !troubled.includes(project));
+    if (quiet.length > 0) items.push({ kind: "projects_quiet", count: quiet.length, titles: quiet.slice(0, 3).map((project) => project.title) });
 
     const lastRun = await ctx.db.query("ingestionRuns").withIndex("by_started").order("desc").first();
     if (lastRun?.status === "failed" && args.now - lastRun.startedAt < DAY) {
@@ -154,6 +156,17 @@ export const needsYou = query({
       if (args.now - seen > MINI_AWAY_MS) items.push({ kind: "mini_away", since: new Date(seen).toISOString() });
     }
     return { items };
+  },
+});
+
+/** The owner ticks off or dismisses something on "Needs you". */
+export const resolveFlag = mutation({
+  args: { id: v.id("flags"), status: v.union(v.literal("done"), v.literal("dismissed")) },
+  handler: async (ctx, args) => {
+    await requireOwner(ctx);
+    const flag = await ctx.db.get(args.id);
+    if (!flag) throw refuse("not_found", "That is no longer on the list.");
+    return { changed: await closeFlag(ctx, flag, args.status, OWNER, Date.now()) };
   },
 });
 

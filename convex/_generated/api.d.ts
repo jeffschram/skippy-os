@@ -15,6 +15,7 @@ import type * as captures from "../captures.js";
 import type * as chats from "../chats.js";
 import type * as crons from "../crons.js";
 import type * as files from "../files.js";
+import type * as flags from "../flags.js";
 import type * as gateway from "../gateway.js";
 import type * as goals from "../goals.js";
 import type * as ingestion from "../ingestion.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   chats: typeof chats;
   crons: typeof crons;
   files: typeof files;
+  flags: typeof flags;
   gateway: typeof gateway;
   goals: typeof goals;
   ingestion: typeof ingestion;

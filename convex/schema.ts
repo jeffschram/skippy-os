@@ -64,6 +64,14 @@ export const recurrenceStatus = v.union(v.literal("active"), v.literal("paused")
 export const eventStatus = v.union(v.literal("confirmed"), v.literal("cancelled"));
 /** "remember": to be filed. "hold": a private hand-off between devices that lapses. */
 export const captureIntent = v.union(v.literal("remember"), v.literal("hold"));
+/** Where something that needs the owner came from: enough to link back to it. */
+export const flagSource = v.object({
+  /** For example "gmail", "google_calendar", "imessage" or "web". */
+  system: v.string(),
+  url: v.optional(v.string()),
+  threadId: v.optional(v.string()),
+  messageId: v.optional(v.string()),
+});
 
 export const knowledgeKind = oneOf(KNOWLEDGE_KINDS);
 export const readState = v.union(v.literal("saved"), v.literal("unread"), v.literal("read"));
@@ -647,6 +655,29 @@ export default defineSchema({
   })
     .index("by_status", ["status", "createdAt"])
     .index("by_expiry", ["expiresAt"]),
+
+  // What needs the owner: something to decide, answer or do that they would
+  // otherwise miss. A pass or a chat raises it; it shows at the top of Home,
+  // with links to where it came from, until it is done, dismissed or lapses.
+  // See flags.ts.
+  flags: defineTable({
+    /** The raiser's own name for it, so raising it again updates it instead of adding another. */
+    key: v.string(),
+    title: v.string(),
+    detail: v.optional(v.string()),
+    /** The record it is about, such as the event or the task. */
+    about: v.optional(entityRef),
+    /** Where it came from: an email, a calendar event, a web page. */
+    sources: v.optional(v.array(flagSource)),
+    /** When it no longer matters. It stops showing then. */
+    until: v.optional(v.number()),
+    status: v.union(v.literal("open"), v.literal("done"), v.literal("dismissed")),
+    resolvedBy: v.optional(actor),
+    resolvedAt: v.optional(v.number()),
+    ...authored,
+  })
+    .index("by_key", ["key"])
+    .index("by_status", ["status", "updatedAt"]),
 
   // Nonces of gateway envelopes already used, kept until the envelope expires.
   gatewayNonces: defineTable({

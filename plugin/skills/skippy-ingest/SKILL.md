@@ -17,7 +17,7 @@ An ingestion pass reads what is new in the owner's calendar, mail or messages an
 
 ## Which tools
 
-- Skippy OS, through the connector named **Skippy OS**: `get_importance_rubric`, `record_ingestion_run`, `sync_calendar`, `ingest_objects`, `advance_source_cursor`, to check what is already on file `get_agenda` and `search`, and for the briefing `get_today` and `record_briefing`. An older connector named just "Skippy" is a retired system; never use it.
+- Skippy OS, through the connector named **Skippy OS**: `get_importance_rubric`, `record_ingestion_run`, `sync_calendar`, `ingest_objects`, `advance_source_cursor`, to check what is already on file `get_agenda` and `search`, for the briefing `get_today` and `record_briefing`, and for what needs the owner `flag_for_owner`. An older connector named just "Skippy" is a retired system; never use it.
 - The owner's Google Calendar and Gmail, through Claude's own connectors for them.
 - The owner's messages, as a transcript file on the Mac the pass runs on. The prompt gives its path. Read it with the file-reading tool; run no commands.
 
@@ -31,10 +31,10 @@ Read the sources the prompt names. If it names none, read Google Calendar only.
 
 ## Steps
 
-1. Call `get_importance_rubric`. It returns the rubric, the owner's own rules, the block list, each source's cursor, today's briefing as it stands, today's date and the owner's time zone. The owner's rules win over the rubric where they differ.
+1. Call `get_importance_rubric`. It returns the rubric, the owner's own rules, the block list, each source's cursor, today's briefing as it stands, what is on the owner's "Needs you" list (`flags`), today's date and the owner's time zone. The owner's rules win over the rubric where they differ.
 2. Call `record_ingestion_run` with `status: "started"` and a `pass` label (the hour, such as "11am", or "manual"). Keep the `runId`. If it answers that another run is in progress, stop and say so.
 3. Read each source as described below. A source that fails does not stop the others: note its error and leave its cursor where it was.
-4. Write the day's briefing, or bring it up to date, as described below. Every pass does this.
+4. Bring "Needs you" up to date, then write the day's briefing or bring it up to date, both as described below. Every pass does this.
 5. Call `record_ingestion_run` with the `runId`, `status: "finished"`, and one entry per source read: how many things you read and how many you left out. Use `status: "failed"` only when nothing could be read at all. Put anything the owner should know in `note`, in a sentence or two.
 6. Reply with two or three lines: what was read, what was made, and any problem.
 
@@ -115,27 +115,43 @@ Skippy OS links a record to every person on file whose full name, other name or 
 2. When someone is known by a number only, keep the number in the summary, so the record is linked once the number is added to a person.
 3. When the owner's messages show that a name or spelling always means one person on file, such as a nickname, add it to that person's `aliases` with `upsert_person`, keeping the ones already there. Records using it are then linked by themselves. Never add a name that could mean someone else.
 
+## Needs you
+
+The top of the owner's Home is "Needs you": a short list of what they have to decide, answer or do soon and would otherwise miss. A glance there should tell them whether anything needs them. Each line links to where it came from, so they can open the email or the calendar event in one tap, and they tick it off there.
+
+1. Flag, with `flag_for_owner`, only what needs the owner and that the Today and Upcoming lists do not show on their own:
+   - two things at the same time, or something booked inside time marked off (out of office, a trip);
+   - something that has opened or closes soon: a check-in, a registration, a reply someone is waiting on;
+   - a question someone asked the owner in mail or messages that they have not answered;
+   - something to do today because of what is coming (check in before tomorrow's flight), or a deadline whose date hides how close it is.
+   Not every task: Home lists the tasks. Flag a task only when something makes it pressing that its row does not show, and pass it as `about`.
+2. Write the `title` as what to do, starting with a verb: "Move the design review off Monday, your day off". Put the why in `detail` only when the title does not carry it. One short sentence each.
+3. Give the links: `about` the event or task it concerns, which adds that record's own calendar and mail links, and `sources` for the email (its `url`, or its `threadId`) or page it came from. An iMessage has no link; say who it was from in `detail`.
+4. Set `until` to when it stops mattering, such as the event's end or the check-in's deadline. It drops off then by itself.
+5. Use a `key` that names the matter, such as `clash-2026-11-30-design-review`, so a later pass updates the same line instead of adding another.
+6. Read the rubric's `flags`. Close each one that has been handled or is no longer true with `status: "done"`: the reply went out (sent mail shows it), the clash was moved, the check-in was done. Leave the rest alone; a flag whose `about` record is finished drops off by itself.
+7. Keep it short: about five lines at most. When there are more, flag the ones that matter most and leave out the rest. If the owner already closed one, it stays closed: do not raise the same matter under a new key.
+
 ## The briefing
 
-The briefing is the owner's note for the day, at the top of their dashboard. The first pass of the day writes it, and their phone tells them it is ready. Every later pass rewrites it, so that whenever they look it is current. Rewrites send no notification.
+The briefing is the owner's short read for the day, under "Needs you" on their dashboard. The first pass of the day writes it, and their phone tells them it is ready. Every later pass rewrites it, so that whenever they look it is current. Rewrites send no notification.
 
-Right under the briefing, the dashboard lists today's events, tasks, repeating things and what is waiting, and then the next seven days. The owner reads those lists there. The briefing tells them what the lists cannot.
+Above it is "Needs you"; under it, today's events, tasks, repeating things and what is waiting, and then the next seven days. The owner reads those there. The briefing tells them what those cannot: what has moved and what is worth knowing. Nothing in it should need action: anything that does is a flag instead.
 
 1. Call `get_today`, so you know what the Today list already shows. From 4pm in the owner's time zone, also call `get_agenda` with `from` set to tomorrow and `days: 1`.
-2. Write up to three sections, each a `**bold label**` on its own line followed by lines that start with `- `. Leave out a section with nothing in it.
-   - **Since yesterday:** what moved, from the rubric's `progress.items`: tasks finished, projects reported on or started, repeating things done. Sum it up; do not copy each line. Group what belongs together ("Three Thanksgiving tasks done: …"). Leave out what is trivial. A reply or a confirmation this pass read, such as someone saying yes to a plan, belongs here too.
-   - **Worth knowing:** what this pass or an earlier one read that made no record and still matters: a check-in that opened, a bill's amount, a change of plan someone mentioned.
-   - **Heads-up:** only what the lists cannot show on their own: two things at the same time, something to do today because of what is coming (check in before tomorrow's flight), a deadline whose date hides how close it is. Never list today's or tomorrow's events and tasks for their own sake.
-3. Do not repeat what the lists show. Do not restate a task, an event, a due date or a waiting item unless you add something the row does not say, and then say only that.
-4. Keep it short: about 120 words at most, one line per point, no more than four points in a section. Use only the bold labels and `- ` lists: no `#` headings, no links, no tables.
+2. Write up to two sections, each a `**bold label**` on its own line followed by lines that start with `- `. Leave out a section with nothing in it.
+   - **Since yesterday:** what moved in the owner's life and work, from the rubric's `progress.items`: tasks finished, projects reported on or started, repeating things done. Sum it up; do not copy each line. Group what belongs together ("Three Thanksgiving tasks done: …"). Leave out what is trivial. A reply or a confirmation this pass read, such as someone saying yes to a plan, belongs here too. Leave out reports of software built or shipped, such as changes to Skippy OS itself, unless the owner has to do something because of them.
+   - **Worth knowing:** what this pass or an earlier one read that made no record, needs nothing from the owner and still matters: a bill's amount, a change of plan someone mentioned, a reply that settled something.
+3. Do not repeat "Needs you" or the lists. Do not restate a flag, a task, an event, a due date or a waiting item.
+4. Keep it short: about 80 words at most, one line per point, no more than three points in a section. Use only the bold labels and `- ` lists: no `#` headings, no links, no tables.
 5. If the rubric's `briefing` is not null, this is a rewrite. Start from that text and write the note as it should read now:
    - Keep `progress` covering the same stretch: it starts at yesterday's first briefing all day long.
-   - Leave out what is over or no longer true.
+   - Leave out what is over or no longer true, and move anything that needs the owner to a flag. An older note may still have a **Heads-up** section: turn its points into flags and leave the section out.
    - Keep what an earlier pass said was worth knowing, while it is still true and still matters today.
    - Add what this pass read.
    - Write it whole, as one note. Do not add "Update:" lines or say what changed since the last version.
 6. Say only what the tools told you, what an earlier version of the note said, or what you read in this pass. Do not guess at how the owner feels about their day or what they should prioritise.
-7. Background on a task, such as what was found while looking into it, is on the task. Leave it out unless it changes what the owner should do today.
+7. Background on a task, such as what was found while looking into it, is on the task. Leave it out.
 8. Call `record_briefing` with the text and the `runId`. It answers whether a notification went out; that needs nothing from you.
 
 ## If a pass is interrupted

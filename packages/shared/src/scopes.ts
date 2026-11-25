@@ -38,6 +38,8 @@ export const OPERATIONS = {
   sync_calendar: { scope: SCOPE_WRITE },
   ingest_objects: { scope: SCOPE_WRITE },
   record_briefing: { scope: SCOPE_WRITE },
+  // What needs the owner, at the top of Home.
+  flag_for_owner: { scope: SCOPE_WRITE },
   // Dashboard chats.
   propose_promotion: { scope: SCOPE_WRITE },
   // Read.
