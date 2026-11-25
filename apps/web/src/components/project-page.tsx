@@ -67,6 +67,24 @@ function Loaded() {
         <Settings project={project} />
       </div>
 
+      {page.events.length > 0 ? <Events events={page.events} /> : null}
+
+      <Panel title="Tasks" icon={CheckSquare} note={`${page.openTasks.length} open`}>
+        {page.openTasks.length === 0 ? <Quiet>Nothing open.</Quiet> : <ByPhase tasks={page.openTasks} phases={page.phases} />}
+        <AddTask project={project.slug} />
+        {page.recentlyClosedTasks.length > 0 ? (
+          <details className="mt-6">
+            <summary className="cursor-pointer text-sm text-foreground/60">
+              {page.closedTaskCount} closed
+              {page.closedTaskCount > page.recentlyClosedTasks.length ? `, showing the latest ${page.recentlyClosedTasks.length}` : ""}
+            </summary>
+            <div className="mt-3">
+              <TaskList tasks={page.recentlyClosedTasks} />
+            </div>
+          </details>
+        ) : null}
+      </Panel>
+
       <Panel title="Status" icon={Flag}>
         {page.recentUpdates.length === 0 ? (
           <Quiet>No status reports yet. Claude adds one when it works on this project.</Quiet>
@@ -89,24 +107,6 @@ function Loaded() {
       </Panel>
 
       <Phases project={project.slug} phases={page.phases} />
-
-      {page.events.length > 0 ? <Events events={page.events} /> : null}
-
-      <Panel title="Tasks" icon={CheckSquare} note={`${page.openTasks.length} open`}>
-        {page.openTasks.length === 0 ? <Quiet>Nothing open.</Quiet> : <ByPhase tasks={page.openTasks} phases={page.phases} />}
-        <AddTask project={project.slug} />
-        {page.recentlyClosedTasks.length > 0 ? (
-          <details className="mt-6">
-            <summary className="cursor-pointer text-sm text-foreground/60">
-              {page.closedTaskCount} closed
-              {page.closedTaskCount > page.recentlyClosedTasks.length ? `, showing the latest ${page.recentlyClosedTasks.length}` : ""}
-            </summary>
-            <div className="mt-3">
-              <TaskList tasks={page.recentlyClosedTasks} />
-            </div>
-          </details>
-        ) : null}
-      </Panel>
 
       <Panel title="Chats" icon={ChatsCircle}>
         <ChatsAbout type="project" id={project.slug} />
