@@ -48,7 +48,7 @@ launchctl kickstart -k gui/$(id -u)/app.skippyos.chat-runner
 tools/chat-runner/install.sh
 ```
 
-This installs one per-user background job, `app.skippyos.chat-runner`, which starts the runner now and at each login and restarts it if it stops. It prints the runner's last word; "chat runner 1 on … talking to …" means it is up. The log is `~/.skippy-os/chat-runner.log`.
+This installs one per-user background job, `app.skippyos.chat-runner`, which starts the runner now and at each login and restarts it if it stops. It prints the runner's last word; "chat runner 6 on … talking to …" means it is up (the number is the runner's version). The log is `~/.skippy-os/chat-runner.log`.
 
 To run it by hand instead, for a look:
 

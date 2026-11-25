@@ -42,9 +42,10 @@ If the task is something only the owner can do in person (a haircut, a phone cal
 
 Each paragraph you write appears in the chat as soon as you write it, so the owner can follow along.
 
-- After your opening lines, write each finding when you have it, as a short paragraph or a few lines starting with a hyphen. Name the site or source.
+- After your opening lines, write each finding when you have it, as a short paragraph or a few lines starting with a hyphen.
+- Link every source to the exact page you read, with a Markdown link such as `[Celebration Cinema showtimes](https://www.celebrationcinema.com/showtimes)`, so the owner can open it.
 - Do not narrate tool calls or say what you are about to search for. Write what you found.
-- Plain text only: short paragraphs and hyphen lists. No headings, bold, tables or code blocks.
+- Light Markdown: short paragraphs, hyphen lists, bold for the one thing that matters most, and links. A table only when comparing options side by side. No headings or code blocks.
 
 ## Keeping the task current
 

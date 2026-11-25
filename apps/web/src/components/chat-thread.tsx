@@ -11,6 +11,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { Composer, CHAT_FILE_TYPES } from "./composer";
 import { showSize, useUpload } from "./files";
 import { itemHref } from "./item-href";
+import { MarkdownText } from "./markdown";
 import { button, problem, Tag } from "./parts";
 
 /**
@@ -43,8 +44,8 @@ export const replyIsComing = (chat: Chat | null) => chat?.turn != null && ["queu
  * chat page the page scrolls, with room left at the bottom for the pinned box;
  * in a details window (`boxed`) the messages scroll in a box of their own,
  * which fills the height the window has left and no more. The owner's
- * messages are on the right in a shaded box, the replies on the left in plain
- * text, with no names or times.
+ * messages are on the right in a shaded box, as typed; the replies are on the
+ * left, written in Markdown, with links that open. No names or times.
  */
 export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
   const now = useClock();
@@ -112,7 +113,7 @@ export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
             message.role === "user" ? (
               <p className="rounded-2xl bg-foreground/10 px-4 py-2.5 text-base leading-7 break-words whitespace-pre-wrap text-foreground">{message.content}</p>
             ) : (
-              <p className="text-base leading-7 break-words whitespace-pre-wrap text-foreground/80">{message.content}</p>
+              <MarkdownText text={message.content} className="text-base leading-7 text-foreground/80" />
             )
           ) : null}
           {message.role === "assistant" && message.id === last?.id ? <Status chat={chat} away={away} /> : null}
