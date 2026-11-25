@@ -107,6 +107,23 @@ describe("the calendar copy", () => {
   const dentist = { id: "g1", title: "Dentist", start: "2026-11-27T15:00:00-05:00", end: "2026-11-27T16:00:00-05:00", location: "12 Main St" };
   const trip = { id: "g2", title: "Kalamazoo", start: "2026-11-25", end: "2026-11-29" };
 
+  it("keeps the owner's done mark when a later pass changes the event", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    let runId = await begin(t);
+    await asClaude<Sync>(t, "sync_calendar", { runId, ...stretch, events: [dentist] });
+    await asClaude(t, "record_ingestion_run", { runId, status: "finished", sources: [{ source: "google_calendar", read: 1, skipped: 0 }] });
+    const [event] = (await owner.query(api.viewer.calendar, { now: NOW })).events;
+    await owner.mutation(api.viewer.markEventDone, { id: event.id, done: true });
+
+    tick();
+    runId = await begin(t);
+    const moved = await asClaude<Sync>(t, "sync_calendar", { runId, ...stretch, events: [{ ...dentist, title: "Dentist check-up" }] });
+    expect(moved).toMatchObject({ changed: 1 });
+    const [after] = (await owner.query(api.viewer.calendar, { now: NOW })).events;
+    expect([after.title, after.doneAt]).toEqual(["Dentist check-up", expect.any(String)]);
+  });
+
   it("copies events once, updates what changed, and cancels what is gone", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });

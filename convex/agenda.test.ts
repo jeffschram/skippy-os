@@ -111,6 +111,47 @@ describe("events", () => {
     );
     expect(await refusal(asClaude(t, "upsert_event", { id, title: "Mine now" }))).toBe("read_only");
   });
+
+  it("say when they are over, and can be ticked off early, Google copies too", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.saveEvent, { title: "Dentist", startAt: "2026-11-25T15:00", endAt: "2026-11-25T16:00" });
+    await owner.mutation(api.viewer.saveEvent, { title: "Call", startAt: "2026-11-25T09:00" });
+    await owner.mutation(api.viewer.saveEvent, { title: "Trip", startAt: "2026-11-25" });
+    const google = await t.run((ctx) =>
+      ctx.db.insert("calendarEvents", {
+        title: "From Google",
+        startAt: NOW + 3_600_000,
+        status: "confirmed",
+        origin: "google",
+        createdBy: { kind: "import", source: "google" },
+        updatedBy: { kind: "import", source: "google" },
+        updatedAt: NOW,
+      }),
+    );
+
+    const overAt = async () =>
+      Object.fromEntries((await owner.query(api.viewer.calendar, { now: NOW })).events.map((event) => [event.title, [event.overAt, event.doneAt]]));
+    // Its end; an hour after the start when it has none; the end of the day when all day.
+    expect(await overAt()).toEqual({
+      Call: ["2026-11-25T15:00:00.000Z", undefined],
+      Trip: ["2026-11-26T04:59:59.999Z", undefined],
+      Dentist: ["2026-11-25T21:00:00.000Z", undefined],
+      "From Google": ["2026-11-25T19:00:00.000Z", undefined],
+    });
+
+    expect(await owner.mutation(api.viewer.markEventDone, { id: google, done: true })).toEqual({ changed: true });
+    expect(await owner.mutation(api.viewer.markEventDone, { id: google, done: true })).toEqual({ changed: false });
+    expect((await overAt())["From Google"][1]).toMatch(/^2026-11-25T17:00/);
+    await owner.mutation(api.viewer.markEventDone, { id: google, done: false });
+    expect((await overAt())["From Google"][1]).toBeUndefined();
+
+    const { events } = await owner.query(api.viewer.activityLog, {});
+    expect(events.filter((event) => event.type.startsWith("event.") && event.type !== "event.created").map((event) => event.summary)).toEqual([
+      'Took the done mark off event "From Google"',
+      'Marked event "From Google" done',
+    ]);
+  });
 });
 
 describe("recurrences", () => {

@@ -60,6 +60,15 @@ function showMoment(at: number | undefined, timeZone: string) {
   return { ...shown, time: new Date(at + zoneOffsetMs(at, timeZone)).toISOString().slice(11, 16) };
 }
 
+const HOUR_MS = 3_600_000;
+
+/** The instant an event is over, so a page can show it as done once that has passed. */
+export function eventOverAt(event: Pick<Doc<"calendarEvents">, "startAt" | "endAt" | "allDay">, timeZone: string): number {
+  if (event.endAt !== undefined) return event.endAt;
+  if (event.allDay) return dayBounds(localDate(event.startAt, timeZone), timeZone).end;
+  return event.startAt + HOUR_MS;
+}
+
 export function presentEvent(event: Doc<"calendarEvents">, projectSlug: string | undefined, timeZone: string) {
   return {
     id: event._id,
@@ -69,6 +78,10 @@ export function presentEvent(event: Doc<"calendarEvents">, projectSlug: string |
     start: showMoment(event.startAt, timeZone)!,
     end: showMoment(event.endAt, timeZone),
     allDay: event.allDay ?? false,
+    /** When it is over: its end, the end of its day when all day, or an hour after it starts when it has no end. */
+    overAt: iso(eventOverAt(event, timeZone))!,
+    /** When the owner ticked it off early, if they did. */
+    doneAt: iso(event.doneAt),
     status: event.status,
     /** "skippy" events can be changed here. "google" ones are a copy of the owner's calendar. */
     origin: event.origin,
@@ -199,6 +212,36 @@ export const upsertEvent = internalMutation({
       ...(created ? {} : { diff }),
     });
     return { created, changed: true, event: shown };
+  },
+});
+
+/**
+ * Ticks an event off before it is over, or takes the tick away. Works on Google
+ * copies too: the mark is Skippy's own and the calendar never sees it.
+ */
+export const markEventDone = internalMutation({
+  args: { actor, id: v.string(), done: v.boolean() },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const settings = await getSettings(ctx);
+    const id = ctx.db.normalizeId("calendarEvents", args.id);
+    const existing = id ? await ctx.db.get(id) : null;
+    if (!existing) throw refuse("not_found", `There is no event with the id "${args.id}".`);
+    const slug = existing.projectId ? (await ctx.db.get(existing.projectId))?.slug : undefined;
+    if ((existing.doneAt !== undefined) === args.done) {
+      return { changed: false, event: presentEvent(existing, slug, settings.timeZone) };
+    }
+    await ctx.db.patch(existing._id, { doneAt: args.done ? now : undefined, updatedBy: args.actor, updatedAt: now });
+    await logActivity(ctx, {
+      entityType: "event",
+      entityId: existing._id,
+      activityType: args.done ? "event.done" : "event.reopened",
+      actor: args.actor,
+      at: now,
+      summary: args.done ? `Marked event "${existing.title}" done` : `Took the done mark off event "${existing.title}"`,
+    });
+    const event = (await ctx.db.get(existing._id))!;
+    return { changed: true, event: presentEvent(event, slug, settings.timeZone) };
   },
 });
 

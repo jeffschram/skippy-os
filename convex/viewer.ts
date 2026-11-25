@@ -588,6 +588,16 @@ export const saveEvent = mutation({
   },
 });
 
+/** Ticks an event off before it is over, or takes the tick away. Google copies too. */
+export const markEventDone = mutation({
+  args: { id: v.string(), done: v.boolean() },
+  handler: async (ctx, args): Promise<{ changed: boolean }> => {
+    await requireOwner(ctx);
+    const result = await ctx.runMutation(internal.agenda.markEventDone, { actor: OWNER, ...args });
+    return { changed: result.changed };
+  },
+});
+
 /** Adds something that recurs, or changes one when `id` is given. */
 export const saveRecurrence = mutation({
   args: {

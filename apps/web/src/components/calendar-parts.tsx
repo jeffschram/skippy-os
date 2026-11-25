@@ -7,6 +7,7 @@ import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { button, problem, showClock, showDay } from "./parts";
+import { useNow } from "./use-now";
 
 /** Rows and forms for events and for things that recur. Shared by Home, the Agenda and the details view. */
 
@@ -24,19 +25,55 @@ export function eventTime(event: EventItem): string {
   return `${showClock(event.start.time)}${end}${longer}`;
 }
 
+/** Whether an event is over by the clock. */
+export const eventIsOver = (event: EventItem, now: number) => Date.parse(event.overAt) <= now;
+
+/**
+ * An event with a box. It ticks itself once the event is over; before then the
+ * owner can tick it off early, or take that tick away again.
+ */
 export function EventRow({ event }: { event: EventItem }) {
+  const mark = useMutation(api.viewer.markEventDone);
+  const over = eventIsOver(event, useNow());
+  const done = over || event.doneAt !== undefined;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function toggle() {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await mark({ id: event.id, done: !done });
+    } catch (caught) {
+      setError(problem(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <li className="flex items-start gap-3">
-      <span className="mt-0.5 w-4 shrink-0 text-center text-sm text-foreground/50" aria-hidden>
-        ◦
-      </span>
+      <input
+        type="checkbox"
+        checked={done}
+        disabled={busy || over}
+        onChange={toggle}
+        title={over ? "Over" : undefined}
+        aria-label={over ? `"${event.title}" is over` : done ? `Take the done mark off "${event.title}"` : `Mark "${event.title}" done`}
+        className="mt-1.5 size-4 shrink-0 disabled:opacity-60"
+      />
       <div className="min-w-0 flex-1">
-        <Link href={`?item=event:${event.id}`} scroll={false} className="text-base underline-offset-2 hover:underline">
+        <Link
+          href={`?item=event:${event.id}`}
+          scroll={false}
+          className={`text-base underline-offset-2 hover:underline ${done ? "text-foreground/60 line-through" : ""}`}
+        >
           {event.title}
         </Link>
         <p className="text-sm text-foreground/60">
           {[eventTime(event), event.location, event.project].filter(Boolean).join(" · ")}
         </p>
+        {error ? <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       </div>
     </li>
   );

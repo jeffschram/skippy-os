@@ -263,6 +263,11 @@ export default defineSchema({
     htmlLink: v.optional(v.string()),
     /** Google copies only: the ingestion run that last saw the event in the calendar. */
     seenInRun: v.optional(v.id("ingestionRuns")),
+    /**
+     * When the owner ticked it off before it was over. Skippy's own mark, so it
+     * is kept on Google copies too and a pass never touches it.
+     */
+    doneAt: v.optional(v.number()),
     projectId: v.optional(v.id("projects")),
     ...authored,
   })
