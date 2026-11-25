@@ -472,7 +472,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   record_briefing: {
     title: "Record briefing",
     description:
-      "Saves the owner's briefing for a day. The first ingestion pass of the day writes it, and every later pass rewrites it from what get_importance_rubric returns as `briefing`, so it stays current. Plain text: short sentences and lines that start with a hyphen, no headings or other markup, about 200 words at most. Writing a day's briefing again replaces it. The first save of today's sends the owner one notification; rewrites send none.",
+      "Saves the owner's briefing for a day. The first ingestion pass of the day writes it, and every later pass rewrites it from what get_importance_rubric returns as `briefing`, so it stays current. For the daily briefing: up to three sections, each a **bold label** on its own line followed by lines that start with a hyphen and a space, about 120 words at most, no # headings, links or tables; it says what moved and what is worth knowing, and does not repeat the Today list shown under it. The weekly review follows its own skill. Writing a day's briefing again replaces it. The first save of today's sends the owner one notification; rewrites send none.",
     input: {
       text: z.string().trim().min(1).max(6000).describe("The note, written to the owner."),
       date: z.string().optional().describe("The day it is for, like 2026-11-25. Defaults to today."),

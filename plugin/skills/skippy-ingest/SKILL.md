@@ -108,19 +108,26 @@ For the run's counts, "read" is the number of new messages and "skipped" the num
 
 ## The briefing
 
-The briefing is the owner's note for the day, on their dashboard. The first pass of the day writes it, and their phone tells them it is ready. Every later pass rewrites it, so that whenever they look it says how the rest of the day stands. Rewrites send no notification.
+The briefing is the owner's note for the day, at the top of their dashboard. The first pass of the day writes it, and their phone tells them it is ready. Every later pass rewrites it, so that whenever they look it is current. Rewrites send no notification.
 
-1. Call `get_today`. It lists the day's events, the recurring things that are due, the tasks that are overdue, due or planned for today, and what is waiting on someone.
-2. From 4pm in the owner's time zone, also call `get_agenda` with `from` set to tomorrow and `days: 1`, for what tomorrow holds.
-3. Write the note to the owner, as "you". Lead with what is still ahead today: what is at a fixed time, what is due, what is overdue. Then anything worth knowing that made no record. From 4pm, end with a few lines on tomorrow: what is at a fixed time and what is due. Leave out what is not happening: do not list empty categories.
-4. If the rubric's `briefing` is not null, this is a rewrite. Start from that text and write the note as it should read now:
-   - Leave out what is over: events that have ended, tasks that are now done.
+Right under the briefing, the dashboard lists today's events, tasks, repeating things and what is waiting, and then the next seven days. The owner reads those lists there. The briefing tells them what the lists cannot.
+
+1. Call `get_today`, so you know what the Today list already shows. From 4pm in the owner's time zone, also call `get_agenda` with `from` set to tomorrow and `days: 1`.
+2. Write up to three sections, each a `**bold label**` on its own line followed by lines that start with `- `. Leave out a section with nothing in it.
+   - **Since yesterday:** what moved, from the rubric's `progress.items`: tasks finished, projects reported on or started, repeating things done. Sum it up; do not copy each line. Group what belongs together ("Three Thanksgiving tasks done: …"). Leave out what is trivial. A reply or a confirmation this pass read, such as someone saying yes to a plan, belongs here too.
+   - **Worth knowing:** what this pass or an earlier one read that made no record and still matters: a check-in that opened, a bill's amount, a change of plan someone mentioned.
+   - **Heads-up:** only what the lists cannot show on their own: two things at the same time, something to do today because of what is coming (check in before tomorrow's flight), a deadline whose date hides how close it is. Never list today's or tomorrow's events and tasks for their own sake.
+3. Do not repeat what the lists show. Do not restate a task, an event, a due date or a waiting item unless you add something the row does not say, and then say only that.
+4. Keep it short: about 120 words at most, one line per point, no more than four points in a section. Use only the bold labels and `- ` lists: no `#` headings, no links, no tables.
+5. If the rubric's `briefing` is not null, this is a rewrite. Start from that text and write the note as it should read now:
+   - Keep `progress` covering the same stretch: it starts at yesterday's first briefing all day long.
+   - Leave out what is over or no longer true.
    - Keep what an earlier pass said was worth knowing, while it is still true and still matters today.
-   - Add what this pass read that is worth knowing and made no record.
+   - Add what this pass read.
    - Write it whole, as one note. Do not add "Update:" lines or say what changed since the last version.
-5. Keep it short: about 200 words at most. Plain text only: short sentences, and lines that start with a hyphen for a list. No headings, no bold, no links.
 6. Say only what the tools told you, what an earlier version of the note said, or what you read in this pass. Do not guess at how the owner feels about their day or what they should prioritise.
-7. Call `record_briefing` with the text and the `runId`. It answers whether a notification went out; that needs nothing from you.
+7. Background on a task, such as what was found while looking into it, is on the task. Leave it out unless it changes what the owner should do today.
+8. Call `record_briefing` with the text and the `runId`. It answers whether a notification went out; that needs nothing from you.
 
 ## If a pass is interrupted
 

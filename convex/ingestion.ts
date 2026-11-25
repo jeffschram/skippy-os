@@ -22,6 +22,29 @@ import { actor, ingestSource, knowledgeKind } from "./schema";
  */
 
 export const LOOKBACK_DAYS = 14;
+const DAY_MS = 86_400_000;
+/** What counts as progress for the briefing's "Since yesterday": things finished or reported, not bookkeeping. */
+const PROGRESS = new Set(["task.completed", "recurrence.completed", "project.status_recorded", "project.created"]);
+const PROGRESS_LIMIT = 40;
+
+/**
+ * What moved since yesterday's first briefing, newest first, for the briefing to sum up.
+ * With no briefing yesterday it looks back a day. The start stays put all day, so every rewrite covers the same stretch.
+ */
+async function progressSince(ctx: QueryCtx, now: number, timeZone: string) {
+  const yesterday = new Date(Date.parse(`${localDate(now, timeZone)}T00:00:00Z`) - DAY_MS).toISOString().slice(0, 10);
+  const since = (await dailyBriefing(ctx, yesterday))?._creationTime ?? now - DAY_MS;
+  const items = [];
+  for await (const row of ctx.db
+    .query("activityEvents")
+    .withIndex("by_at", (q) => q.gt("at", since))
+    .order("desc")) {
+    if (!PROGRESS.has(row.activityType)) continue;
+    items.push({ at: iso(row.at)!, by: actorLabel(row.actor), what: row.summary });
+    if (items.length >= PROGRESS_LIMIT) break;
+  }
+  return { since: iso(since)!, items };
+}
 /** A run that has not finished after this long is taken to have died. */
 const STALE_RUN_MS = 45 * 60_000;
 const MAX_SUMMARY = 600;
@@ -89,6 +112,8 @@ export const rubric = internalQuery({
       briefingWritten: briefing !== null,
       /** Today's briefing as it stands, for a later pass to bring up to date. */
       briefing: briefing ? { text: briefing.text, writtenAt: iso(briefing.updatedAt)! } : null,
+      /** For the briefing's "Since yesterday": what was finished or reported since yesterday's first briefing. */
+      progress: await progressSince(ctx, now, settings.timeZone),
       firstRunLookbackDays: LOOKBACK_DAYS,
     };
   },

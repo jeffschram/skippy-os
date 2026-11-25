@@ -6,7 +6,7 @@ import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { button } from "./parts";
-import { problem, showDay } from "./parts";
+import { doneBox, problem, showDay } from "./parts";
 
 /** Task rows the owner can tick off and add to. A title opens the task's details. Every change goes through `viewer.saveTask`. */
 
@@ -54,7 +54,7 @@ export function TaskItem({ task, showProject }: { task: Task; showProject?: bool
         checked={closed}
         onChange={toggle}
         aria-label={closed ? `Reopen "${task.title}"` : `Mark "${task.title}" done`}
-        className="mt-1.5 size-4 shrink-0"
+        className={`mt-1.5 ${doneBox(closed)}`}
       />
       <div className="min-w-0 flex-1">
         <Link
@@ -64,7 +64,7 @@ export function TaskItem({ task, showProject }: { task: Task; showProject?: bool
         >
           {task.title}
         </Link>
-        <p className="text-sm text-foreground/60">
+        <p className="truncate text-sm text-foreground/60" title={details.join(" · ") || undefined}>
           {showProject && task.project ? (
             <>
               <Link href={`/projects/${task.project}`} className="underline underline-offset-2">

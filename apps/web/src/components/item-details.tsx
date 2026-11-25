@@ -9,7 +9,7 @@ import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { draftOfRule, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { draftOfRule, EventDoneBox, RuleFields, ruleOfDraft, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { ItemChat } from "./chats-about";
 import { Background, ChatSection, DetailsWindow, WindowButtons, WindowLayout } from "./details-window";
 import { ITEM_TYPES, itemHref } from "./item-href";
@@ -91,7 +91,10 @@ function Loaded({ type, id, onClose }: { type: ItemType; id: string; onClose: ()
       header={
         <>
           {editing ? <h2 className="text-lg font-semibold">Edit {kind}</h2> : <p className="text-sm text-foreground/60 first-letter:uppercase">{kind}</p>}
-          <WindowButtons onEdit={editing || fixed ? undefined : () => setEditing(true)} onClose={onClose} />
+          <div className="flex items-center gap-4">
+            {type === "event" && !editing ? <EventDoneBox event={bundle.record as EventItem} /> : null}
+            <WindowButtons onEdit={editing || fixed ? undefined : () => setEditing(true)} onClose={onClose} />
+          </div>
         </>
       }
     >

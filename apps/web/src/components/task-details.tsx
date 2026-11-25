@@ -10,7 +10,7 @@ import { TaskView } from "./details-views";
 import { Background, ChatSection, DetailsWindow, WindowButtons, WindowLayout } from "./details-window";
 import { Files } from "./files";
 import { button } from "./parts";
-import { problem, Quiet, showTime } from "./parts";
+import { doneBox, problem, Quiet, showTime } from "./parts";
 import { useNow } from "./use-now";
 
 /**
@@ -129,7 +129,7 @@ function DoneBox({ task }: { task: Task }) {
             setError(problem(caught));
           }
         }}
-        className="size-4"
+        className={doneBox(done)}
       />
       <span className={error ? "text-red-700 dark:text-red-300" : ""}>{error ? "Not saved" : "Done"}</span>
     </label>

@@ -92,6 +92,33 @@ describe("an ingestion run", () => {
     expect(seen.health.find((entry) => entry.source === "imessage")?.coveredAt).toBeUndefined();
   });
 
+  it("gives the briefing what moved since yesterday's first briefing, and only progress", async () => {
+    const t = start();
+    // Yesterday's briefing, first written at 9am New York; anything before it is old news.
+    await t.run((ctx) =>
+      ctx.db.insert("briefings", {
+        date: "2026-11-24",
+        text: "Yesterday.",
+        createdBy: { kind: "user" },
+        updatedBy: { kind: "user" },
+        updatedAt: NOW,
+      }),
+    );
+    const since = (await t.run(async (ctx) => (await ctx.db.query("briefings").first())!._creationTime));
+    const made = await asClaude<{ task: { id: string } }>(t, "upsert_task", { title: "Buy stamps" });
+    await asClaude(t, "complete_task", { id: made.task.id });
+    await asClaude(t, "upsert_project", { slug: "garden", title: "Garden" });
+    await asClaude(t, "record_project_status", { project: "garden", note: "Beds dug." });
+
+    const rubric = await asClaude<{ progress: { since: string; items: { what: string; by: string }[] } }>(t, "get_importance_rubric", {});
+    expect(rubric.progress.since).toBe(new Date(since).toISOString());
+    expect(rubric.progress.items.map((item) => item.what)).toEqual([
+      'Status for "Garden": Beds dug.',
+      'Created project "Garden"',
+      'Completed task "Buy stamps"',
+    ]);
+  });
+
   it("closes a run that died, so later passes are not locked out", async () => {
     const t = start();
     await begin(t);

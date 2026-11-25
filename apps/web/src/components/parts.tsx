@@ -5,6 +5,9 @@ import type { ReactNode } from "react";
 
 export const button = "rounded-md border border-foreground/20 px-3 py-1.5 text-sm font-medium hover:bg-foreground/5";
 
+/** A done box's look: the same grey tick for a task or an event, however it got ticked. */
+export const doneBox = (done: boolean) => `size-4 shrink-0 ${done ? "accent-neutral-500" : ""}`;
+
 export function Panel({ title, icon: TitleIcon, note, children }: { title: string; icon: Icon; note?: ReactNode; children: ReactNode }) {
   return (
     <section>

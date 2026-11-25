@@ -6,7 +6,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { button, problem, showClock, showDay } from "./parts";
+import { button, doneBox, problem, showClock, showDay } from "./parts";
 import { useNow } from "./use-now";
 
 /** Rows and forms for events and for things that recur. Shared by Home, the Agenda and the details view. */
@@ -29,10 +29,10 @@ export function eventTime(event: EventItem): string {
 export const eventIsOver = (event: EventItem, now: number) => Date.parse(event.overAt) <= now;
 
 /**
- * An event with a box. It ticks itself once the event is over; before then the
- * owner can tick it off early, or take that tick away again.
+ * Whether an event is done, and the tick that marks it. It is done once it is
+ * over by the clock; before then the owner can tick it off early, or take that back.
  */
-export function EventRow({ event }: { event: EventItem }) {
+function useEventDone(event: EventItem) {
   const mark = useMutation(api.viewer.markEventDone);
   const over = eventIsOver(event, useNow());
   const done = over || event.doneAt !== undefined;
@@ -40,6 +40,8 @@ export function EventRow({ event }: { event: EventItem }) {
   const [error, setError] = useState<string>();
 
   async function toggle() {
+    // Over by the clock: there is nothing to take back.
+    if (over || busy) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -51,31 +53,85 @@ export function EventRow({ event }: { event: EventItem }) {
     }
   }
 
+  const label = over ? `"${event.title}" is over` : done ? `Take the done mark off "${event.title}"` : `Mark "${event.title}" done`;
+  return { over, done, toggle, label, error };
+}
+
+/** The box itself. Once the event is over it stays ticked and looks like any other tick. */
+function EventBox({ state, className = "" }: { state: ReturnType<typeof useEventDone>; className?: string }) {
+  return (
+    <input
+      type="checkbox"
+      checked={state.done}
+      onChange={state.toggle}
+      aria-disabled={state.over || undefined}
+      title={state.over ? "Over" : undefined}
+      aria-label={state.label}
+      className={`${doneBox(state.done)} ${state.over ? "cursor-default" : ""} ${className}`}
+    />
+  );
+}
+
+export function EventRow({ event }: { event: EventItem }) {
+  const state = useEventDone(event);
   return (
     <li className="flex items-start gap-3">
-      <input
-        type="checkbox"
-        checked={done}
-        disabled={busy || over}
-        onChange={toggle}
-        title={over ? "Over" : undefined}
-        aria-label={over ? `"${event.title}" is over` : done ? `Take the done mark off "${event.title}"` : `Mark "${event.title}" done`}
-        className="mt-1.5 size-4 shrink-0 disabled:opacity-60"
-      />
+      <EventBox state={state} className="mt-1.5" />
       <div className="min-w-0 flex-1">
         <Link
           href={`?item=event:${event.id}`}
           scroll={false}
-          className={`text-base underline-offset-2 hover:underline ${done ? "text-foreground/60 line-through" : ""}`}
+          className={`text-base underline-offset-2 hover:underline ${state.done ? "text-foreground/60 line-through" : ""}`}
         >
           {event.title}
         </Link>
-        <p className="text-sm text-foreground/60">
+        <p className="truncate text-sm text-foreground/60">
           {[eventTime(event), event.location, event.project].filter(Boolean).join(" · ")}
         </p>
-        {error ? <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+        {state.error ? <p className="mt-1 text-sm text-red-700 dark:text-red-300">{state.error}</p> : null}
       </div>
     </li>
+  );
+}
+
+/** A Done box for an event's window. */
+export function EventDoneBox({ event }: { event: EventItem }) {
+  const state = useEventDone(event);
+  return (
+    <label className={`flex items-center gap-2 text-sm ${state.over ? "" : "cursor-pointer"}`} title={state.error}>
+      <EventBox state={state} />
+      <span className={state.error ? "text-red-700 dark:text-red-300" : ""}>{state.error ? "Not saved" : state.over ? "Over" : "Done"}</span>
+    </label>
+  );
+}
+
+/**
+ * The day's all-day events on one line, such as someone's out-of-office: they
+ * are background, not something to do. Each opens in its window, where it can be ticked off.
+ */
+export function AllDayLine({ events }: { events: EventItem[] }) {
+  const now = useNow();
+  return (
+    <p className="text-sm text-foreground/60">
+      All day:{" "}
+      {events.map((event, index) => {
+        const done = eventIsOver(event, now) || event.doneAt !== undefined;
+        const longer = event.end && event.end.date !== event.start.date ? ` (until ${showDay(event.end.date)})` : "";
+        return (
+          <span key={event.id}>
+            {index > 0 ? " · " : ""}
+            <Link
+              href={`?item=event:${event.id}`}
+              scroll={false}
+              className={`underline-offset-2 hover:underline ${done ? "line-through" : "text-foreground/80"}`}
+            >
+              {event.title}
+            </Link>
+            {longer}
+          </span>
+        );
+      })}
+    </p>
   );
 }
 

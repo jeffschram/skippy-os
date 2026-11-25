@@ -4,7 +4,8 @@ import { CalendarBlank, CalendarDot, ChatsCircle, HandPalm, NewspaperClipping } 
 import { api } from "@convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { AllDayLine, EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { MarkdownText } from "./markdown";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime } from "./parts";
@@ -56,7 +57,7 @@ function Briefing() {
       ) : null}
       {briefing ? (
         <>
-          <p className={`text-base leading-7 whitespace-pre-wrap ${briefing.isToday ? "" : "text-foreground/70"}`}>{briefing.text}</p>
+          <MarkdownText text={briefing.text} className={`text-base leading-7 ${briefing.isToday ? "" : "text-foreground/70"}`} />
           <p className="mt-3 text-xs text-foreground/60">
             {briefing.by} · {showTime(briefing.writtenAt)}
           </p>
@@ -75,7 +76,7 @@ function WeeklyReview() {
       <summary className="cursor-pointer border-b border-foreground/15 pb-2 text-lg font-semibold">
         Weekly review <span className="text-sm font-normal text-foreground/60">· {showDay(review.date)}</span>
       </summary>
-      <p className="mt-4 text-base leading-7 whitespace-pre-wrap">{review.text}</p>
+      <MarkdownText text={review.text} className="mt-4 text-base leading-7" />
       <p className="mt-3 text-xs text-foreground/60">
         {review.by} · {showTime(review.writtenAt)}
       </p>
@@ -126,7 +127,20 @@ function timeline(events: EventItem[], tasks: Task[], recurrences: RecurrenceIte
   ].sort((a, b) => a.at - b.at || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
 }
 
+const isAllDay = (entry: Entry) => entry.kind === "event" && entry.event.allDay;
+
+/** A day's entries in time order, with its all-day events folded into one line at the top, where they would sort anyway. */
 function EntryList({ entries }: { entries: Entry[] }) {
+  const allDay = entries.flatMap((entry) => (entry.kind === "event" && entry.event.allDay ? [entry.event] : []));
+  return (
+    <div className="space-y-2">
+      {allDay.length > 0 ? <AllDayLine events={allDay} /> : null}
+      <EntryRows entries={entries.filter((entry) => !isAllDay(entry))} />
+    </div>
+  );
+}
+
+function EntryRows({ entries }: { entries: Entry[] }) {
   return (
     <ul className="space-y-2">
       {entries.map((entry) =>
