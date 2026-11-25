@@ -138,7 +138,7 @@ export function CaptureDock({ wide }: { wide?: boolean }) {
         canSend={!busy && !empty}
         tools={
           <>
-            <fieldset className="inline-flex rounded-full border border-foreground/20 p-0.5">
+            <fieldset className="button-size inline-flex rounded-full border border-foreground/20 p-0.5">
               <legend className="sr-only">What sending does</legend>
               {MODES.map((entry) => (
                 <label

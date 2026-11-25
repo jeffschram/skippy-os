@@ -23,3 +23,64 @@ body {
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
+
+/*
+ * Larger text on phones. Every text size steps up about two pixels, and text
+ * with no size of its own follows the body.
+ *
+ * Buttons keep the sizes they had. Inside a button the original sizes are set
+ * again, so a button with its own size class, and anything in it, looks as
+ * before. A button with no size class takes its size from the text around it,
+ * so each size class also passes down `--size-before`, its size before this
+ * step-up, and a button uses that. Controls that work like buttons but are not
+ * <button>s, such as the Chat / Capture / Hold switch, take the class
+ * `button-size` for the same. All of it is in the base layer, so a button's
+ * own size class still wins.
+ */
+@media (max-width: 639px) {
+  :root {
+    --text-xs: 0.8125rem;
+    --text-sm: 1rem;
+    --text-base: 1.125rem;
+    --text-lg: 1.25rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.625rem;
+  }
+
+  @layer base {
+    body {
+      font-size: var(--text-base);
+      --size-before: 1rem;
+    }
+
+    .text-xs {
+      --size-before: 0.75rem;
+    }
+    .text-sm {
+      --size-before: 0.875rem;
+    }
+    .text-base {
+      --size-before: 1rem;
+    }
+    .text-lg {
+      --size-before: 1.125rem;
+    }
+    .text-xl {
+      --size-before: 1.25rem;
+    }
+    .text-2xl {
+      --size-before: 1.5rem;
+    }
+
+    button,
+    .button-size {
+      --text-xs: 0.75rem;
+      --text-sm: 0.875rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.25rem;
+      --text-2xl: 1.5rem;
+      font-size: var(--size-before, 1rem);
+    }
+  }
+}
