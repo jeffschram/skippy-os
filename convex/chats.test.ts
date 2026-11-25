@@ -351,6 +351,25 @@ describe("chats about a record, the brief, and archiving", () => {
     expect((await owner.query(api.viewer.files, about)).files.map((file) => file.fileName)).toEqual(["plan.pdf"]);
   });
 
+  it("hands a task to its chat's session, showing a short line and asking for the work", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const { id } = ((await asClaude(t, "upsert_task", { title: "Find a plumber" })) as unknown as { task: { id: string } }).task;
+    const { chatId } = await owner.mutation(api.viewerChat.delegate, { taskId: id });
+    const { chat } = await owner.query(api.viewerChat.itemChat, { type: "task", id });
+    expect(chat!.id).toBe(chatId);
+    expect(chat!.messages[0].content).toBe("Work on this task for me.");
+    expect(chat!.turn).toMatchObject({ kind: "delegate", status: "queued" });
+    const claimed = (await t.mutation(api.runner.claim, mini)) as Claimed;
+    expect(claimed.text).toContain("The owner has handed this task to you.");
+    expect(claimed.scope).toMatchObject({ kind: "item", record: { type: "task", id } });
+    await t.mutation(api.runner.finish, { ...mini, turnId: claimed.turnId, status: "done", text: "Three plumbers nearby." });
+
+    await owner.mutation(api.viewer.saveTask, { id, status: "done" });
+    expect(await refusal(owner.mutation(api.viewerChat.delegate, { taskId: id }))).toBe("invalid_arguments");
+    expect(await refusal(t.mutation(api.viewerChat.delegate, { taskId: id }))).toBe("not_signed_in");
+  });
+
   it("keeps an idea chat's brief as a note, and takes an archived chat off the lists", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });

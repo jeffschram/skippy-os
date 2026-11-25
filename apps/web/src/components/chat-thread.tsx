@@ -7,7 +7,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useMutation } from "convex/react";
 import Link from "next/link";
 import { FilePdf } from "@phosphor-icons/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Composer, CHAT_FILE_TYPES } from "./composer";
 import { showSize, useUpload } from "./files";
 import { itemHref } from "./item-href";
@@ -169,7 +169,7 @@ export function Messages({ chat, boxed }: { chat: Chat; boxed?: boolean }) {
  * record's one chat, which the server starts if there is none yet and brings
  * back if it was archived; `chat` is then that chat, or null before it exists.
  */
-export function ChatBox({ chat, about }: { chat: Chat | null; about?: { type: EntityType; id: string } }) {
+export function ChatBox({ chat, about, tools }: { chat: Chat | null; about?: { type: EntityType; id: string }; tools?: (busy: boolean) => ReactNode }) {
   const send = useMutation(api.viewerChat.send);
   const start = useMutation(api.viewerChat.start);
   const cancel = useMutation(api.viewerChat.cancel);
@@ -211,6 +211,7 @@ export function ChatBox({ chat, about }: { chat: Chat | null; about?: { type: En
       onSend={submit}
       onStop={busy && chat ? () => cancel({ chatId: chat.id }) : undefined}
       accept={CHAT_FILE_TYPES}
+      tools={tools?.(busy || sending)}
       refusal={about ? "A chat reads images and PDFs. Add any other file under Files." : "A chat reads images and PDFs. Keep any other file with Capture, from another page."}
       label="Message"
       placeholder={closed ? "This chat is archived." : busy ? "Waiting for the reply…" : about && !chat ? "Ask or say something about this" : "Say something"}

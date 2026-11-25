@@ -76,18 +76,22 @@ function Loaded({ id, onClose }: { id: string; onClose: () => void }) {
 function Opened({ details, onClose }: { details: Details; onClose: () => void }) {
   const [editing, setEditing] = useState(false);
   const { task } = details;
+  const closed = task.status === "done" || task.status === "cancelled";
   return (
     <WindowLayout
       header={
         <>
           {editing ? <h2 className="text-lg font-semibold">Edit task</h2> : <p className="text-sm text-foreground/60">Task</p>}
-          <WindowButtons onEdit={editing ? undefined : () => setEditing(true)} onClose={onClose} />
+          <div className="flex items-center gap-4">
+            {editing ? null : <DoneBox task={task} />}
+            <WindowButtons onEdit={editing ? undefined : () => setEditing(true)} onClose={onClose} />
+          </div>
         </>
       }
     >
       {editing ? <Form details={details} onDone={() => setEditing(false)} onClose={onClose} /> : <TaskView details={details} />}
       <ChatSection>
-        <ItemChat type="task" id={task.id} />
+        <ItemChat type="task" id={task.id} delegable={!closed} />
       </ChatSection>
       <Files type="task" id={task.id} folded />
       <Background parts={details.history.length > 0 ? ["History"] : []}>
@@ -104,6 +108,31 @@ function Opened({ details, onClose }: { details: Details; onClose: () => void })
         </ul>
       </Background>
     </WindowLayout>
+  );
+}
+
+/** Ticks the task off, or opens it again. */
+function DoneBox({ task }: { task: Task }) {
+  const save = useMutation(api.viewer.saveTask);
+  const [error, setError] = useState<string>();
+  const done = task.status === "done";
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-sm" title={error}>
+      <input
+        type="checkbox"
+        checked={done}
+        onChange={async () => {
+          setError(undefined);
+          try {
+            await save({ id: task.id, status: done ? "todo" : "done" });
+          } catch (caught) {
+            setError(problem(caught));
+          }
+        }}
+        className="size-4"
+      />
+      <span className={error ? "text-red-700 dark:text-red-300" : ""}>{error ? "Not saved" : "Done"}</span>
+    </label>
   );
 }
 

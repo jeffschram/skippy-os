@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { findEntity, mention, type Ref } from "./lib/entities";
-import { BRIEF_REQUEST, chatOfRecord, describeScope, failTurn, queueTurn, startChat } from "./chats";
+import { BRIEF_REQUEST, chatOfRecord, DELEGATE_REQUEST, DELEGATE_SHOWN, describeScope, failTurn, queueTurn, startChat } from "./chats";
 import { filesOnMessage, presentFile } from "./files";
 import { refuse } from "./lib/common";
 import { cardDraft, entityType } from "./schema";
@@ -27,6 +27,23 @@ export const start = mutation({
   handler: async (ctx, args): Promise<{ chatId: string }> => {
     await requireOwner(ctx);
     return { chatId: await startChat(ctx, args) };
+  },
+});
+
+/**
+ * Hands a task to its chat's session to work on. The chat shows a short line
+ * from the owner; the session is asked to do what it can and report as it goes.
+ */
+export const delegate = mutation({
+  args: { taskId: v.string() },
+  handler: async (ctx, args): Promise<{ chatId: string }> => {
+    await requireOwner(ctx);
+    const id = ctx.db.normalizeId("tasks", args.taskId);
+    const task = id ? await ctx.db.get(id) : null;
+    if (!task) throw refuse("not_found", `There is no task with the id "${args.taskId}".`);
+    if (task.status === "done" || task.status === "cancelled") throw refuse("invalid_arguments", "That task is closed. Reopen it first.");
+    const chatId = await startChat(ctx, { text: DELEGATE_SHOWN, about: { type: "task", id: args.taskId }, kind: "delegate", prompt: DELEGATE_REQUEST });
+    return { chatId };
   },
 });
 

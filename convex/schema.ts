@@ -463,8 +463,13 @@ export default defineSchema({
     ),
     leaseUntil: v.optional(v.number()),
     host: v.optional(v.string()),
-    /** "brief": the reply is a hand-off brief, saved to the project's notes or as a note when it is done. */
-    kind: v.optional(v.literal("brief")),
+    /**
+     * "brief": the reply is a hand-off brief, saved to the project's notes or as a note when it is done.
+     * "delegate": the owner handed the chat's task to the session to work on.
+     */
+    kind: v.optional(v.union(v.literal("brief"), v.literal("delegate"))),
+    /** What the session is asked, when it is not the owner's message as shown in the chat. */
+    prompt: v.optional(v.string()),
     /** What the session is doing right now, in a few words. */
     activity: v.optional(v.string()),
     error: v.optional(v.string()),

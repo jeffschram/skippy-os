@@ -1,5 +1,6 @@
 "use client";
 
+import { Robot } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import type { EntityType } from "@skippy/shared";
 import { useMutation, useQuery } from "convex/react";
@@ -67,13 +68,26 @@ export function ChatsAbout({ type, id }: { type: EntityType; id: string }) {
  * The one chat about a task, an event or anything else that opens in a
  * details window, shown in the window itself, with the same box as the chat
  * page. The first message starts the chat; later ones go on the end of it.
+ * A task's box also has "Delegate to Skippy": the session works on the task
+ * and writes what it finds here as it goes. `delegable` is false for a
+ * closed task.
  */
-export function ItemChat({ type, id }: { type: EntityType; id: string }) {
+export function ItemChat({ type, id, delegable }: { type: EntityType; id: string; delegable?: boolean }) {
   const data = useQuery(api.viewerChat.itemChat, { type, id });
   const brief = useMutation(api.viewerChat.continueInClaude);
+  const delegate = useMutation(api.viewerChat.delegate);
   const [error, setError] = useState<string>();
   if (data === undefined) return <Quiet>Loading…</Quiet>;
   const { chat, earlier } = data;
+
+  async function handOver() {
+    setError(undefined);
+    try {
+      await delegate({ taskId: id });
+    } catch (caught) {
+      setError(problem(caught));
+    }
+  }
 
   async function continueInClaude() {
     if (!chat) return;
@@ -103,7 +117,26 @@ export function ItemChat({ type, id }: { type: EntityType; id: string }) {
           {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
         </>
       ) : null}
-      <ChatBox chat={chat} about={{ type, id }} />
+      <ChatBox
+        chat={chat}
+        about={{ type, id }}
+        tools={
+          type === "task"
+            ? (busy) => (
+                <button
+                  type="button"
+                  disabled={busy || !delegable}
+                  onClick={handOver}
+                  title={delegable ? "Skippy works on the task and reports here as it goes" : "Reopen the task to hand it over"}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-full border border-foreground/20 px-3 text-sm text-foreground/80 hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 sm:h-9"
+                >
+                  <Robot aria-hidden size={16} />
+                  Delegate to Skippy
+                </button>
+              )
+            : undefined
+        }
+      />
       {earlier.length > 0 ? (
         <details>
           <summary className="cursor-pointer text-sm text-foreground/60">Earlier chats about this</summary>

@@ -172,7 +172,8 @@ export const claim = mutation({
       sessionId: chat.sessionId,
       /** False on a chat's first turn: the session has to be started, not resumed. */
       resume: chat.sessionStarted === true,
-      text: message.content,
+      // A turn the owner started with a button asks more than the line the chat shows.
+      text: turn.prompt ?? message.content,
       /** Images and PDFs the owner sent with the message, each with the link to fetch it by. The link is the only key to the file. */
       files: await Promise.all(
         (await filesOnMessage(ctx, message._id)).map(async (file) => ({

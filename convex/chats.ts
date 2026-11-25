@@ -33,7 +33,7 @@ export async function queueTurn(
   ctx: MutationCtx,
   chatId: Id<"chats">,
   text: string,
-  options: { kind?: "brief"; files?: Upload[] } = {},
+  options: { kind?: "brief" | "delegate"; files?: Upload[]; prompt?: string } = {},
 ): Promise<Id<"chatTurns">> {
   const now = Date.now();
   const files = options.files ?? [];
@@ -74,6 +74,7 @@ export async function queueTurn(
     assistantMessageId,
     status: "queued",
     ...(options.kind ? { kind: options.kind } : {}),
+    ...(options.prompt ? { prompt: options.prompt } : {}),
     createdAt: now,
   });
 }
@@ -97,7 +98,11 @@ export async function chatOfRecord(ctx: QueryCtx, ref: Extract<Scope, { kind: "i
  * chat: a message about it goes on the end of that chat, which is brought back
  * if it was archived.
  */
-export async function startChat(ctx: MutationCtx, args: { text: string; about?: { type: EntityType; id: string }; files?: Upload[] }) {
+export async function startChat(
+  ctx: MutationCtx,
+  args: { text: string; about?: { type: EntityType; id: string }; files?: Upload[]; kind?: "delegate"; prompt?: string },
+) {
+  const turn = { files: args.files, ...(args.kind ? { kind: args.kind } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) };
   const now = Date.now();
   const files = args.files ?? [];
   const text = files.length > 0 ? args.text.trim() : requireText(args.text, "text");
@@ -109,7 +114,7 @@ export async function startChat(ctx: MutationCtx, args: { text: string; about?: 
     const existing = await chatOfRecord(ctx, scope);
     if (existing) {
       if (existing.state === "archived") await ctx.db.patch(existing._id, { state: existing.promotedTo ? "promoted" : "open" });
-      await queueTurn(ctx, existing._id, text, { files });
+      await queueTurn(ctx, existing._id, text, turn);
       return existing._id;
     }
   }
@@ -123,7 +128,7 @@ export async function startChat(ctx: MutationCtx, args: { text: string; about?: 
     createdAt: now,
     updatedAt: now,
   });
-  await queueTurn(ctx, chatId, text, { files });
+  await queueTurn(ctx, chatId, text, turn);
   return chatId;
 }
 
@@ -209,6 +214,22 @@ export const proposePromotion = internalMutation({
     return { cardId, offered: true };
   },
 });
+
+/** What the task's chat shows when the owner hands the task over. */
+export const DELEGATE_SHOWN = "Work on this task for me.";
+
+/**
+ * What the session is asked when the owner hands it a task. The chat's own
+ * instructions already name the task and forbid buying, booking, signing in
+ * and sending forms; this widens what it may do to the task itself.
+ */
+export const DELEGATE_REQUEST = [
+  "The owner has handed this task to you. Do as much of it as you can now, with the tools you have: look things up on the web and in your browser, read their records, work things out, and draft what needs writing.",
+  "- Read the task first. Write what you find as you go, in short paragraphs, so the owner can follow along in the chat.",
+  "- You may change this task without asking: add what you found to its description, or set its status to in progress while you work. Do not change other records; offer anything new with propose_promotion as usual.",
+  "- Never buy, book, sign in, or send anything to anyone. Where the task needs one of those, get it ready (the link, the details, a draft) and leave that step to the owner.",
+  "- End with what is done and what is left for the owner. If nothing is left for them, mark the task done with complete_task and say so.",
+].join("\n");
 
 /** What the owner's "Continue in Claude" asks the chat's session to write. */
 export const BRIEF_REQUEST = [
