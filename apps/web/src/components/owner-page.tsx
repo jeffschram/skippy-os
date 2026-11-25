@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { CaptureDock } from "./capture";
+import { ChatWindow } from "./chat-window";
 import { ItemDetails } from "./item-details";
 import { ServiceWorker } from "./notifications";
 import { button } from "./parts";
@@ -87,6 +88,7 @@ function ForOwner({ wide, dock, children }: { wide?: boolean; dock: boolean; chi
       {dock ? <CaptureDock wide={wide} /> : null}
       <TaskDetails />
       <ItemDetails />
+      <ChatWindow />
     </div>
   );
 }

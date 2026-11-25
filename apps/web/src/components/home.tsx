@@ -1,20 +1,21 @@
 "use client";
 
-import { CalendarBlank, CalendarDot, ChatsCircle, HandPalm, NewspaperClipping } from "@phosphor-icons/react";
+import { CalendarBlank, CalendarDot, ChatsCircle, NewspaperClipping } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import Link from "next/link";
 import { AllDayLine, EventRow, RecurrenceRow, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { BriefingText } from "./briefing-text";
+import { chatHref } from "./item-href";
+import { NeedsYou } from "./needs-you";
 import { OwnerPage } from "./owner-page";
-import { button } from "./parts";
 import { Panel, Quiet, showDay, showTime } from "./parts";
 import { TaskItem, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
 /**
- * Home: the day's briefing, today and the next seven days in time order, the
- * weekly review, the latest chats, then what needs the owner. The inbox and
+ * Home: what needs the owner, the day's briefing, today and the next seven
+ * days in time order, the weekly review, then the latest chats. The inbox and
  * what the passes made are on Activity; the projects have their own page.
  * Each panel is its own live query.
  */
@@ -23,12 +24,12 @@ export function Home() {
   return (
     <OwnerPage>
       <div className="space-y-12">
+        <NeedsYou />
         <Briefing />
         <Today />
         <Upcoming />
         <WeeklyReview />
         <Chats />
-        <NeedsYou />
       </div>
     </OwnerPage>
   );
@@ -93,7 +94,7 @@ function Chats() {
       <ul className="space-y-2">
         {data.chats.map((chat) => (
           <li key={chat.id} className="flex flex-wrap items-baseline gap-x-3">
-            <Link href={`/chat/${chat.id}`} className="text-base underline-offset-2 hover:underline">
+            <Link href={chatHref(chat.id)} scroll={false} className="text-base underline-offset-2 hover:underline">
               {chat.title}
             </Link>
             <span className="text-xs text-foreground/60">
@@ -227,73 +228,6 @@ function Upcoming() {
           ))}
         </div>
       )}
-    </Panel>
-  );
-}
-
-/**
- * What will not move until the owner does something: a project in trouble or
- * gone quiet, a pass that failed, the mini not answering. Not shown when empty.
- */
-function NeedsYou() {
-  const data = useQuery(api.viewer.needsYou, { now: useNow() });
-  const save = useMutation(api.viewer.saveProject);
-  if (!data || data.items.length === 0) return null;
-  return (
-    <Panel title="Needs you" icon={HandPalm}>
-      <ul className="space-y-3">
-        {data.items.map((item) => {
-          if (item.kind === "project_health") {
-            return (
-              <li key={`health:${item.slug}`}>
-                <Link href={`/projects/${item.slug}`} className="font-medium underline underline-offset-2">
-                  {item.title}
-                </Link>{" "}
-                is {item.health === "blocked" ? "blocked" : "at risk"}
-                {item.since ? <span className="text-foreground/60"> · since {showTime(item.since)}</span> : null}
-                {item.note ? <p className="mt-1 line-clamp-2 text-sm text-foreground/70">{item.note}</p> : null}
-              </li>
-            );
-          }
-          if (item.kind === "project_quiet") {
-            return (
-              <li key={`quiet:${item.slug}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span>
-                  <Link href={`/projects/${item.slug}`} className="font-medium underline underline-offset-2">
-                    {item.title}
-                  </Link>{" "}
-                  has gone quiet
-                  <span className="text-foreground/60">
-                    {" "}
-                    · {item.days === undefined ? "no status report yet" : `no status report in ${item.days} days`}
-                  </span>
-                </span>
-                <button type="button" onClick={() => void save({ slug: item.slug, status: "paused" })} className={button}>
-                  Pause
-                </button>
-              </li>
-            );
-          }
-          if (item.kind === "pass_failed") {
-            return (
-              <li key="pass">
-                <Link href="/activity" className="font-medium underline underline-offset-2">
-                  The {item.pass ? `${item.pass} ` : ""}ingestion pass failed
-                </Link>
-                <span className="text-foreground/60"> · {showTime(item.at)}</span>
-                {item.note ? <p className="mt-1 line-clamp-2 text-sm text-foreground/70">{item.note}</p> : null}
-              </li>
-            );
-          }
-          return (
-            <li key="mini">
-              <span className="font-medium">The Mac mini has not checked in</span>
-              <span className="text-foreground/60"> · since {showTime(item.since)}</span>
-              <p className="mt-1 text-sm text-foreground/70">Chats wait until it is back.</p>
-            </li>
-          );
-        })}
-      </ul>
     </Panel>
   );
 }

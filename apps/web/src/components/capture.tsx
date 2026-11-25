@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Composer, ComposerBar, CHAT_FILE_TYPES, MAX_CHAT_FILES } from "./composer";
 import { showSize, useUpload } from "./files";
-import { itemHref } from "./item-href";
+import { chatHref, itemHref } from "./item-href";
 import { Panel, problem, showDay, showTime } from "./parts";
 import { useNow } from "./use-now";
 
@@ -52,6 +52,7 @@ export function CaptureDock({ wide }: { wide?: boolean }) {
   const add = useMutation(api.viewer.addCapture);
   const startChat = useMutation(api.viewerChat.start);
   const router = useRouter();
+  const path = usePathname();
   const upload = useUpload();
   const scope = useScope();
   const [unscoped, setUnscoped] = useState<string>();
@@ -80,7 +81,7 @@ export function CaptureDock({ wide }: { wide?: boolean }) {
         const { chatId } = await startChat({ text, files: sent, ...(about ? { about: { type: about.type, id: about.id } } : {}) });
         setText("");
         setFiles([]);
-        router.push(`/chat/${chatId}`);
+        router.push(`${path}${chatHref(chatId)}`, { scroll: false });
       } else {
         await add({
           ...(text.trim() ? { text } : {}),

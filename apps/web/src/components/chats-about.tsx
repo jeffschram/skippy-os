@@ -5,16 +5,18 @@ import { api } from "@convex/_generated/api";
 import type { EntityType } from "@skippy/shared";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ChatBox, Messages, replyIsComing } from "./chat-thread";
+import { chatHref } from "./item-href";
 import { button, problem, Quiet, showTime } from "./parts";
 
-/** The chats about a project, and a box to start another. A project can have many chats, and each opens on its own page. */
+/** The chats about a project, and a box to start another. A project can have many chats, and each opens in a window over the page. */
 export function ChatsAbout({ type, id }: { type: EntityType; id: string }) {
   const data = useQuery(api.viewerChat.chatsAbout, { type, id });
   const start = useMutation(api.viewerChat.start);
   const router = useRouter();
+  const path = usePathname();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -26,7 +28,7 @@ export function ChatsAbout({ type, id }: { type: EntityType; id: string }) {
     setError(undefined);
     try {
       const { chatId } = await start({ text, about: { type, id } });
-      router.push(`/chat/${chatId}`);
+      router.push(`${path}${chatHref(chatId)}`, { scroll: false });
     } catch (caught) {
       setError(problem(caught));
       setBusy(false);
@@ -39,7 +41,7 @@ export function ChatsAbout({ type, id }: { type: EntityType; id: string }) {
         <ul className="mb-3 space-y-1.5">
           {data.chats.map((chat) => (
             <li key={chat.id} className="flex flex-wrap items-baseline gap-x-3">
-              <Link href={`/chat/${chat.id}`} className="text-base underline-offset-2 hover:underline">
+              <Link href={chatHref(chat.id)} scroll={false} className="text-base underline-offset-2 hover:underline">
                 {chat.title}
               </Link>
               <span className="text-xs text-foreground/60">{showTime(chat.updatedAt)}</span>
@@ -143,7 +145,7 @@ export function ItemChat({ type, id, delegable }: { type: EntityType; id: string
           <ul className="mt-2 space-y-1.5">
             {earlier.map((old) => (
               <li key={old.id} className="flex flex-wrap items-baseline gap-x-3">
-                <Link href={`/chat/${old.id}`} className="text-sm underline-offset-2 hover:underline">
+                <Link href={chatHref(old.id)} scroll={false} className="text-sm underline-offset-2 hover:underline">
                   {old.title}
                 </Link>
                 <span className="text-xs text-foreground/60">{showTime(old.updatedAt)}</span>
