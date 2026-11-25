@@ -7,29 +7,29 @@
 <style>
   /* A small, tall utility window: capture box on top, today's timeline below, quiet footer. */
   :root {
-    --bg: #f6f7f6;
+    --bg: #f5f5f5;
     --surface: #ffffff;
-    --fg: #17201e;
-    --muted: #5c6a66;
-    --line: #dde3e1;
-    --accent: #1d6b5f;
+    --fg: #111111;
+    --muted: #5f5f5f;
+    --line: #dddddd;
+    --accent: #111111;
     --accent-fg: #ffffff;
-    --accent-soft: #e3f0ed;
-    --warn: #a4471f;
-    --done: #6b7774;
+    --accent-soft: #ebebeb;
+    --warn: #111111;
+    --done: #6e6e6e;
     --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #111614; --surface: #19201e; --fg: #e8eeec; --muted: #9aa8a4; --line: #2a3431;
-      --accent: #5cc0ac; --accent-fg: #0d1a17; --accent-soft: #1c302b; --warn: #e88a5f; --done: #7f8c88;
+      --bg: #0f0f0f; --surface: #1a1a1a; --fg: #ededed; --muted: #a0a0a0; --line: #2e2e2e;
+      --accent: #f2f2f2; --accent-fg: #111111; --accent-soft: #262626; --warn: #f2f2f2; --done: #858585;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #111614; --surface: #19201e; --fg: #e8eeec; --muted: #9aa8a4; --line: #2a3431;
-    --accent: #5cc0ac; --accent-fg: #0d1a17; --accent-soft: #1c302b; --warn: #e88a5f; --done: #7f8c88;
+    --bg: #0f0f0f; --surface: #1a1a1a; --fg: #ededed; --muted: #a0a0a0; --line: #2e2e2e;
+      --accent: #f2f2f2; --accent-fg: #111111; --accent-soft: #262626; --warn: #f2f2f2; --done: #858585;
     color-scheme: dark;
   }
 
@@ -78,7 +78,7 @@
   .hold { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; }
   .hold input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
   .status { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; }
-  .status.error { color: var(--warn); }
+  .status.error { color: var(--warn); font-weight: 500; }
   .primary {
     margin-left: auto; border: 0; border-radius: 9px; padding: 7px 14px; background: var(--accent); color: var(--accent-fg);
     font-weight: 600; font-size: 13px; cursor: pointer;
@@ -95,7 +95,7 @@
   .item { display: grid; grid-template-columns: 64px 18px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line); }
   .item:first-child { border-top: 0; }
   .when { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--muted); padding-top: 2px; text-align: right; white-space: nowrap; }
-  .when.late { color: var(--warn); }
+  .when.late { color: var(--warn); font-weight: 600; }
   .glyph { padding-top: 3px; display: grid; place-items: center; }
   .dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--accent); margin-top: 3px; }
   .dot.allday { border-radius: 2px; }
@@ -109,9 +109,9 @@
   .item.next .when { color: var(--accent); font-weight: 600; }
   .item.over .title, .item.over .when, .item.over .meta, .item.finished .title { color: var(--done); }
   .item.finished .title { text-decoration: line-through; }
-  .item .problem { color: var(--warn); font-size: 12.5px; margin-top: 2px; }
+  .item .problem { color: var(--warn); font-weight: 500; font-size: 12.5px; margin-top: 2px; }
   .state { color: var(--muted); margin: 6px 0 0; }
-  .state.error { color: var(--warn); }
+  .state.error { color: var(--warn); font-weight: 500; }
   .state button { margin-top: 8px; }
 
   .setup { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; }
@@ -508,11 +508,11 @@
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 256;
     const g = canvas.getContext("2d");
-    g.fillStyle = "#1d6b5f";
+    g.fillStyle = "#111111";
     g.beginPath();
     g.roundRect(16, 16, 224, 224, 52);
     g.fill();
-    g.fillStyle = "rgba(255,255,255,0.12)";
+    g.fillStyle = "rgba(255,255,255,0.08)";
     g.beginPath();
     g.roundRect(16, 16, 224, 112, [52, 52, 0, 0]);
     g.fill();
