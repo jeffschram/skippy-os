@@ -26,14 +26,16 @@ _Nothing waiting._
 New things the app could do, or do differently. Things already set aside on purpose are listed in the spec under "After Phase 7", so they need not be repeated here.
 
 - [ ] **Dictation in the composer.** (2026-11-22) A microphone button: tap to dictate, hold to dictate. Left for a later pass when the composer was built. Check first what speech-to-text the iPhone browser and the Home Screen app allow.
-- [ ] **More kinds of project, but as few as possible.** (2026-11-26) Projects are general, code, or plan (a date with work leading up to it, being added now). A new kind is only worth it when it changes how the page or Skippy behaves; otherwise it is a tag. Ideas, best first:
-  - **Ongoing**, the one new kind that seems needed: a part of life that never finishes (the house, the car, health, money). No done state, never flagged as gone quiet, its repeating chores at the top. Many loose tasks and notes would belong to one.
-  - The rest may work better as parts any project can switch on, not kinds of their own:
+- [ ] **Simpler project types: code apart, then ongoing or finishing, with parts.** (2026-11-26) The owner's model, replacing a longer list of kinds:
+  - **Code is its own type**, separate from projects: a folder and repo, the nightly sweep, Claude Code sessions reporting to it.
+  - **A project is either ongoing or finishes.** Ongoing is a part of life that never ends (the house, the car, health, money): no done state, never flagged as gone quiet, its repeating chores at the top. A finishing project ends on a date (what "plan" is now: shown on Home as the date gets close) or when its tasks are done (what "general" is now).
+  - **A project can switch on parts:**
     - **Options and a decision** (choosing a car or a contractor): the options side by side against what matters, Skippy researching them, and it closes by saving the decision to Memory.
     - **Budget** (a remodel, a trip): what is planned against what has been spent, plus quotes.
-    - **Deadline and documents** (taxes, a claim, a renewal): a hard date, a list of papers to gather, and follow-ups on whoever it is waiting on.
+    - **Deadline and documents** (taxes, a claim, a renewal): a list of papers to gather, and follow-ups on whoever it is waiting on.
     - **Progress** (a course, training for a race): sessions or hours against a goal, tied to Goals.
-  - Fold into plan instead: a party or holiday dinner. A job hunt or other pipeline might be a board view on any project.
+    - Maybe an itinerary (a plan's events by day) and a board view (a job hunt or other pipeline).
+  - To work out when it is picked up: whether code keeps tasks, phases and status reports through the same tools (the skippy-status skill and the nightly sweep write to a project by its slug), and how today's general, code and plan projects move across.
 
 - [ ] **Share a plan's itinerary.** (2026-11-26) A read-only page for a plan, to send to whoever is coming. Plans stay private for now.
 - [ ] **Bookings file themselves under a plan.** (2026-11-26) When the pass reads a hotel, flight or restaurant confirmation for something in a plan, it adds the event to that plan's itinerary and ticks off the task it settles. Needs `ingest_objects` to take a project for an event, and the pass to know the open plans.
