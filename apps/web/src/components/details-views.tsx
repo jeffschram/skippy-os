@@ -8,7 +8,8 @@ import type { FunctionReturnType } from "convex/server";
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { eventTime, WorkMark, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { eventTime, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { ItemIcon } from "./item-icon";
 import { showDay, showRemind, showTime, Tag, words } from "./parts";
 import { PlaceFact } from "./place";
 import { useNow } from "./use-now";
@@ -97,6 +98,7 @@ export function TaskView({ details }: { details: TaskDetails }) {
           </>
         }
       >
+        <ItemIcon kind="task" title={task.title} location={task.location} size="title" />
         {task.title}
       </Title>
       <Prose>{task.description}</Prose>
@@ -245,7 +247,7 @@ export function EventView({ event }: { event: EventItem }) {
   return (
     <div className="space-y-4">
       <Title tags={event.status === "cancelled" ? <Tag>cancelled</Tag> : undefined}>
-        {event.work ? <WorkMark className="mr-2 size-5 align-[-0.1em]" /> : null}
+        <ItemIcon kind="event" title={event.title} location={event.location} work={event.work} size="title" />
         {event.title}
       </Title>
       <Facts
@@ -298,6 +300,7 @@ export function RecurrenceView({ item }: { item: RecurrenceItem }) {
           ) : undefined
         }
       >
+        <ItemIcon kind="recurrence" title={item.title} size="title" />
         {item.title}
       </Title>
       <Prose>{item.description}</Prose>

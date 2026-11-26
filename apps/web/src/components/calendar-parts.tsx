@@ -7,6 +7,7 @@ import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { button, doneBox, problem, showClock, showDay } from "./parts";
+import { ItemIcon } from "./item-icon";
 import { PlaceLink } from "./place";
 import { useNow } from "./use-now";
 
@@ -73,21 +74,6 @@ function EventBox({ state, className = "" }: { state: ReturnType<typeof useEvent
   );
 }
 
-/**
- * The work mark: the firm's three-band pyramid, shown on meetings copied from
- * the end-of-day work schedule email so they stand apart from the rest.
- */
-export function WorkMark({ className = "size-4" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 90 90" role="img" aria-label="Work" className={`inline-block shrink-0 ${className}`}>
-      <title>Work</title>
-      <path d="M22.4944 44.9682L16.8736 54.688H73.0931L67.4944 44.9682L64.4508 39.7028H25.527L22.4944 44.9682Z" fill="#BF9B5F" />
-      <path d="M55.3974 24.0289L45 6L34.5804 24.0289H55.3974Z" fill="#BF9B5F" />
-      <path d="M7.8314 70.3619L0 83.9474H45H90L82.1353 70.3619H7.8314Z" fill="#BF9B5F" />
-    </svg>
-  );
-}
-
 export function EventRow({ event, showProject = true }: { event: EventItem; showProject?: boolean }) {
   const state = useEventDone(event);
   return (
@@ -99,7 +85,7 @@ export function EventRow({ event, showProject = true }: { event: EventItem; show
           scroll={false}
           className={`text-base underline-offset-2 hover:underline ${state.done ? "text-foreground/60 line-through" : ""}`}
         >
-          {event.work ? <WorkMark className="mr-1.5 size-4 align-[-0.15em]" /> : null}
+          <ItemIcon kind="event" title={event.title} location={event.location} work={event.work} />
           {event.title}
         </Link>
         <p className="truncate text-sm text-foreground/60">
@@ -149,7 +135,7 @@ export function AllDayLine({ events }: { events: EventItem[] }) {
               scroll={false}
               className={`underline-offset-2 hover:underline ${done ? "line-through" : "text-foreground/80"}`}
             >
-              {event.work ? <WorkMark className="mr-1 size-3.5 align-[-0.15em]" /> : null}
+              <ItemIcon kind="event" title={event.title} location={event.location} work={event.work} size="small" />
               {event.title}
             </Link>
             {longer}
@@ -190,6 +176,7 @@ export function RecurrenceRow({ item, showDue }: { item: RecurrenceItem; showDue
       />
       <div className="min-w-0 flex-1">
         <Link href={`?item=recurrence:${item.id}`} scroll={false} className="text-base underline-offset-2 hover:underline">
+          <ItemIcon kind="recurrence" title={item.title} />
           {item.title}
         </Link>
         <p className="text-sm text-foreground/60">

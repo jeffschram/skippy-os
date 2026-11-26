@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { button } from "./parts";
 import { doneBox, problem, showDay } from "./parts";
+import { ItemIcon } from "./item-icon";
 import { PlaceLink } from "./place";
 
 /** Task rows the owner can tick off and add to. A title opens the task's details. Every change goes through `viewer.saveTask`. */
@@ -63,6 +64,7 @@ export function TaskItem({ task, showProject }: { task: Task; showProject?: bool
           scroll={false}
           className={`text-base underline-offset-2 hover:underline ${closed ? "text-foreground/60 line-through" : ""}`}
         >
+          <ItemIcon kind="task" title={task.title} location={task.location} />
           {task.title}
         </Link>
         <p className="truncate text-sm text-foreground/60" title={details.join(" · ") || undefined}>
