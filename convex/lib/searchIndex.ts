@@ -34,7 +34,7 @@ async function index(
 }
 
 export const indexProject = (ctx: MutationCtx, doc: Doc<"projects">) =>
-  index(ctx, "project", doc._id, doc.title, [doc.summary, doc.statusNote, doc.notesPad, doc.slug]);
+  index(ctx, "project", doc._id, doc.title, [doc.summary, doc.description, doc.statusNote, doc.notesPad, doc.slug]);
 
 export const indexTask = (ctx: MutationCtx, doc: Doc<"tasks">) =>
   index(ctx, "task", doc._id, doc.title, [doc.description, doc.waitingOn, doc.location]);

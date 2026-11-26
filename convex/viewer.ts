@@ -483,6 +483,7 @@ export const saveProject = mutation({
     slug: v.string(),
     title: v.optional(v.string()),
     summary: nullable(v.string()),
+    description: nullable(v.string()),
     status: v.optional(projectStatus),
     health: nullable(projectHealth),
     claudeHome: nullable(claudeHome),

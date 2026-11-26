@@ -147,6 +147,25 @@ describe("the web app's queries", () => {
     expect((await owner.query(api.viewer.activity, { limit: 1 })).events).toHaveLength(1);
   });
 
+  it("keep a project's Markdown description, from the page or from Claude, and find the project by it", async () => {
+    const t = start();
+    await asClaude(t, "upsert_project", { title: "Garden Shed", description: "## Goal\n\nA dry place for the **tools**." });
+    const owner = t.withIdentity({ subject: OWNER });
+    const read = async () => (await owner.query(api.viewer.project, { slug: "garden-shed", now: Date.now() }))!.project.description;
+    expect(await read()).toBe("## Goal\n\nA dry place for the **tools**.");
+
+    await owner.mutation(api.viewer.saveProject, { slug: "garden-shed", description: "  ## Scope\n\n- Walls\n- Roof\n  " });
+    expect(await read()).toBe("## Scope\n\n- Walls\n- Roof");
+    const found = (await asClaude(t, "search", { query: "Roof" })) as { results: { title: string }[] };
+    expect(found.results.map((result) => result.title)).toContain("Garden Shed");
+
+    await owner.mutation(api.viewer.saveProject, { slug: "garden-shed", description: null });
+    expect(await read()).toBeUndefined();
+    expect(await refusal(owner.mutation(api.viewer.saveProject, { slug: "garden-shed", description: "x".repeat(20_001) }))).toBe(
+      "invalid_arguments",
+    );
+  });
+
   it("show the seven days after today, and nothing from today or later", async () => {
     const t = start();
     await asClaude(t, "upsert_task", { title: "Pick a paint color", dueAt: "2026-11-20" });

@@ -30,6 +30,14 @@ const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 /** How the nightly sweep signs the status reports it writes. */
 export const SWEEP_REF = "nightly-sweep";
 const DAY_MS = 86_400_000;
+/** A description is a page or two, not a document store: files go in Files. */
+const MAX_DESCRIPTION = 20_000;
+
+function limitedText(value: string | null | undefined, field: string, max: number) {
+  const text = cleanText(value);
+  if (text && text.length > max) throw refuse("invalid_arguments", `${field} is limited to ${max} characters.`);
+  return text;
+}
 const nullable = <T extends Parameters<typeof v.optional>[0]>(validator: T) => v.optional(v.union(validator, v.null()));
 
 export function slugify(title: string): string {
@@ -80,6 +88,7 @@ export const upsert = internalMutation({
     slug: v.optional(v.string()),
     title: v.optional(v.string()),
     summary: nullable(v.string()),
+    description: nullable(v.string()),
     kind: v.optional(projectKind),
     status: v.optional(projectStatus),
     health: nullable(projectHealth),
@@ -97,6 +106,7 @@ export const upsert = internalMutation({
     const fields = {
       title: args.title === undefined ? undefined : requireText(args.title, "title"),
       summary: cleanText(args.summary),
+      description: limitedText(args.description, "description", MAX_DESCRIPTION),
       kind: args.kind,
       status: args.status,
       health: args.health,
@@ -156,6 +166,7 @@ export const upsert = internalMutation({
       status: fields.status ?? "active",
       notesPad: fields.notesPad ?? "",
       ...(fields.summary ? { summary: fields.summary } : {}),
+      ...(fields.description ? { description: fields.description } : {}),
       ...(fields.health ? { health: fields.health } : {}),
       ...(fields.claudeHome ? { claudeHome: fields.claudeHome } : {}),
       ...(typeof fields.targetDate === "number" ? { targetDate: fields.targetDate } : {}),
@@ -441,7 +452,7 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
     .filter((task) => task.status === "done" || task.status === "cancelled")
     .sort((a, b) => b.updatedAt - a.updatedAt);
   return {
-    project: { ...presentProject(project, settings, now), notesPad: project.notesPad },
+    project: { ...presentProject(project, settings, now), description: project.description, notesPad: project.notesPad },
     phases: phases.map((phase) => ({
       id: phase._id,
       order: phase.order,

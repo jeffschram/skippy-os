@@ -144,7 +144,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   get_project: {
     title: "Get project",
     description:
-      "Reads one project in full: its details and notes, phases, open tasks, recently closed tasks, its events still to come, the last five status reports, and what files it holds. Files are listed by name and size only; they are opened from the dashboard.",
+      "Reads one project in full: its details, description and notes, phases, open tasks, recently closed tasks, its events still to come, the last five status reports, and what files it holds. Files are listed by name and size only; they are opened from the dashboard.",
     input: { project: projectSlug },
     kind: "read",
   },
@@ -156,6 +156,9 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       slug: z.string().optional().describe("Lowercase letters, digits and hyphens. Names the project to update."),
       title: z.string().optional().describe("Required when creating."),
       summary: clearable(z.string()).describe("One or two sentences on what the project is."),
+      description: clearable(z.string().max(20_000)).describe(
+        "The longer account of the project in Markdown: goals, scope, background, links. Replaces the whole description. Working notes go in notesPad.",
+      ),
       kind: z.enum(["code", "general"]).optional().describe('"code" for a software project, otherwise "general".'),
       status: projectStatus.optional().describe('Defaults to "active" for a new project.'),
       health: clearable(projectHealth),

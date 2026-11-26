@@ -68,10 +68,20 @@ const components: Components = {
   td: ({ children }) => <td className="border-b border-foreground/10 px-2 py-1 align-top">{children}</td>,
 };
 
-export function MarkdownText({ text, className }: { text: string; className?: string }) {
+/** Headings as headings, for a longer piece written to be read as a page, such as a project's description. */
+const pageComponents: Components = {
+  ...components,
+  h1: ({ children }) => <h2 className="mt-6 mb-2 text-xl font-semibold text-foreground first:mt-0">{children}</h2>,
+  h2: ({ children }) => <h3 className="mt-6 mb-2 text-lg font-semibold text-foreground first:mt-0">{children}</h3>,
+  h3: ({ children }) => <h4 className="mt-4 mb-2 font-semibold text-foreground first:mt-0">{children}</h4>,
+  li: ({ children, className }) => <li className={className?.includes("task-list-item") ? "-ml-5 list-none" : undefined}>{children}</li>,
+  input: ({ checked }) => <input type="checkbox" checked={checked} readOnly disabled className="mr-2 align-[-0.1em]" />,
+};
+
+export function MarkdownText({ text, className, page = false }: { text: string; className?: string; page?: boolean }) {
   return (
     <div className={`break-words ${className ?? ""}`}>
-      <Markdown remarkPlugins={[remarkGfm, remarkSiteNames]} components={components}>
+      <Markdown remarkPlugins={[remarkGfm, remarkSiteNames]} components={page ? pageComponents : components}>
         {text}
       </Markdown>
     </div>

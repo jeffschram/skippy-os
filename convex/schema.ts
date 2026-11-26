@@ -169,6 +169,8 @@ export default defineSchema({
     /** What Claude Projects and CLAUDE.md files use to name the project. Never changes. */
     slug: v.string(),
     summary: v.optional(v.string()),
+    /** The longer account of the project, in Markdown. Shown on its page under the summary. */
+    description: v.optional(v.string()),
     kind: projectKind,
     status: projectStatus,
     health: v.optional(projectHealth),

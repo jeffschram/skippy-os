@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarBlank, ChatsCircle, CheckSquare, Files as FilesIcon, Flag, NotePencil, Steps } from "@phosphor-icons/react";
+import { Article, CalendarBlank, ChatsCircle, CheckSquare, Files as FilesIcon, Flag, NotePencil, Steps } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { useMutation, useQuery } from "convex/react";
@@ -10,6 +10,7 @@ import { useState, type FormEvent } from "react";
 import { EventRow } from "./calendar-parts";
 import { ChatsAbout } from "./chats-about";
 import { Files } from "./files";
+import { MarkdownText } from "./markdown";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
 import { Panel, problem, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
@@ -66,6 +67,8 @@ function Loaded() {
         <ClaudeHome home={project.claudeHome} />
         <Settings project={project} />
       </div>
+
+      <Description project={project} />
 
       {page.events.length > 0 ? <Events events={page.events} /> : null}
 
@@ -508,6 +511,117 @@ function Settings({ project }: { project: Project }) {
       </div>
       {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
     </div>
+  );
+}
+
+/**
+ * The longer account of the project, written in Markdown and shown formatted.
+ * A long one is cut to a screen until asked for. Editing has a preview.
+ */
+function Description({ project }: { project: Project }) {
+  const save = useMutation(api.viewer.saveProject);
+  const [draft, setDraft] = useState<string>();
+  const [preview, setPreview] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string>();
+  const text = project.description ?? "";
+  const long = text.length > 1200 || text.split("\n").length > 24;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(undefined);
+    try {
+      await save({ slug: project.slug, description: draft?.trim() ? draft : null });
+      setDraft(undefined);
+      setPreview(false);
+    } catch (caught) {
+      setError(problem(caught));
+    }
+  }
+
+  const edit = (
+    <button type="button" onClick={() => setDraft(text)} className="underline underline-offset-2">
+      {text ? "Edit" : "Write one"}
+    </button>
+  );
+
+  if (draft === undefined) {
+    return (
+      <Panel title="Description" icon={Article} note={edit}>
+        {text ? (
+          <div>
+            <div className={long && !open ? "relative max-h-96 overflow-hidden" : undefined}>
+              <MarkdownText text={text} page className="text-base" />
+              {long && !open ? <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-background" /> : null}
+            </div>
+            {long ? (
+              <button type="button" onClick={() => setOpen(!open)} className="mt-2 text-sm text-foreground/60 underline underline-offset-2">
+                {open ? "Show less" : "Show all"}
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <Quiet>No description yet: what the project is for, its scope and anything worth knowing.</Quiet>
+        )}
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Description" icon={Article}>
+      <form onSubmit={submit}>
+        <div className="mb-2 flex gap-4 text-sm" role="tablist">
+          {(["Write", "Preview"] as const).map((label) => {
+            const selected = (label === "Preview") === preview;
+            return (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setPreview(label === "Preview")}
+                className={selected ? "font-medium underline underline-offset-4" : "text-foreground/60"}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {preview ? (
+          <div className="min-h-32 rounded-md border border-foreground/20 px-3 py-2">
+            {draft.trim() ? <MarkdownText text={draft} page className="text-base" /> : <Quiet>Nothing to preview.</Quiet>}
+          </div>
+        ) : (
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={Math.min(Math.max(draft.split("\n").length + 2, 10), 40)}
+            aria-label="Project description"
+            placeholder={"## Goal\nWhat this project is for.\n\n## Scope\n- In\n- Out\n\nLinks: [the brief](https://…)"}
+            autoFocus
+            className={`w-full font-mono ${field}`}
+          />
+        )}
+        <p className="mt-1 text-xs text-foreground/60">Markdown: ## headings, **bold**, *italics*, - lists, - [ ] checklists, [links](https://…), tables.</p>
+        {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+        <div className="mt-2 flex gap-2">
+          <button type="submit" className={button}>
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(undefined);
+              setPreview(false);
+              setError(undefined);
+            }}
+            className={button}
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Panel>
   );
 }
 
