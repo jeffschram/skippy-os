@@ -26,6 +26,14 @@ _Nothing waiting._
 New things the app could do, or do differently. Things already set aside on purpose are listed in the spec under "After Phase 7", so they need not be repeated here.
 
 - [ ] **Dictation in the composer.** (2026-11-22) A microphone button: tap to dictate, hold to dictate. Left for a later pass when the composer was built. Check first what speech-to-text the iPhone browser and the Home Screen app allow.
+- [ ] **More kinds of project, but as few as possible.** (2026-11-26) Projects are general, code, or plan (a date with work leading up to it, being added now). A new kind is only worth it when it changes how the page or Skippy behaves; otherwise it is a tag. Ideas, best first:
+  - **Ongoing**, the one new kind that seems needed: a part of life that never finishes (the house, the car, health, money). No done state, never flagged as gone quiet, its repeating chores at the top. Many loose tasks and notes would belong to one.
+  - The rest may work better as parts any project can switch on, not kinds of their own:
+    - **Options and a decision** (choosing a car or a contractor): the options side by side against what matters, Skippy researching them, and it closes by saving the decision to Memory.
+    - **Budget** (a remodel, a trip): what is planned against what has been spent, plus quotes.
+    - **Deadline and documents** (taxes, a claim, a renewal): a hard date, a list of papers to gather, and follow-ups on whoever it is waiting on.
+    - **Progress** (a course, training for a race): sessions or hours against a goal, tied to Goals.
+  - Fold into plan instead: a party or holiday dinner. A job hunt or other pipeline might be a board view on any project.
 
 ## Done or decided
 
