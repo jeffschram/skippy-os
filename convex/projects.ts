@@ -16,7 +16,8 @@ import {
 import { describeFile, filesOn } from "./files";
 import { detach } from "./lib/remove";
 import { indexProject } from "./lib/searchIndex";
-import { actor, claudeHome, phaseStatus, projectHealth, projectKind, projectStatus } from "./schema";
+import { actor, claudeHome, phaseStatus, projectFinish, projectHealth, projectKind, projectPart, projectStatus } from "./schema";
+import { money, readParts } from "./projectParts";
 import { eventOverAt, presentEvent } from "./agenda";
 import { presentTask } from "./tasks";
 import { areaNames } from "./lib/areas";
@@ -59,25 +60,37 @@ export async function projectBySlug(ctx: QueryCtx, slug: string): Promise<Doc<"p
   return project;
 }
 
+export type Finish = "ongoing" | "date" | "tasks";
+
 /**
- * Where a plan stands, worked out rather than set: an intention until it has
- * tasks, planning while any is open, set once they are all done, and happened
- * once its date has passed. Cancelled tasks do not count. Undefined for any
- * other kind of project.
+ * How a project ends. Undefined for code, which is a type of its own. A
+ * stored "plan" is the older name for a project that ends on a date.
+ */
+export function finishOf(project: Pick<Doc<"projects">, "kind" | "finish">): Finish | undefined {
+  if (project.kind === "code") return undefined;
+  if (project.kind === "plan") return "date";
+  return project.finish ?? "tasks";
+}
+
+/**
+ * Where a project that ends on a date stands, worked out rather than set: an
+ * intention until it has tasks, planning while any is open, set once they
+ * are all done, and happened once its date has passed. Cancelled tasks do not
+ * count. Undefined for any other project.
  */
 export type PlanStage = "intention" | "planning" | "set" | "happened";
 export function planStage(project: Doc<"projects">, tasks: Doc<"tasks">[], now: number): PlanStage | undefined {
-  if (project.kind !== "plan") return undefined;
+  if (finishOf(project) !== "date") return undefined;
   if (project.targetDate !== undefined && project.targetDate < now) return "happened";
   const counted = tasks.filter((task) => task.status !== "cancelled");
   if (counted.length === 0) return "intention";
   return counted.some((task) => task.status !== "done") ? "planning" : "set";
 }
 
-/** How close a plan's date must be, with tasks still open, for Home to say so. */
+/** How close a dated project's day must be, with tasks still open, for Home to say so. */
 const PLAN_SOON_MS = 14 * DAY_MS;
 
-/** Active plans dated within the next two weeks that still have tasks open, soonest first. */
+/** Active projects that end on a date within the next two weeks and still have tasks open, soonest first. */
 export async function plansDueSoon(ctx: QueryCtx, now: number) {
   const settings = await getSettings(ctx);
   const plans = (
@@ -85,7 +98,7 @@ export async function plansDueSoon(ctx: QueryCtx, now: number) {
       .query("projects")
       .withIndex("by_status", (q) => q.eq("status", "active"))
       .collect()
-  ).filter((project) => project.kind === "plan" && project.targetDate !== undefined && project.targetDate >= now && project.targetDate - now <= PLAN_SOON_MS);
+  ).filter((project) => finishOf(project) === "date" && project.targetDate !== undefined && project.targetDate >= now && project.targetDate - now <= PLAN_SOON_MS);
   const due = [];
   for (const plan of plans.sort((a, b) => a.targetDate! - b.targetDate!)) {
     const tasks = await ctx.db
@@ -108,7 +121,12 @@ export function presentProject(project: Doc<"projects">, settings: { timeZone: s
     slug: project.slug,
     title: project.title,
     summary: project.summary,
-    kind: project.kind,
+    kind: project.kind === "plan" ? ("general" as const) : project.kind,
+    /** How it ends: "ongoing", "date" or "tasks". Not given for code. */
+    finish: finishOf(project),
+    roughDate: project.roughDate,
+    parts: project.parts ?? [],
+    budget: project.budget,
     status: project.status,
     health: project.health,
     claudeHome: project.claudeHome,
@@ -116,8 +134,9 @@ export function presentProject(project: Doc<"projects">, settings: { timeZone: s
     statusUpdatedAt: iso(project.statusUpdatedAt),
     statusUpdatedBy: project.statusUpdatedBy ? actorLabel(project.statusUpdatedBy) : undefined,
     daysSinceStatus,
-    // A plan has a date to work towards instead, so it never goes stale.
-    stale: project.kind !== "plan" && project.status === "active" && now - quietSince > settings.stalenessDays * DAY_MS,
+    // A project with a fixed date works towards that instead, and an ongoing one has nothing to finish, so neither goes stale.
+    stale:
+      (finishOf(project) ?? "tasks") === "tasks" && project.status === "active" && now - quietSince > settings.stalenessDays * DAY_MS,
     targetDate: showWhen(project.targetDate, settings.timeZone)?.date,
   };
 }
@@ -130,6 +149,10 @@ export const upsert = internalMutation({
     summary: nullable(v.string()),
     description: nullable(v.string()),
     kind: v.optional(projectKind),
+    finish: v.optional(projectFinish),
+    roughDate: nullable(v.string()),
+    parts: v.optional(v.array(projectPart)),
+    budget: nullable(v.number()),
     status: v.optional(projectStatus),
     health: nullable(projectHealth),
     claudeHome: nullable(claudeHome),
@@ -147,7 +170,12 @@ export const upsert = internalMutation({
       title: args.title === undefined ? undefined : requireText(args.title, "title"),
       summary: cleanText(args.summary),
       description: limitedText(args.description, "description", MAX_DESCRIPTION),
-      kind: args.kind,
+      // "plan" is the older name for a general project that ends on a date.
+      kind: args.kind === "plan" ? ("general" as const) : args.kind,
+      finish: args.finish ?? (args.kind === "plan" ? ("date" as const) : undefined),
+      roughDate: limitedText(args.roughDate, "roughDate", 100),
+      parts: args.parts === undefined ? undefined : [...new Set(args.parts)],
+      budget: args.budget === undefined || args.budget === null ? args.budget : money(args.budget, "budget"),
       status: args.status,
       health: args.health,
       claudeHome: args.claudeHome,
@@ -163,6 +191,12 @@ export const upsert = internalMutation({
       : null;
 
     if (existing) {
+      // A stored plan made general without saying how it ends still ends on its date.
+      if (existing.kind === "plan" && fields.kind === "general" && fields.finish === undefined) fields.finish = "date";
+      // Made to end on a date, or moved across from a plan, it gains a schedule to hold its itinerary.
+      if (fields.finish === "date" && (finishOf(existing) !== "date" || existing.kind === "plan") && fields.parts === undefined && !existing.parts?.includes("schedule")) {
+        fields.parts = [...(existing.parts ?? []), "schedule"];
+      }
       const { patch, diff } = buildPatch(existing, fields);
       if (Object.keys(patch).length === 0) {
         return { created: false, changed: false, project: presentProject(existing, settings, now) };
@@ -199,10 +233,17 @@ export const upsert = internalMutation({
         );
       }
     }
+    const kind = fields.kind ?? "general";
+    // A project that ends on a date starts with its schedule, which becomes its itinerary.
+    const parts = fields.parts ?? (kind === "general" && fields.finish === "date" ? ["schedule" as const] : undefined);
     const id = await ctx.db.insert("projects", {
       title,
       slug: newSlug,
-      kind: fields.kind ?? "general",
+      kind,
+      ...(kind === "general" && fields.finish ? { finish: fields.finish } : {}),
+      ...(fields.roughDate ? { roughDate: fields.roughDate } : {}),
+      ...(parts && parts.length > 0 ? { parts } : {}),
+      ...(typeof fields.budget === "number" ? { budget: fields.budget } : {}),
       status: fields.status ?? "active",
       notesPad: fields.notesPad ?? "",
       ...(fields.summary ? { summary: fields.summary } : {}),
@@ -498,6 +539,8 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
       description: project.description,
       notesPad: project.notesPad,
     },
+    /** The Options and Budget parts. They are filled in whether or not the part is switched on. */
+    ...(await readParts(ctx, project)),
     phases: phases.map((phase) => ({
       id: phase._id,
       order: phase.order,
@@ -558,9 +601,9 @@ export async function projectBoard(ctx: QueryCtx, args: { now: number }) {
       )
       .map(async (project) => {
         const tasks = (open.get(project._id) ?? []).sort(next);
-        // A plan's stage needs its done tasks too. There are few plans, so they are read one by one.
+        // A dated project's stage needs its done tasks too. There are few, so they are read one by one.
         const all =
-          project.kind === "plan"
+          finishOf(project) === "date"
             ? await ctx.db
                 .query("tasks")
                 .withIndex("by_project", (q) => q.eq("projectId", project._id))

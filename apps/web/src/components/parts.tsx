@@ -41,7 +41,31 @@ export function fromToday(date: string): string {
   return days > 0 ? `in ${days} days` : `${-days} days ago`;
 }
 
-/** What each stage of a plan is called, and its tag's look. */
+/** How a project ends, in words, for its tag and the choice on its page. */
+export const FINISHES = {
+  tasks: { label: "ends when done", choice: "When its tasks are done" },
+  date: { label: "ends on a date", choice: "On a date" },
+  ongoing: { label: "ongoing", choice: "Never: it is ongoing" },
+} as const;
+
+/** The parts a project can switch on, in the order they show. */
+export const PARTS = {
+  options: "Options",
+  budget: "Budget",
+  schedule: "Schedule",
+} as const;
+
+/** An amount of money in dollars, with cents only when there are some. */
+export function showMoney(amount: number): string {
+  return amount.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** What each stage of a project that ends on a date is called, and its tag's look. */
 export const PLAN_STAGES = {
   intention: { label: "intention", tag: undefined },
   planning: { label: "planning", tag: undefined },

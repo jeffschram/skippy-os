@@ -32,6 +32,7 @@ import type * as links from "../links.js";
 import type * as maintenance from "../maintenance.js";
 import type * as operations from "../operations.js";
 import type * as people from "../people.js";
+import type * as projectParts from "../projectParts.js";
 import type * as projects from "../projects.js";
 import type * as push from "../push.js";
 import type * as pushNode from "../pushNode.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   maintenance: typeof maintenance;
   operations: typeof operations;
   people: typeof people;
+  projectParts: typeof projectParts;
   projects: typeof projects;
   push: typeof push;
   pushNode: typeof pushNode;

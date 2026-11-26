@@ -22,8 +22,11 @@ import {
   commitment,
   eventStatus,
   phaseStatus,
+  decisionStatus,
+  projectFinish,
   projectHealth,
   projectKind,
+  projectPart,
   projectStatus,
   recurrenceRule,
   recurrenceStatus,
@@ -124,7 +127,7 @@ export const needsYou = query({
       | { kind: "pass_failed"; pass?: string; at: string; note?: string }
       | { kind: "mini_away"; since: string };
     const items: Item[] = (await openFlags(ctx, args.now)).map((flag) => ({ kind: "flag" as const, ...flag }));
-    // A plan close to its date with things still to arrange.
+    // A project close to its fixed date with things still to arrange.
     for (const plan of await plansDueSoon(ctx, args.now)) items.push({ kind: "plan_due", ...plan });
     const { projects: active } = await listProjects(ctx, { status: "active", now: args.now });
     const troubled = active.filter((project) => project.health === "blocked" || project.health === "at_risk");
@@ -488,6 +491,10 @@ export const saveProject = mutation({
     summary: nullable(v.string()),
     description: nullable(v.string()),
     kind: v.optional(projectKind),
+    finish: v.optional(projectFinish),
+    roughDate: nullable(v.string()),
+    parts: v.optional(v.array(projectPart)),
+    budget: nullable(v.number()),
     status: v.optional(projectStatus),
     health: nullable(projectHealth),
     claudeHome: nullable(claudeHome),
@@ -505,11 +512,91 @@ export const saveProject = mutation({
 
 /** Adds a project. A title already in use is refused, the same as for an agent. */
 export const createProject = mutation({
-  args: { title: v.string(), summary: v.optional(v.string()), kind: v.optional(projectKind), targetDate: v.optional(v.string()) },
+  args: {
+    title: v.string(),
+    summary: v.optional(v.string()),
+    kind: v.optional(projectKind),
+    finish: v.optional(projectFinish),
+    targetDate: v.optional(v.string()),
+    roughDate: v.optional(v.string()),
+  },
   handler: async (ctx, args): Promise<{ slug: string }> => {
     await requireOwner(ctx);
     const result = await ctx.runMutation(internal.projects.upsert, { actor: OWNER, ...args });
     return { slug: result.project.slug };
+  },
+});
+
+/** Adds a question to decide to a project, or changes one: choosing an option decides it. */
+export const saveDecision = mutation({
+  args: {
+    id: v.optional(v.string()),
+    project: v.optional(v.string()),
+    question: v.optional(v.string()),
+    criteria: nullable(v.string()),
+    status: v.optional(decisionStatus),
+    chosen: nullable(v.string()),
+    why: nullable(v.string()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.projectParts.upsertDecision, { actor: OWNER, ...args });
+  },
+});
+
+export const removeDecision = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<void> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.projectParts.removeDecision, { actor: OWNER, id: args.id });
+  },
+});
+
+export const saveOption = mutation({
+  args: {
+    id: v.optional(v.string()),
+    decision: v.optional(v.string()),
+    title: v.optional(v.string()),
+    details: nullable(v.string()),
+    url: nullable(v.string()),
+    price: nullable(v.number()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.projectParts.upsertOption, { actor: OWNER, ...args });
+  },
+});
+
+export const removeOption = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<void> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.projectParts.removeOption, { actor: OWNER, id: args.id });
+  },
+});
+
+export const saveBudgetLine = mutation({
+  args: {
+    id: v.optional(v.string()),
+    project: v.optional(v.string()),
+    title: v.optional(v.string()),
+    planned: nullable(v.number()),
+    spent: nullable(v.number()),
+    bought: v.optional(v.boolean()),
+    url: nullable(v.string()),
+    note: nullable(v.string()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.projectParts.upsertBudgetLine, { actor: OWNER, ...args });
+  },
+});
+
+export const removeBudgetLine = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args): Promise<void> => {
+    await requireOwner(ctx);
+    await ctx.runMutation(internal.projectParts.removeBudgetLine, { actor: OWNER, id: args.id });
   },
 });
 

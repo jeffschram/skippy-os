@@ -12,13 +12,19 @@ import { ChatsAbout } from "./chats-about";
 import { Files } from "./files";
 import { MarkdownText } from "./markdown";
 import { OwnerPage } from "./owner-page";
-import { button } from "./parts";
+import { button, FINISHES, PARTS } from "./parts";
 import { fromToday, Panel, PLAN_STAGES, problem, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
+import { BudgetPart, OptionsPart } from "./project-parts";
 import { ClaudeHome } from "./projects-board";
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
 
-/** One project: its status and history, phases, tasks and notes, all editable by the owner. */
+/**
+ * One project: its status and history, phases, tasks and notes, and the parts
+ * switched on (options, budget, schedule), all editable by the owner. Code is
+ * a type of its own; any other project is ongoing, ends on a date, or ends
+ * when its tasks are done.
+ */
 
 type Page = NonNullable<FunctionReturnType<typeof api.viewer.project>>;
 type Project = Page["project"];
@@ -54,10 +60,20 @@ function Loaded() {
   }
   const { project } = page;
   const stale = staleNote(project);
-  const plan = project.kind === "plan";
+  // A project that ends on a date: a trip, a holiday, a party.
+  const plan = project.finish === "date";
   const stage = project.stage ? PLAN_STAGES[project.stage] : undefined;
+  const has = (part: keyof typeof PARTS) => project.parts.includes(part);
   const events =
-    page.events.length > 0 || plan ? <Events events={page.events} title={plan ? "Itinerary" : "Coming up"} /> : null;
+    page.events.length > 0 || has("schedule") ? (
+      <Events events={page.events} title={has("schedule") ? (plan ? "Itinerary" : "Schedule") : "Coming up"} />
+    ) : null;
+  const parts = (
+    <>
+      {has("options") ? <OptionsPart project={project.slug} decisions={page.decisions} /> : null}
+      {has("budget") ? <BudgetPart project={project.slug} budget={page.budget} /> : null}
+    </>
+  );
   const tasks = (
     <Panel title={plan ? "To arrange" : "Tasks"} icon={CheckSquare} note={`${page.openTasks.length} open`}>
       {page.openTasks.length === 0 ? (
@@ -85,10 +101,12 @@ function Loaded() {
         <Header project={project} />
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {stale ? <Tag kind="at_risk">{stale}</Tag> : null}
-          <Tag>{plan ? "plan" : project.kind === "code" ? "code project" : "general project"}</Tag>
+          <Tag>{project.finish ? FINISHES[project.finish].label : "code"}</Tag>
           {stage ? <Tag kind={stage.tag}>{stage.label}</Tag> : null}
-          {project.targetDate ? (
+          {project.finish === "ongoing" ? null : project.targetDate ? (
             <Tag>{plan ? `${showDay(project.targetDate)}, ${fromToday(project.targetDate)}` : `target ${showDay(project.targetDate)}`}</Tag>
+          ) : project.roughDate ? (
+            <Tag>{project.roughDate}</Tag>
           ) : plan ? (
             <Tag kind="at_risk">no date yet</Tag>
           ) : null}
@@ -105,10 +123,12 @@ function Loaded() {
         <>
           {events}
           {tasks}
+          {parts}
         </>
       ) : (
         <>
           {tasks}
+          {parts}
           {events}
         </>
       )}
@@ -158,7 +178,7 @@ function Events({ events, title }: { events: Page["events"]; title: string }) {
   for (const event of events) days.set(event.start.date, [...(days.get(event.start.date) ?? []), event]);
   return (
     <Panel title={title} icon={CalendarBlank} note={`${events.length} ${events.length === 1 ? "event" : "events"}`}>
-      {events.length === 0 ? <Quiet>No times or bookings yet. Events filed under this plan show here, in order.</Quiet> : null}
+      {events.length === 0 ? <Quiet>No times or bookings yet. Events filed under this project show here, by day.</Quiet> : null}
       <div className="space-y-6">
         {[...days].map(([day, list]) => (
           <div key={day}>
@@ -181,6 +201,7 @@ function Header({ project }: { project: Project }) {
   const [title, setTitle] = useState(project.title);
   const [summary, setSummary] = useState(project.summary ?? "");
   const [target, setTarget] = useState(project.targetDate ?? "");
+  const [rough, setRough] = useState(project.roughDate ?? "");
   const [home, setHome] = useState<HomeDraft>(draftOf(project.claudeHome));
   const [error, setError] = useState<string>();
 
@@ -195,6 +216,7 @@ function Header({ project }: { project: Project }) {
               setTitle(project.title);
               setSummary(project.summary ?? "");
               setTarget(project.targetDate ?? "");
+              setRough(project.roughDate ?? "");
               setHome(draftOf(project.claudeHome));
               setEditing(true);
             }}
@@ -217,6 +239,7 @@ function Header({ project }: { project: Project }) {
         title,
         summary: summary.trim() ? summary : null,
         targetDate: target || null,
+        roughDate: rough.trim() ? rough : null,
         claudeHome: homeOf(home),
       });
       setEditing(false);
@@ -235,10 +258,24 @@ function Header({ project }: { project: Project }) {
         Summary
         <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} className={`mt-1 w-full ${field}`} />
       </label>
-      <label className="block text-sm">
-        {project.kind === "plan" ? "Date (the last day, for more than one)" : "Target date"}
-        <input type="date" value={target} onChange={(event) => setTarget(event.target.value)} className={`mt-1 block ${field}`} />
-      </label>
+      {project.finish === "ongoing" ? null : (
+        <div className="flex flex-wrap gap-4">
+          <label className="block text-sm">
+            {project.finish === "date" ? "Date (the last day, for more than one)" : "Target date"}
+            <input type="date" value={target} onChange={(event) => setTarget(event.target.value)} className={`mt-1 block ${field}`} />
+          </label>
+          <label className="block text-sm">
+            Or roughly when
+            <input
+              value={rough}
+              onChange={(event) => setRough(event.target.value)}
+              placeholder="early spring"
+              maxLength={100}
+              className={`mt-1 block ${field}`}
+            />
+          </label>
+        </div>
+      )}
       <fieldset className="space-y-2">
         <legend className="text-sm">Where this project is worked on in Claude</legend>
         <select
@@ -490,12 +527,18 @@ function Phases({ project, phases }: { project: string; phases: Page["phases"] }
   );
 }
 
-/** Status and health. Each saves as soon as it is changed. */
+/** Type, how it ends, status, health and the parts switched on. Each saves as soon as it is changed. */
 function Settings({ project }: { project: Project }) {
   const save = useMutation(api.viewer.saveProject);
   const [error, setError] = useState<string>();
 
-  async function change(fields: { kind?: Project["kind"]; status?: Project["status"]; health?: NonNullable<Project["health"]> | null }) {
+  async function change(fields: {
+    kind?: Project["kind"];
+    finish?: NonNullable<Project["finish"]>;
+    parts?: Project["parts"];
+    status?: Project["status"];
+    health?: NonNullable<Project["health"]> | null;
+  }) {
     setError(undefined);
     try {
       await save({ slug: project.slug, ...fields });
@@ -508,13 +551,28 @@ function Settings({ project }: { project: Project }) {
     <div className="mt-4">
       <div className="flex flex-wrap gap-4">
         <label className="text-sm">
-          Kind{" "}
+          Type{" "}
           <select value={project.kind} onChange={(event) => change({ kind: event.target.value as Project["kind"] })} className={field}>
             <option value="general">Project</option>
-            <option value="plan">Plan</option>
             <option value="code">Code</option>
           </select>
         </label>
+        {project.finish ? (
+          <label className="text-sm">
+            Ends{" "}
+            <select
+              value={project.finish}
+              onChange={(event) => change({ finish: event.target.value as NonNullable<Project["finish"]> })}
+              className={field}
+            >
+              {(Object.keys(FINISHES) as (keyof typeof FINISHES)[]).map((value) => (
+                <option key={value} value={value}>
+                  {FINISHES[value].choice}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className="text-sm">
           Status{" "}
           <select
@@ -529,7 +587,7 @@ function Settings({ project }: { project: Project }) {
             ))}
           </select>
         </label>
-        {project.kind === "plan" ? null : (
+        {project.finish === "date" ? null : (
           <label className="text-sm">
             Health{" "}
             <select
@@ -547,6 +605,24 @@ function Settings({ project }: { project: Project }) {
           </label>
         )}
       </div>
+      <fieldset className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <legend className="float-left mr-1">Parts</legend>
+        {(Object.keys(PARTS) as (keyof typeof PARTS)[]).map((part) => (
+          <label key={part} className="inline-flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={project.parts.includes(part)}
+              onChange={(event) =>
+                change({
+                  parts: event.target.checked ? [...project.parts, part] : project.parts.filter((item) => item !== part),
+                })
+              }
+              className="size-4"
+            />
+            {PARTS[part]}
+          </label>
+        ))}
+      </fieldset>
       {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
     </div>
   );

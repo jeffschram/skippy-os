@@ -144,7 +144,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   get_project: {
     title: "Get project",
     description:
-      "Reads one project in full: its details, description and notes, phases, open tasks, recently closed tasks, its events still to come, the last five status reports, and what files it holds. Files are listed by name and size only; they are opened from the dashboard.",
+      "Reads one project in full: its details (with how it ends and the parts switched on), description and notes, phases, open tasks, recently closed tasks, its events still to come, its decisions with their options, its budget lines with the totals, the last five status reports, and what files it holds. Files are listed by name and size only; they are opened from the dashboard.",
     input: { project: projectSlug },
     kind: "read",
   },
@@ -163,12 +163,25 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
         .enum(["code", "general", "plan"])
         .optional()
         .describe(
-          '"code" for a software project; "plan" for something elaborate built around a date, such as a trip, a holiday or a birthday, with targetDate as its day (the last day, for several); otherwise "general". A plan is set once its tasks are done.',
+          '"code" for a software project, which is a type of its own; "general" for everything else. ("plan" is the older name for a general project with finish "date".)',
         ),
+      finish: z
+        .enum(["ongoing", "date", "tasks"])
+        .optional()
+        .describe(
+          'How a general project ends. "ongoing": never, a part of life to keep up (the house, the car, health). "date": on its date, which is fixed, such as a trip, a holiday or a party; targetDate is the day (the last day, for several), and it starts with the schedule part. "tasks" (the default): when its work is done, with targetDate as an optional aim, such as a remodel.',
+        ),
+      roughDate: clearable(z.string().max(100)).describe('Roughly when, in words, until there is a date: "early spring", "before the holidays".'),
+      parts: list(z.array(z.enum(["options", "budget", "schedule"])).max(3))
+        .optional()
+        .describe(
+          'The parts switched on, each a panel on its page. Replaces the list. "options": questions to decide, each with options side by side (upsert_decision, upsert_option). "budget": lines planned against spent, which double as the shopping list (upsert_budget_line). "schedule": its events by day, the itinerary for a trip (upsert_event with project). Adding a decision or a budget line switches its part on.',
+        ),
+      budget: clearable(z.number().min(0)).describe("The budget part's total to stay within, in the owner's currency."),
       status: projectStatus.optional().describe('Defaults to "active" for a new project.'),
       health: clearable(projectHealth),
       claudeHome: clearable(claudeHome).describe("Where the work happens in Claude."),
-      targetDate: clearable(when("When the project should be finished.")),
+      targetDate: clearable(when("For finish \"date\", the day it happens; otherwise when it should be finished.")),
       notesPad: z.string().optional().describe("Free-form working notes. Replaces the whole pad."),
     },
     kind: "write",
@@ -208,6 +221,54 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       title: z.string().trim().min(1).max(200).optional(),
       description: clearable(z.string().max(4000)),
       status: z.enum(["planned", "active", "done"]).optional(),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  upsert_decision: {
+    title: "Create or update decision",
+    description:
+      'Adds a question to decide to a project\'s options part, or changes one when `id` is given. Add the options with upsert_option, weighed against `criteria`. To decide, pass `chosen` with an option\'s id and `why`: the decision is then saved to Memory, linked to the project. Pass chosen: null to open it again, and status "dropped" when it no longer needs deciding. Pass only the fields that change.',
+    input: {
+      id: z.string().optional().describe("The decision's id, from get_project, to change it."),
+      project: projectSlug.optional().describe("Required when adding one."),
+      question: z.string().trim().min(1).max(300).optional().describe('Required when adding one, such as "Where to stay?"'),
+      criteria: clearable(z.string().max(4000)).describe("What matters in choosing: price, location, timing and so on."),
+      status: z.enum(["open", "decided", "dropped"]).optional(),
+      chosen: clearable(z.string()).describe("The id of the chosen option."),
+      why: clearable(z.string().max(4000)).describe("Why it won."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  upsert_option: {
+    title: "Create or update option",
+    description:
+      "Adds an option to a decision, or changes one when `id` is given. Write what it is and how it measures up against the decision's criteria in `details`. Pass only the fields that change, and null to clear one.",
+    input: {
+      id: z.string().optional().describe("The option's id, from get_project, to change it."),
+      decision: z.string().optional().describe("The decision's id. Required when adding one."),
+      title: z.string().trim().min(1).max(200).optional().describe("Required when adding one."),
+      details: clearable(z.string().max(4000)).describe("Short Markdown: what it is, pros and cons."),
+      url: clearable(z.string().max(2000)).describe("A link to it."),
+      price: clearable(z.number().min(0)).describe("What it costs, in the owner's currency."),
+    },
+    kind: "write",
+    idempotent: true,
+  },
+  upsert_budget_line: {
+    title: "Create or update budget line",
+    description:
+      "Adds a line to a project's budget, or changes one when `id` is given: something to pay for or buy, with what is planned and what was spent. The lines are also the shopping list, so mark one bought when it is. Pass only the fields that change, and null to clear one.",
+    input: {
+      id: z.string().optional().describe("The line's id, from get_project, to change it."),
+      project: projectSlug.optional().describe("Required when adding one."),
+      title: z.string().trim().min(1).max(200).optional().describe("Required when adding one."),
+      planned: clearable(z.number().min(0)).describe("What it should cost."),
+      spent: clearable(z.number().min(0)).describe("What it did cost."),
+      bought: z.boolean().optional().describe("Paid for or bought."),
+      url: clearable(z.string().max(2000)).describe("Where to buy it, or the booking."),
+      note: clearable(z.string().max(1000)),
     },
     kind: "write",
     idempotent: true,

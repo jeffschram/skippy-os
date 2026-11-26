@@ -93,14 +93,17 @@ describe("what needs the owner", () => {
   });
 });
 
-describe("plans", () => {
+describe("projects that end on a date", () => {
   it("move from intention to planning to set to happened by their tasks and date, never go stale, and show on Home when close with things open", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });
-    const { slug } = await owner.mutation(api.viewer.createProject, { title: "Thanksgiving", kind: "plan", targetDate: "2026-12-03" });
-    const stage = async () => (await owner.query(api.viewer.project, { slug, now: Date.now() }))!.project.stage;
+    const { slug } = await owner.mutation(api.viewer.createProject, { title: "Thanksgiving", finish: "date", targetDate: "2026-12-03" });
+    const page = async () => (await owner.query(api.viewer.project, { slug, now: Date.now() }))!;
+    const stage = async () => (await page()).project.stage;
     const planItems = async () => (await owner.query(api.viewer.needsYou, { now: Date.now() })).items.filter((item) => item.kind === "plan_due");
     expect(await stage()).toBe("intention");
+    // It starts with its schedule, which holds the itinerary.
+    expect((await page()).project).toMatchObject({ kind: "general", finish: "date", parts: ["schedule"] });
 
     const hotel = (await asClaude(t, "upsert_task", { title: "Book the hotel", project: slug })) as { task: { id: string } };
     await asClaude(t, "upsert_task", { title: "Pick the pie", project: slug });
@@ -108,7 +111,7 @@ describe("plans", () => {
     expect(await planItems()).toEqual([{ kind: "plan_due", slug, title: "Thanksgiving", date: "2026-12-03", open: 2 }]);
 
     await asClaude(t, "complete_task", { id: hotel.task.id });
-    const pie = (await owner.query(api.viewer.project, { slug, now: Date.now() }))!.openTasks[0];
+    const pie = (await page()).openTasks[0];
     await asClaude(t, "complete_task", { id: pie.id });
     expect(await stage()).toBe("set");
     expect(await planItems()).toEqual([]);
@@ -117,20 +120,138 @@ describe("plans", () => {
     vi.setSystemTime(new Date("2026-12-26T17:00:00Z"));
     expect(await stage()).toBe("happened");
     const board = await owner.query(api.viewer.board, { now: Date.now() });
-    expect(board.projects[0]).toMatchObject({ kind: "plan", stage: "happened", stale: false, targetDate: "2026-12-03" });
+    expect(board.projects[0]).toMatchObject({ kind: "general", finish: "date", stage: "happened", stale: false, targetDate: "2026-12-03" });
 
-    // An ordinary project can be turned into a plan from its page.
+    // An ordinary project can be made to end on a date from its page.
     await owner.mutation(api.viewer.createProject, { title: "Birthday in the city" });
-    await owner.mutation(api.viewer.saveProject, { slug: "birthday-in-the-city", kind: "plan" });
-    expect((await owner.query(api.viewer.project, { slug: "birthday-in-the-city", now: Date.now() }))!.project.stage).toBe("intention");
+    await owner.mutation(api.viewer.saveProject, { slug: "birthday-in-the-city", finish: "date" });
+    expect((await owner.query(api.viewer.project, { slug: "birthday-in-the-city", now: Date.now() }))!.project).toMatchObject({
+      stage: "intention",
+      parts: ["schedule"],
+    });
   });
 
   it("are not on Home when their date is more than two weeks off", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });
-    await owner.mutation(api.viewer.createProject, { title: "Spring trip", kind: "plan", targetDate: "2027-03-20" });
+    await owner.mutation(api.viewer.createProject, { title: "Spring trip", finish: "date", targetDate: "2027-03-20" });
     await asClaude(t, "upsert_task", { title: "Book flights", project: "spring-trip" });
     expect((await owner.query(api.viewer.needsYou, { now: Date.now() })).items).toEqual([]);
+  });
+
+  it("take a project stored or sent as a plan as one that ends on a date", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    // An older client still sends kind "plan".
+    await asClaude(t, "upsert_project", { title: "Lake weekend", kind: "plan", targetDate: "2027-06-12" });
+    const sent = (await owner.query(api.viewer.project, { slug: "lake-weekend", now: Date.now() }))!.project;
+    expect(sent).toMatchObject({ kind: "general", finish: "date", parts: ["schedule"], stage: "intention" });
+
+    // One stored as a plan reads as one that ends on a date, and moving it across keeps that.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("projects", {
+        title: "Old plan",
+        slug: "old-plan",
+        kind: "plan",
+        status: "active",
+        notesPad: "",
+        createdBy: { kind: "user" },
+        updatedBy: { kind: "user" },
+        updatedAt: Date.now(),
+      });
+    });
+    expect((await owner.query(api.viewer.project, { slug: "old-plan", now: Date.now() }))!.project).toMatchObject({ kind: "general", finish: "date" });
+    await owner.mutation(api.viewer.saveProject, { slug: "old-plan", kind: "general" });
+    const moved = await t.run(async (ctx) => ctx.db.query("projects").withIndex("by_slug", (q) => q.eq("slug", "old-plan")).unique());
+    expect(moved).toMatchObject({ kind: "general", finish: "date", parts: ["schedule"] });
+  });
+});
+
+describe("how a project ends", () => {
+  it("never goes stale when it is ongoing, and code has no ending at all", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "The house", finish: "ongoing" });
+    await owner.mutation(api.viewer.createProject, { title: "Shed build" });
+    await owner.mutation(api.viewer.createProject, { title: "Recipe app", kind: "code" });
+    vi.setSystemTime(new Date(Date.now() + 30 * 86_400_000));
+    const board = await owner.query(api.viewer.board, { now: Date.now() });
+    const bySlug = Object.fromEntries(board.projects.map((project) => [project.slug, project]));
+    expect(bySlug["the-house"]).toMatchObject({ finish: "ongoing", stale: false });
+    expect(bySlug["the-house"].stage).toBeUndefined();
+    expect(bySlug["shed-build"]).toMatchObject({ finish: "tasks", stale: true });
+    expect(bySlug["recipe-app"]).toMatchObject({ kind: "code", stale: true });
+    expect(bySlug["recipe-app"].finish).toBeUndefined();
+  });
+
+  it("keeps a rough date in words until there is a real one", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Island trip", finish: "date", roughDate: "early spring" });
+    const page = await owner.query(api.viewer.project, { slug: "island-trip", now: Date.now() });
+    expect(page!.project).toMatchObject({ roughDate: "early spring", finish: "date" });
+    expect(page!.project.targetDate).toBeUndefined();
+  });
+});
+
+describe("project parts", () => {
+  it("weigh options for a decision, and save the choice to Memory linked to the project", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await asClaude(t, "upsert_project", { title: "Island trip", finish: "date" });
+    const added = (await asClaude(t, "upsert_decision", {
+      project: "island-trip",
+      question: "Where to stay?",
+      criteria: "Near a beach, under $300 a night",
+    })) as { decision: { id: string } };
+    const inn = (await asClaude(t, "upsert_option", { decision: added.decision.id, title: "Harbour Inn", price: 240, url: "https://example.com/inn" })) as {
+      option: { id: string };
+    };
+    await asClaude(t, "upsert_option", { decision: added.decision.id, title: "Cliff Resort", price: 410, details: "Over budget, best view." });
+
+    let page = (await owner.query(api.viewer.project, { slug: "island-trip", now: Date.now() }))!;
+    // Adding a decision switched the part on.
+    expect(page.project.parts).toEqual(["schedule", "options"]);
+    expect(page.decisions[0]).toMatchObject({ question: "Where to stay?", status: "open" });
+    expect(page.decisions[0].options.map((option) => option.title)).toEqual(["Harbour Inn", "Cliff Resort"]);
+
+    // Deciding without an option is refused.
+    expect(await refusal(asClaude(t, "upsert_decision", { id: added.decision.id, status: "decided" }))).toBe("invalid_arguments");
+
+    await asClaude(t, "upsert_decision", { id: added.decision.id, chosen: inn.option.id, why: "On the beach and in budget." });
+    page = (await owner.query(api.viewer.project, { slug: "island-trip", now: Date.now() }))!;
+    expect(page.decisions[0]).toMatchObject({ status: "decided", chosenOptionId: inn.option.id, why: "On the beach and in budget." });
+    const saved = await t.run(async (ctx) => ctx.db.query("knowledge").collect());
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ kind: "decision", lifecycle: "active", decision: { chosen: "Harbour Inn", options: ["Harbour Inn", "Cliff Resort"] } });
+
+    // The chosen option cannot be removed; opening the decision again archives what was saved.
+    expect(await refusal(owner.mutation(api.viewer.removeOption, { id: inn.option.id }))).toBe("invalid_arguments");
+    await owner.mutation(api.viewer.saveDecision, { id: added.decision.id, chosen: null });
+    page = (await owner.query(api.viewer.project, { slug: "island-trip", now: Date.now() }))!;
+    expect(page.decisions[0]).toMatchObject({ status: "open" });
+    expect(page.decisions[0].chosenOptionId).toBeUndefined();
+    expect((await t.run(async (ctx) => ctx.db.query("knowledge").collect()))[0].lifecycle).toBe("archived");
+  });
+
+  it("add up a budget planned against spent, with lines that double as the shopping list", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await asClaude(t, "upsert_project", { title: "Office remodel", budget: 3000 });
+    const paint = (await asClaude(t, "upsert_budget_line", { project: "office-remodel", title: "Paint", planned: 120.5 })) as { line: { id: string } };
+    await asClaude(t, "upsert_budget_line", { project: "office-remodel", title: "Desk", planned: 600, spent: 549.99, bought: true });
+    await asClaude(t, "upsert_budget_line", { id: paint.line.id, spent: 98.25, bought: true });
+    expect(await refusal(asClaude(t, "upsert_budget_line", { project: "office-remodel", title: "Rug", planned: -5 }))).toBe("invalid_arguments");
+
+    const page = (await owner.query(api.viewer.project, { slug: "office-remodel", now: Date.now() }))!;
+    expect(page.project.parts).toEqual(["budget"]);
+    expect(page.budget).toMatchObject({ total: 3000, planned: 720.5, spent: 648.24 });
+    expect(page.budget.lines.map((line) => [line.title, line.bought])).toEqual([
+      ["Paint", true],
+      ["Desk", true],
+    ]);
+    await owner.mutation(api.viewer.removeBudgetLine, { id: paint.line.id });
+    expect((await owner.query(api.viewer.project, { slug: "office-remodel", now: Date.now() }))!.budget.lines).toHaveLength(1);
   });
 });
 

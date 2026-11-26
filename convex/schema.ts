@@ -39,8 +39,25 @@ export const projectStatus = v.union(
   v.literal("archived"),
 );
 export const projectHealth = v.union(v.literal("on_track"), v.literal("at_risk"), v.literal("blocked"));
-/** A plan is something elaborate built around a date, such as a trip, a holiday or a birthday: it is set once its tasks are done. */
+/**
+ * Code is a type of its own: a software project with a folder, the nightly
+ * sweep and Claude Code reporting to it. Every other project is "general",
+ * and `finish` says how it ends. "plan" is the older name for a general
+ * project that ends on a date; it is read as one, and the stored ones are
+ * moved across (see `projects.ts`).
+ */
 export const projectKind = v.union(v.literal("code"), v.literal("general"), v.literal("plan"));
+/**
+ * How a general project ends: "ongoing" never does (the house, the car,
+ * health); "date" ends on its date, which is fixed (a trip, a party);
+ * "tasks" ends when its work is done, with an optional target date (a
+ * remodel). Unset means "tasks".
+ */
+export const projectFinish = v.union(v.literal("ongoing"), v.literal("date"), v.literal("tasks"));
+/** The parts a project can switch on, each a panel on its page. */
+export const PROJECT_PARTS = ["options", "budget", "schedule"] as const;
+export const projectPart = v.union(v.literal("options"), v.literal("budget"), v.literal("schedule"));
+export const decisionStatus = v.union(v.literal("open"), v.literal("decided"), v.literal("dropped"));
 /** Where a project's work happens in Claude. */
 export const claudeHome = v.union(
   v.object({ kind: v.literal("claude_project"), name: v.string(), url: v.optional(v.string()) }),
@@ -185,11 +202,62 @@ export default defineSchema({
     notesPad: v.string(),
     goalId: v.optional(v.id("goals")),
     areaId: v.optional(v.id("areas")),
+    /** For a project that ends on a date, that date (its last day); otherwise a target to finish by. */
     targetDate: v.optional(v.number()),
+    /** General projects only. Unset means "tasks". */
+    finish: v.optional(projectFinish),
+    /** Roughly when, in words, until there is a date: "early spring", "before the holidays". */
+    roughDate: v.optional(v.string()),
+    /** The parts switched on, in the order they were added. */
+    parts: v.optional(v.array(projectPart)),
+    /** The Budget part's total to stay within, in the owner's currency. */
+    budget: v.optional(v.number()),
     ...authored,
   })
     .index("by_slug", ["slug"])
     .index("by_status", ["status"]),
+
+  // The Options part: questions to decide, each with options side by side.
+  decisions: defineTable({
+    projectId: v.id("projects"),
+    question: v.string(),
+    status: decisionStatus,
+    /** What matters in choosing, so the options can be weighed against it. */
+    criteria: v.optional(v.string()),
+    chosenOptionId: v.optional(v.id("decisionOptions")),
+    /** Why the chosen option won. */
+    why: v.optional(v.string()),
+    decidedAt: v.optional(v.number()),
+    /** The decision as saved to Memory once made. */
+    knowledgeId: v.optional(v.id("knowledge")),
+    order: v.number(),
+    ...authored,
+  }).index("by_project", ["projectId", "order"]),
+
+  decisionOptions: defineTable({
+    decisionId: v.id("decisions"),
+    projectId: v.id("projects"),
+    title: v.string(),
+    /** Short Markdown: what it is, pros and cons, how it measures up. */
+    details: v.optional(v.string()),
+    url: v.optional(v.string()),
+    price: v.optional(v.number()),
+    order: v.number(),
+    ...authored,
+  }).index("by_decision", ["decisionId", "order"]),
+
+  // The Budget part: what is planned and spent, line by line. The lines are also the shopping list.
+  budgetLines: defineTable({
+    projectId: v.id("projects"),
+    title: v.string(),
+    planned: v.optional(v.number()),
+    spent: v.optional(v.number()),
+    bought: v.boolean(),
+    url: v.optional(v.string()),
+    note: v.optional(v.string()),
+    order: v.number(),
+    ...authored,
+  }).index("by_project", ["projectId", "order"]),
 
   // The history of status reports. The latest is copied onto its project.
   projectUpdates: defineTable({

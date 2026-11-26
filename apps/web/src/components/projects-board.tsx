@@ -7,13 +7,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { OwnerPage } from "./owner-page";
-import { button, fromToday, PLAN_STAGES, problem, Quiet, showDay, staleNote, Tag, words } from "./parts";
+import { button, FINISHES, fromToday, PLAN_STAGES, problem, Quiet, showDay, staleNote, Tag, words } from "./parts";
 import { useNow } from "./use-now";
 
 /**
- * Every project and plan in one list, one row each: labels for what it is and
- * where it stands, and a line on what comes next. Plans show their date and
- * how far off it is. Finished ones, and plans whose day has passed, fold away.
+ * Every project, one row each: labels for how it ends and where it stands, and
+ * a line on what comes next. One that ends on a date shows the date and how
+ * far off it is. Code is a type of its own, listed apart under Code. Finished
+ * ones, and those whose day has passed, fold away.
  */
 
 type Project = FunctionReturnType<typeof api.viewer.board>["projects"][number];
@@ -34,17 +35,25 @@ function Board() {
   if (data === undefined) return <Quiet>Loading…</Quiet>;
   const current = data.projects.filter((project) => !finished(project));
   const done = data.projects.filter(finished);
+  const projects = current.filter((project) => project.kind !== "code");
+  const code = current.filter((project) => project.kind === "code");
   return (
     <div>
       <h1 className="text-2xl font-semibold">Projects</h1>
       <NewProject />
-      {current.length === 0 ? (
+      {projects.length === 0 ? (
         <div className="mt-6">
           <Quiet>No projects yet. Ask Claude to add one.</Quiet>
         </div>
       ) : (
-        <Rows projects={current} />
+        <Rows projects={projects} />
       )}
+      {code.length > 0 ? (
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold">Code</h2>
+          <Rows projects={code} />
+        </div>
+      ) : null}
       {done.length > 0 ? (
         <div className="mt-8">
           <button type="button" onClick={() => setShowFinished(!showFinished)} className="text-sm underline underline-offset-2">
@@ -67,12 +76,15 @@ function Rows({ projects }: { projects: Project[] }) {
   );
 }
 
-/** One line to start a project or a plan. It opens the new one's page, where the rest is filled in. */
+/** What the new-project line can make: a project that ends one of three ways, or code. */
+type Making = NonNullable<Project["finish"]> | "code";
+
+/** One line to start a project. It opens the new one's page, where the rest is filled in. */
 function NewProject() {
   const create = useMutation(api.viewer.createProject);
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [kind, setKind] = useState<Project["kind"]>("general");
+  const [kind, setKind] = useState<Making>("tasks");
   const [date, setDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -83,7 +95,11 @@ function NewProject() {
     setBusy(true);
     setError(undefined);
     try {
-      const { slug } = await create({ title, kind, ...(kind === "plan" && date ? { targetDate: date } : {}) });
+      const { slug } = await create({
+        title,
+        ...(kind === "code" ? { kind: "code" as const } : { kind: "general" as const, finish: kind }),
+        ...(kind === "date" && date ? { targetDate: date } : {}),
+      });
       router.push(`/projects/${slug}`);
     } catch (caught) {
       setError(problem(caught));
@@ -98,17 +114,18 @@ function NewProject() {
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder={kind === "plan" ? "New plan" : "New project"}
+          placeholder={kind === "code" ? "New code project" : "New project"}
           aria-label="New project title"
           className={`min-w-48 flex-1 ${field}`}
         />
-        <select value={kind} onChange={(event) => setKind(event.target.value as Project["kind"])} aria-label="Kind" className={field}>
-          <option value="general">Project</option>
-          <option value="plan">Plan</option>
+        <select value={kind} onChange={(event) => setKind(event.target.value as Making)} aria-label="How it ends" className={field}>
+          <option value="tasks">Ends when done</option>
+          <option value="date">Ends on a date</option>
+          <option value="ongoing">Ongoing</option>
           <option value="code">Code</option>
         </select>
-        {kind === "plan" ? (
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="The plan's date" className={field} />
+        {kind === "date" ? (
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="Its date" className={field} />
         ) : null}
         <button type="submit" disabled={busy || !title.trim()} className={`${button} disabled:opacity-50`}>
           Add
@@ -119,12 +136,12 @@ function NewProject() {
   );
 }
 
-/** What comes next on a row: for a plan, its date and what is left to arrange; otherwise the next task. */
+/** What comes next on a row: for a project that ends on a date, the date and what is left to arrange; otherwise the next task. */
 function nextLine(project: Project): string | undefined {
   const next = project.nextTasks[0];
   const todo = next ? `${project.openTaskCount} to do · next: ${next.title}` : undefined;
-  if (project.kind === "plan") {
-    const when = project.targetDate ? `${showDay(project.targetDate)}, ${fromToday(project.targetDate)}` : "no date yet";
+  if (project.finish === "date") {
+    const when = project.targetDate ? `${showDay(project.targetDate)}, ${fromToday(project.targetDate)}` : (project.roughDate ?? "no date yet");
     if (project.stage === "set") return `${when} · everything is done`;
     if (project.stage === "intention") return `${when} · nothing to arrange yet`;
     return todo ? `${when} · ${todo}` : when;
@@ -135,7 +152,8 @@ function nextLine(project: Project): string | undefined {
 function Row({ project }: { project: Project }) {
   const stale = staleNote(project);
   const stage = project.stage ? PLAN_STAGES[project.stage] : undefined;
-  const about = project.kind === "plan" ? project.summary : (project.statusNote ?? project.summary);
+  const plan = project.finish === "date";
+  const about = plan ? project.summary : (project.statusNote ?? project.summary);
   const next = nextLine(project);
   return (
     <li className="py-3">
@@ -143,9 +161,9 @@ function Row({ project }: { project: Project }) {
         <Link href={`/projects/${project.slug}`} className="font-semibold underline-offset-2 hover:underline">
           {project.title}
         </Link>
-        {project.kind === "plan" ? <Tag>plan</Tag> : project.kind === "code" ? <Tag>code</Tag> : null}
+        {project.finish && project.finish !== "tasks" ? <Tag>{FINISHES[project.finish].label}</Tag> : null}
         {stage ? <Tag kind={stage.tag}>{stage.label}</Tag> : null}
-        {project.status !== "active" && !(project.kind === "plan" && project.status === "idea") ? <Tag>{words(project.status)}</Tag> : null}
+        {project.status !== "active" && !(plan && project.status === "idea") ? <Tag>{words(project.status)}</Tag> : null}
         {project.health ? <Tag kind={project.health}>{words(project.health)}</Tag> : null}
         {stale ? <Tag kind="at_risk">{stale}</Tag> : null}
       </div>
