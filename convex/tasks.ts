@@ -4,6 +4,7 @@ import { internalMutation } from "./_generated/server";
 import { buildPatch, cleanText, getSettings, iso, logActivity, refuse, requireText, showWhen, when } from "./lib/common";
 import { detach } from "./lib/remove";
 import { indexTask } from "./lib/searchIndex";
+import { remindArg, showRemind, storedRemind, taskTime } from "./reminders";
 import { actor, commitment, taskStatus } from "./schema";
 import { areaNames, resolveArea } from "./lib/areas";
 
@@ -26,6 +27,10 @@ export function presentTask(task: Doc<"tasks">, projectSlug: string | undefined,
     scheduledFor: showWhen(task.scheduledFor, timeZone),
     waitingOn: task.waitingOn,
     location: task.location,
+    /** Minutes before its time of day that a reminder goes out, or null for none. Only a task with a time gets one. */
+    remindMinutes: showRemind(task.remindMinutes),
+    /** Whether it has a time of day, planned or due, and so can be reminded about. */
+    hasTime: taskTime(task, timeZone) !== undefined,
     completedAt: iso(task.completedAt),
   };
 }
@@ -46,6 +51,8 @@ export const upsert = internalMutation({
     scheduledFor: nullable(v.string()),
     waitingOn: nullable(v.string()),
     location: nullable(v.string()),
+    /** Minutes before its time to remind the owner. Null for no reminder. */
+    remindMinutes: remindArg,
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -101,6 +108,7 @@ export const upsert = internalMutation({
       scheduledFor: when(args.scheduledFor, settings.timeZone, "start", "scheduledFor"),
       waitingOn: cleanText(args.waitingOn),
       location: cleanText(args.location),
+      remindMinutes: storedRemind(args.remindMinutes),
       // Finishing a task stamps it; reopening it clears the stamp.
       completedAt:
         status === undefined
@@ -148,6 +156,7 @@ export const upsert = internalMutation({
       ...(typeof fields.scheduledFor === "number" ? { scheduledFor: fields.scheduledFor } : {}),
       ...(fields.waitingOn ? { waitingOn: fields.waitingOn } : {}),
       ...(fields.location ? { location: fields.location } : {}),
+      ...(fields.remindMinutes !== undefined ? { remindMinutes: fields.remindMinutes } : {}),
       ...(newStatus === "done" ? { completedAt: now } : {}),
       createdBy: args.actor,
       updatedBy: args.actor,

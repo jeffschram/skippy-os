@@ -293,6 +293,9 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       scheduledFor: clearable(when("When the owner plans to do it.")),
       waitingOn: clearable(z.string().max(300)).describe("Who or what the task is waiting on."),
       location: clearable(z.string().max(500)).describe('Where it gets done, such as a shop or an office, with its address when known. The app links it to Google Maps. For a trip write "From → To", such as "Home → City Airport"; Home means the owner\'s home address.'),
+      remindMinutes: clearable(z.number().int().min(0).max(1440)).describe(
+        "Minutes before the time it is planned for, or else due, when that has a time of day to send the owner a reminder; 0 is at the time. Defaults to 15. Null for no reminder.",
+      ),
     },
     kind: "write",
     idempotent: true,
@@ -628,7 +631,7 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
   upsert_event: {
     title: "Create or update event",
     description:
-      "Adds an event to the owner's Skippy calendar, or changes one when `id` is given: an appointment, a trip, a call, anything with a time. A start given as a bare date makes an all-day event. To call an event off, set status to \"cancelled\". Events copied from the owner's Google calendar are changed there; here only their project and links can be set. Use get_agenda first so the same event is not added twice.",
+      "Adds an event to the owner's Skippy calendar, or changes one when `id` is given: an appointment, a trip, a call, anything with a time. A start given as a bare date makes an all-day event. To call an event off, set status to \"cancelled\". Events copied from the owner's Google calendar are changed there; here only their project, links and reminder can be set. Use get_agenda first so the same event is not added twice.",
     input: {
       id: z.string().optional().describe("The event to change."),
       title: z.string().max(300).optional().describe("Required for a new event."),
@@ -644,6 +647,9 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
         .max(10)
         .optional()
         .describe("Links the event to these records."),
+      remindMinutes: clearable(z.number().int().min(0).max(1440)).describe(
+        "Minutes before it starts (not for all-day events) to send the owner a reminder; 0 is at the time. Defaults to 15. Null for no reminder.",
+      ),
     },
     kind: "write",
     idempotent: true,

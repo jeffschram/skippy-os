@@ -37,6 +37,7 @@ import type * as projects from "../projects.js";
 import type * as push from "../push.js";
 import type * as pushNode from "../pushNode.js";
 import type * as read from "../read.js";
+import type * as reminders from "../reminders.js";
 import type * as runner from "../runner.js";
 import type * as tasks from "../tasks.js";
 import type * as viewer from "../viewer.js";
@@ -79,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   push: typeof push;
   pushNode: typeof pushNode;
   read: typeof read;
+  reminders: typeof reminders;
   runner: typeof runner;
   tasks: typeof tasks;
   viewer: typeof viewer;

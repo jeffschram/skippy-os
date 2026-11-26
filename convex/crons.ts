@@ -9,4 +9,7 @@ crons.daily("remove lapsed held captures", { hourUTC: 9, minuteUTC: 10 }, intern
 // A chat turn whose runner stopped holding it is failed, so the chat is never left looking busy.
 crons.interval("fail chat turns the runner dropped", { minutes: 1 }, internal.chats.reapStalled);
 
+// Reminders before events and tasks with a time of day.
+crons.interval("send reminders", { minutes: 1 }, internal.reminders.sendDue);
+
 export default crons;

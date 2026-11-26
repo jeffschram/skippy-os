@@ -44,6 +44,9 @@ export const projectHealth = v.union(v.literal("on_track"), v.literal("at_risk")
  * sweep and Claude Code reporting to it. Every other project is "general",
  * and `finish` says how it ends.
  */
+/** Minutes before something to remind the owner, or "none" for no reminder. */
+export const remindMinutes = v.optional(v.union(v.number(), v.literal("none")));
+
 export const projectKind = v.union(v.literal("code"), v.literal("general"));
 /** What a caller may send as a kind: "plan" is the older name for a general project that ends on a date. */
 export const projectKindSent = v.union(projectKind, v.literal("plan"));
@@ -294,11 +297,15 @@ export default defineSchema({
     waitingOn: v.optional(v.string()),
     /** Where it gets done, such as a shop's address. The app links it to Google Maps. */
     location: v.optional(v.string()),
+    /** Minutes before its time of day to send a reminder. Missing means 15; only tasks with a time get one. */
+    remindMinutes,
     completedAt: v.optional(v.number()),
     ...authored,
   })
     .index("by_project", ["projectId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_due", ["dueAt"])
+    .index("by_scheduled", ["scheduledFor"]),
 
   // Things that come round again: a bill, a filter change, a check-in.
   recurrences: defineTable({
@@ -349,6 +356,8 @@ export default defineSchema({
      * is kept on Google copies too and a pass never touches it.
      */
     doneAt: v.optional(v.number()),
+    /** Minutes before it starts to send a reminder. Missing means 15; all-day events get none. Kept on Google copies too. */
+    remindMinutes,
     projectId: v.optional(v.id("projects")),
     ...authored,
   })

@@ -10,7 +10,7 @@ import { TaskView } from "./details-views";
 import { Background, ChatSection, DetailsWindow, WindowButtons, WindowLayout } from "./details-window";
 import { Files } from "./files";
 import { button } from "./parts";
-import { doneBox, problem, Quiet, showTime } from "./parts";
+import { doneBox, problem, Quiet, ReminderField, remindText, remindValue, showTime } from "./parts";
 import { useNow } from "./use-now";
 
 /**
@@ -159,6 +159,7 @@ function Form({ details, onDone, onClose }: { details: Details; onDone: () => vo
   const [planned, setPlanned] = useState(task.scheduledFor?.date ?? "");
   const [waitingOn, setWaitingOn] = useState(task.waitingOn ?? "");
   const [location, setLocation] = useState(task.location ?? "");
+  const [remind, setRemind] = useState(remindText(task.remindMinutes));
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string>();
@@ -188,6 +189,7 @@ function Form({ details, onDone, onClose }: { details: Details; onDone: () => vo
     if (planned !== (task.scheduledFor?.date ?? "")) changes.scheduledFor = planned || null;
     if (waitingOn !== (task.waitingOn ?? "")) changes.waitingOn = text(waitingOn);
     if (location !== (task.location ?? "")) changes.location = text(location);
+    if (remind !== remindText(task.remindMinutes)) changes.remindMinutes = remindValue(remind);
     if (Object.keys(changes).length === 1) return onDone();
     setBusy(true);
     setError(undefined);
@@ -259,6 +261,7 @@ function Form({ details, onDone, onClose }: { details: Details; onDone: () => vo
           Planned for
           <input type="date" value={planned} onChange={(event) => setPlanned(event.target.value)} className={`mt-1 ${field}`} />
         </label>
+        {task.hasTime ? <ReminderField value={remind} onChange={setRemind} className={field} /> : null}
         <label className="block text-sm">
           Project
           <select

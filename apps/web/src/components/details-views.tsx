@@ -9,7 +9,7 @@ import { useQuery } from "convex/react";
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
 import { eventTime, WorkMark, type EventItem, type RecurrenceItem } from "./calendar-parts";
-import { showDay, showTime, Tag, words } from "./parts";
+import { showDay, showRemind, showTime, Tag, words } from "./parts";
 import { PlaceFact } from "./place";
 import { useNow } from "./use-now";
 
@@ -105,6 +105,7 @@ export function TaskView({ details }: { details: TaskDetails }) {
           ["Due", task.due ? showDay(task.due.date) : null],
           ["Planned for", task.scheduledFor ? showDay(task.scheduledFor.date) : null],
           ["Waiting on", task.waitingOn],
+          ["Reminder", task.hasTime ? showRemind(task.remindMinutes) : null],
           ["Where", task.location ? <PlaceFact location={task.location} /> : null],
           [
             "Project",
@@ -250,6 +251,7 @@ export function EventView({ event }: { event: EventItem }) {
       <Facts
         rows={[
           ["When", `${showDay(event.start.date)}, ${eventTime(event)}`],
+          ["Reminder", event.allDay ? null : showRemind(event.remindMinutes)],
           ["Where", event.location ? <PlaceFact location={event.location} /> : null],
           [
             "Project",

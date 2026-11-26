@@ -15,6 +15,7 @@ import { buildPatch, cleanText, getSettings, iso, logActivity, refuse, requireTe
 import { requireEntity, type Ref } from "./lib/entities";
 import { ensureLink } from "./lib/links";
 import { indexEvent, indexRecurrence } from "./lib/searchIndex";
+import { remindArg, showRemind, storedRemind } from "./reminders";
 import { actor, entityType, eventStatus, recurrenceRule, recurrenceStatus } from "./schema";
 import { presentTask } from "./tasks";
 import { areaNames, resolveArea } from "./lib/areas";
@@ -85,6 +86,8 @@ export function presentEvent(event: Doc<"calendarEvents">, projectSlug: string |
     overAt: iso(eventOverAt(event, timeZone))!,
     /** When the owner ticked it off early, if they did. */
     doneAt: iso(event.doneAt),
+    /** Minutes before it starts that a reminder goes out, or null for none. All-day events get none. */
+    remindMinutes: showRemind(event.remindMinutes),
     status: event.status,
     /** "skippy" events can be changed here. "google" ones are a copy of the owner's calendar. */
     origin: event.origin,
@@ -107,6 +110,8 @@ export const upsertEvent = internalMutation({
     allDay: v.optional(v.boolean()),
     status: v.optional(eventStatus),
     project: nullable(v.string()),
+    /** Minutes before it starts to remind the owner. Null for no reminder. */
+    remindMinutes: remindArg,
     about: v.optional(v.array(v.object({ type: entityType, id: v.string() }))),
   },
   handler: async (ctx, args) => {
@@ -119,7 +124,7 @@ export const upsertEvent = internalMutation({
       existing = id ? await ctx.db.get(id) : null;
       if (!existing) throw refuse("not_found", `There is no event with the id "${args.id}".`);
       // A copy from the owner's Google calendar is changed there. Its project and links are
-      // Skippy's own, like the done mark, so those can be set here and a pass never touches them.
+      // Skippy's own, like the done mark and the reminder, so those can be set here and a pass never touches them.
       if (existing.origin !== "skippy") {
         const theirs = (["title", "description", "location", "startAt", "endAt", "allDay", "status"] as const).filter(
           (name) => args[name] !== undefined,
@@ -127,7 +132,7 @@ export const upsertEvent = internalMutation({
         if (theirs.length > 0) {
           throw refuse(
             "read_only",
-            `That event is a copy from the owner's Google calendar, so ${theirs.join(", ")} can only be changed there. Its project and links can be set here.`,
+            `That event is a copy from the owner's Google calendar, so ${theirs.join(", ")} can only be changed there. Its project, links and reminder can be set here.`,
           );
         }
       }
@@ -165,6 +170,7 @@ export const upsertEvent = internalMutation({
       allDay,
       status: args.status,
       projectId,
+      remindMinutes: storedRemind(args.remindMinutes),
     };
     const about = await Promise.all(
       (args.about ?? []).map((target, index) => requireEntity(ctx, target, `about[${index}]`)),
@@ -193,6 +199,7 @@ export const upsertEvent = internalMutation({
         status: args.status ?? "confirmed",
         origin: "skippy",
         ...(projectId ? { projectId } : {}),
+        ...(fields.remindMinutes !== undefined ? { remindMinutes: fields.remindMinutes } : {}),
         createdBy: args.actor,
         updatedBy: args.actor,
         updatedAt: now,

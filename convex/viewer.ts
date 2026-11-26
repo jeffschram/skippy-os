@@ -11,6 +11,7 @@ import { openFlags, resolveFlag as closeFlag } from "./flags";
 import { fileOnCapture, filesOn, presentFile } from "./files";
 import { readIngestion } from "./ingestion";
 import { notify } from "./push";
+import { remindArg } from "./reminders";
 import { findEntity } from "./lib/entities";
 import { listProjects, plansDueSoon, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
@@ -390,6 +391,7 @@ export const saveTask = mutation({
     scheduledFor: nullable(v.string()),
     waitingOn: nullable(v.string()),
     location: nullable(v.string()),
+    remindMinutes: remindArg,
   },
   handler: async (ctx, args): Promise<{ created: boolean; changed: boolean }> => {
     await requireOwner(ctx);
@@ -688,6 +690,7 @@ export const saveEvent = mutation({
     allDay: v.optional(v.boolean()),
     status: v.optional(eventStatus),
     project: nullable(v.string()),
+    remindMinutes: remindArg,
   },
   handler: async (ctx, args): Promise<{ id: string; changed: boolean }> => {
     await requireOwner(ctx);

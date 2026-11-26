@@ -15,7 +15,7 @@ import { Background, ChatSection, DetailsWindow, WindowButtons, WindowLayout } f
 import { ITEM_TYPES, itemHref } from "./item-href";
 import { Files } from "./files";
 import { CompanyView, EventView, GoalView, KnowledgeView, PersonView, RecurrenceView } from "./details-views";
-import { button, problem, Quiet, showDay, showTime, Tag, words } from "./parts";
+import { button, problem, Quiet, ReminderField, remindText, remindValue, showDay, showTime, Tag, words } from "./parts";
 import { useNow } from "./use-now";
 
 /**
@@ -499,6 +499,7 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
   const [to, setTo] = useState(event.allDay || !event.end ? "" : event.end.time);
   const [location, setLocation] = useState(event.location ?? "");
   const [description, setDescription] = useState(event.description ?? "");
+  const [remind, setRemind] = useState(remindText(event.remindMinutes));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -518,7 +519,8 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
     submitted.preventDefault();
     const changes: Parameters<typeof save>[0] = { id: event.id };
     if (project !== (event.project ?? "")) changes.project = project || null;
-    // A copy from the owner's calendar takes only its project here; the rest is changed in the calendar.
+    if (remind !== remindText(event.remindMinutes)) changes.remindMinutes = remindValue(remind);
+    // A copy from the owner's calendar takes only its project and reminder here; the rest is changed in the calendar.
     if (copy) {
       if (Object.keys(changes).length === 1) return onClose();
       return void run(changes);
@@ -544,8 +546,9 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
       <form onSubmit={submit} className="space-y-4">
         <p className="text-base font-medium">{event.title}</p>
         <ProjectField value={project} current={event.project} onChange={setProject} />
+        {event.allDay ? null : <ReminderField value={remind} onChange={setRemind} className={field} />}
         <p className="text-sm text-foreground/60">
-          This is a copy from your calendar, so its title, time and details are changed there. The project is kept in Skippy only.
+          This is a copy from your calendar, so its title, time and details are changed there. The project and reminder are kept in Skippy only.
         </p>
         {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
         <Buttons busy={busy} onClose={onClose} />
@@ -576,6 +579,7 @@ function EventForm({ event, onClose }: { event: EventItem; onClose: () => void }
           Ends
           <input type="time" value={to} onChange={(change) => setTo(change.target.value)} disabled={!from} className={`mt-1 ${field}`} />
         </label>
+        {from ? <ReminderField value={remind} onChange={setRemind} className={field} /> : null}
       </div>
       <label className="block text-sm">
         Where

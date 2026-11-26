@@ -110,3 +110,45 @@ export function problem(error: unknown): string {
   const data = (error as { data?: { message?: unknown } } | undefined)?.data;
   return typeof data?.message === "string" ? data.message : "That did not save. Try again.";
 }
+
+/** How far ahead a reminder can be set, in minutes. The standard is 15. */
+export const REMIND_CHOICES = [0, 5, 10, 15, 30, 60, 120, 1440] as const;
+
+/** "15 minutes before", "1 hour before", "at the time", or "no reminder". */
+export function showRemind(minutes: number | null): string {
+  if (minutes === null) return "no reminder";
+  if (minutes === 0) return "at the time";
+  if (minutes % 1440 === 0) return minutes === 1440 ? "1 day before" : `${minutes / 1440} days before`;
+  if (minutes % 60 === 0) return minutes === 60 ? "1 hour before" : `${minutes / 60} hours before`;
+  return `${minutes} minute${minutes === 1 ? "" : "s"} before`;
+}
+
+/**
+ * The reminder choice in an edit form. Its value is the select's text: minutes,
+ * or "none". A value set elsewhere that is not one of the choices stays listed.
+ */
+export function ReminderField({ value, onChange, className }: { value: string; onChange: (value: string) => void; className: string }) {
+  const choices: number[] = [...REMIND_CHOICES];
+  if (value !== "none" && !choices.includes(Number(value))) choices.push(Number(value));
+  choices.sort((a, b) => a - b);
+  return (
+    <label className="block text-sm">
+      Reminder
+      <select value={value} onChange={(event) => onChange(event.target.value)} className={`mt-1 ${className}`}>
+        <option value="none">No reminder</option>
+        {choices.map((minutes) => (
+          <option key={minutes} value={String(minutes)}>
+            {sentence(showRemind(minutes))}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** A form's reminder text back to what is saved: minutes, or null for none. */
+export const remindValue = (value: string): number | null => (value === "none" ? null : Number(value));
+/** What a reminder looks like in a form's select. */
+export const remindText = (minutes: number | null): string => (minutes === null ? "none" : String(minutes));
