@@ -39,7 +39,8 @@ export const projectStatus = v.union(
   v.literal("archived"),
 );
 export const projectHealth = v.union(v.literal("on_track"), v.literal("at_risk"), v.literal("blocked"));
-export const projectKind = v.union(v.literal("code"), v.literal("general"));
+/** A plan is something elaborate built around a date, such as a trip, a holiday or a birthday: it is set once its tasks are done. */
+export const projectKind = v.union(v.literal("code"), v.literal("general"), v.literal("plan"));
 /** Where a project's work happens in Claude. */
 export const claudeHome = v.union(
   v.object({ kind: v.literal("claude_project"), name: v.string(), url: v.optional(v.string()) }),

@@ -59,6 +59,45 @@ export async function projectBySlug(ctx: QueryCtx, slug: string): Promise<Doc<"p
   return project;
 }
 
+/**
+ * Where a plan stands, worked out rather than set: an intention until it has
+ * tasks, planning while any is open, set once they are all done, and happened
+ * once its date has passed. Cancelled tasks do not count. Undefined for any
+ * other kind of project.
+ */
+export type PlanStage = "intention" | "planning" | "set" | "happened";
+export function planStage(project: Doc<"projects">, tasks: Doc<"tasks">[], now: number): PlanStage | undefined {
+  if (project.kind !== "plan") return undefined;
+  if (project.targetDate !== undefined && project.targetDate < now) return "happened";
+  const counted = tasks.filter((task) => task.status !== "cancelled");
+  if (counted.length === 0) return "intention";
+  return counted.some((task) => task.status !== "done") ? "planning" : "set";
+}
+
+/** How close a plan's date must be, with tasks still open, for Home to say so. */
+const PLAN_SOON_MS = 14 * DAY_MS;
+
+/** Active plans dated within the next two weeks that still have tasks open, soonest first. */
+export async function plansDueSoon(ctx: QueryCtx, now: number) {
+  const settings = await getSettings(ctx);
+  const plans = (
+    await ctx.db
+      .query("projects")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect()
+  ).filter((project) => project.kind === "plan" && project.targetDate !== undefined && project.targetDate >= now && project.targetDate - now <= PLAN_SOON_MS);
+  const due = [];
+  for (const plan of plans.sort((a, b) => a.targetDate! - b.targetDate!)) {
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_project", (q) => q.eq("projectId", plan._id))
+      .collect();
+    const open = tasks.filter((task) => task.status !== "done" && task.status !== "cancelled").length;
+    if (open > 0) due.push({ slug: plan.slug, title: plan.title, date: showWhen(plan.targetDate, settings.timeZone)!.date, open });
+  }
+  return due;
+}
+
 export function presentProject(project: Doc<"projects">, settings: { timeZone: string; stalenessDays: number }, now: number) {
   const daysSinceStatus =
     project.statusUpdatedAt === undefined ? undefined : Math.floor((now - project.statusUpdatedAt) / DAY_MS);
@@ -77,7 +116,8 @@ export function presentProject(project: Doc<"projects">, settings: { timeZone: s
     statusUpdatedAt: iso(project.statusUpdatedAt),
     statusUpdatedBy: project.statusUpdatedBy ? actorLabel(project.statusUpdatedBy) : undefined,
     daysSinceStatus,
-    stale: project.status === "active" && now - quietSince > settings.stalenessDays * DAY_MS,
+    // A plan has a date to work towards instead, so it never goes stale.
+    stale: project.kind !== "plan" && project.status === "active" && now - quietSince > settings.stalenessDays * DAY_MS,
     targetDate: showWhen(project.targetDate, settings.timeZone)?.date,
   };
 }
@@ -452,7 +492,12 @@ export async function readProject(ctx: QueryCtx, args: { project: string; now: n
     .filter((task) => task.status === "done" || task.status === "cancelled")
     .sort((a, b) => b.updatedAt - a.updatedAt);
   return {
-    project: { ...presentProject(project, settings, now), description: project.description, notesPad: project.notesPad },
+    project: {
+      ...presentProject(project, settings, now),
+      stage: planStage(project, tasks, now),
+      description: project.description,
+      notesPad: project.notesPad,
+    },
     phases: phases.map((phase) => ({
       id: phase._id,
       order: phase.order,
@@ -507,18 +552,27 @@ export async function projectBoard(ctx: QueryCtx, args: { now: number }) {
   const next = (a: Doc<"tasks">, b: Doc<"tasks">) =>
     Number(a.status === "waiting") - Number(b.status === "waiting") || (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity);
   return {
-    projects: projects
+    projects: await Promise.all(projects
       .sort(
         (a, b) => BOARD_ORDER.indexOf(a.status) - BOARD_ORDER.indexOf(b.status) || a.title.localeCompare(b.title),
       )
-      .map((project) => {
+      .map(async (project) => {
         const tasks = (open.get(project._id) ?? []).sort(next);
+        // A plan's stage needs its done tasks too. There are few plans, so they are read one by one.
+        const all =
+          project.kind === "plan"
+            ? await ctx.db
+                .query("tasks")
+                .withIndex("by_project", (q) => q.eq("projectId", project._id))
+                .collect()
+            : tasks;
         return {
           ...presentProject(project, settings, args.now),
+          stage: planStage(project, all, args.now),
           openTaskCount: tasks.length,
           nextTasks: tasks.slice(0, 3).map((task) => presentTask(task, project.slug, settings.timeZone, areas)),
         };
-      }),
+      })),
   };
 }
 

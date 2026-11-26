@@ -13,7 +13,7 @@ import { Files } from "./files";
 import { MarkdownText } from "./markdown";
 import { OwnerPage } from "./owner-page";
 import { button } from "./parts";
-import { Panel, problem, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
+import { fromToday, Panel, PLAN_STAGES, problem, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
 import { ClaudeHome } from "./projects-board";
 import { AddTask, TaskList, type Task } from "./tasks";
 import { useNow } from "./use-now";
@@ -54,14 +54,44 @@ function Loaded() {
   }
   const { project } = page;
   const stale = staleNote(project);
+  const plan = project.kind === "plan";
+  const stage = project.stage ? PLAN_STAGES[project.stage] : undefined;
+  const events =
+    page.events.length > 0 || plan ? <Events events={page.events} title={plan ? "Itinerary" : "Coming up"} /> : null;
+  const tasks = (
+    <Panel title={plan ? "To arrange" : "Tasks"} icon={CheckSquare} note={`${page.openTasks.length} open`}>
+      {page.openTasks.length === 0 ? (
+        <Quiet>{plan ? (project.stage === "intention" ? "Nothing to arrange yet: add what needs booking or deciding." : "Everything is done.") : "Nothing open."}</Quiet>
+      ) : (
+        <ByPhase tasks={page.openTasks} phases={page.phases} />
+      )}
+      <AddTask project={project.slug} />
+      {page.recentlyClosedTasks.length > 0 ? (
+        <details className="mt-6">
+          <summary className="cursor-pointer text-sm text-foreground/60">
+            {page.closedTaskCount} closed
+            {page.closedTaskCount > page.recentlyClosedTasks.length ? `, showing the latest ${page.recentlyClosedTasks.length}` : ""}
+          </summary>
+          <div className="mt-3">
+            <TaskList tasks={page.recentlyClosedTasks} />
+          </div>
+        </details>
+      ) : null}
+    </Panel>
+  );
   return (
     <div className="space-y-10">
       <div>
         <Header project={project} />
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {stale ? <Tag kind="at_risk">{stale}</Tag> : null}
-          <Tag>{project.kind === "code" ? "code project" : "general project"}</Tag>
-          {project.targetDate ? <Tag>target {showDay(project.targetDate)}</Tag> : null}
+          <Tag>{plan ? "plan" : project.kind === "code" ? "code project" : "general project"}</Tag>
+          {stage ? <Tag kind={stage.tag}>{stage.label}</Tag> : null}
+          {project.targetDate ? (
+            <Tag>{plan ? `${showDay(project.targetDate)}, ${fromToday(project.targetDate)}` : `target ${showDay(project.targetDate)}`}</Tag>
+          ) : plan ? (
+            <Tag kind="at_risk">no date yet</Tag>
+          ) : null}
           <span className="font-mono text-xs text-foreground/60">{project.slug}</span>
         </div>
         <ClaudeHome home={project.claudeHome} />
@@ -70,46 +100,43 @@ function Loaded() {
 
       <Description project={project} />
 
-      {page.events.length > 0 ? <Events events={page.events} /> : null}
+      {/* Once a plan is set, its itinerary is what matters; until then, what is left to arrange. */}
+      {plan && project.stage === "set" ? (
+        <>
+          {events}
+          {tasks}
+        </>
+      ) : (
+        <>
+          {tasks}
+          {events}
+        </>
+      )}
 
-      <Panel title="Tasks" icon={CheckSquare} note={`${page.openTasks.length} open`}>
-        {page.openTasks.length === 0 ? <Quiet>Nothing open.</Quiet> : <ByPhase tasks={page.openTasks} phases={page.phases} />}
-        <AddTask project={project.slug} />
-        {page.recentlyClosedTasks.length > 0 ? (
-          <details className="mt-6">
-            <summary className="cursor-pointer text-sm text-foreground/60">
-              {page.closedTaskCount} closed
-              {page.closedTaskCount > page.recentlyClosedTasks.length ? `, showing the latest ${page.recentlyClosedTasks.length}` : ""}
-            </summary>
-            <div className="mt-3">
-              <TaskList tasks={page.recentlyClosedTasks} />
-            </div>
-          </details>
-        ) : null}
-      </Panel>
+      {plan && page.recentUpdates.length === 0 ? null : (
+        <Panel title="Status" icon={Flag}>
+          {page.recentUpdates.length === 0 ? (
+            <Quiet>No status reports yet. Claude adds one when it works on this project.</Quiet>
+          ) : (
+            <ul className="space-y-4">
+              {page.recentUpdates.map((update, index) => (
+                <li key={update.at ?? index}>
+                  <p className="text-sm text-foreground/60">
+                    {update.by}
+                    {update.fromSweep ? " · from the nightly sweep, written from commits" : ""}
+                    {update.at ? ` · ${showTime(update.at)}` : ""}
+                    {update.health ? ` · ${words(update.health)}` : ""}
+                  </p>
+                  {update.milestone ? <p className="mt-1 text-sm font-medium">{update.milestone}</p> : null}
+                  <p className="mt-1 text-base whitespace-pre-wrap">{update.note}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      )}
 
-      <Panel title="Status" icon={Flag}>
-        {page.recentUpdates.length === 0 ? (
-          <Quiet>No status reports yet. Claude adds one when it works on this project.</Quiet>
-        ) : (
-          <ul className="space-y-4">
-            {page.recentUpdates.map((update, index) => (
-              <li key={update.at ?? index}>
-                <p className="text-sm text-foreground/60">
-                  {update.by}
-                  {update.fromSweep ? " · from the nightly sweep, written from commits" : ""}
-                  {update.at ? ` · ${showTime(update.at)}` : ""}
-                  {update.health ? ` · ${words(update.health)}` : ""}
-                </p>
-                {update.milestone ? <p className="mt-1 text-sm font-medium">{update.milestone}</p> : null}
-                <p className="mt-1 text-base whitespace-pre-wrap">{update.note}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <Phases project={project.slug} phases={page.phases} />
+      {plan && page.phases.length === 0 ? null : <Phases project={project.slug} phases={page.phases} />}
 
       <Panel title="Chats" icon={ChatsCircle}>
         <ChatsAbout type="project" id={project.slug} />
@@ -126,11 +153,12 @@ function Loaded() {
 
 /** The title and summary, with an edit form behind a button. */
 /** The project's events still to come, by day. */
-function Events({ events }: { events: Page["events"] }) {
+function Events({ events, title }: { events: Page["events"]; title: string }) {
   const days = new Map<string, Page["events"]>();
   for (const event of events) days.set(event.start.date, [...(days.get(event.start.date) ?? []), event]);
   return (
-    <Panel title="Coming up" icon={CalendarBlank} note={`${events.length} ${events.length === 1 ? "event" : "events"}`}>
+    <Panel title={title} icon={CalendarBlank} note={`${events.length} ${events.length === 1 ? "event" : "events"}`}>
+      {events.length === 0 ? <Quiet>No times or bookings yet. Events filed under this plan show here, in order.</Quiet> : null}
       <div className="space-y-6">
         {[...days].map(([day, list]) => (
           <div key={day}>
@@ -208,7 +236,7 @@ function Header({ project }: { project: Project }) {
         <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} className={`mt-1 w-full ${field}`} />
       </label>
       <label className="block text-sm">
-        Target date
+        {project.kind === "plan" ? "Date (the last day, for more than one)" : "Target date"}
         <input type="date" value={target} onChange={(event) => setTarget(event.target.value)} className={`mt-1 block ${field}`} />
       </label>
       <fieldset className="space-y-2">
@@ -467,7 +495,7 @@ function Settings({ project }: { project: Project }) {
   const save = useMutation(api.viewer.saveProject);
   const [error, setError] = useState<string>();
 
-  async function change(fields: { status?: Project["status"]; health?: NonNullable<Project["health"]> | null }) {
+  async function change(fields: { kind?: Project["kind"]; status?: Project["status"]; health?: NonNullable<Project["health"]> | null }) {
     setError(undefined);
     try {
       await save({ slug: project.slug, ...fields });
@@ -479,6 +507,14 @@ function Settings({ project }: { project: Project }) {
   return (
     <div className="mt-4">
       <div className="flex flex-wrap gap-4">
+        <label className="text-sm">
+          Kind{" "}
+          <select value={project.kind} onChange={(event) => change({ kind: event.target.value as Project["kind"] })} className={field}>
+            <option value="general">Project</option>
+            <option value="plan">Plan</option>
+            <option value="code">Code</option>
+          </select>
+        </label>
         <label className="text-sm">
           Status{" "}
           <select
@@ -493,21 +529,23 @@ function Settings({ project }: { project: Project }) {
             ))}
           </select>
         </label>
-        <label className="text-sm">
-          Health{" "}
-          <select
-            value={project.health ?? ""}
-            onChange={(event) => change({ health: (event.target.value || null) as NonNullable<Project["health"]> | null })}
-            className={field}
-          >
-            <option value="">not set</option>
-            {HEALTHS.map((value) => (
-              <option key={value} value={value}>
-                {words(value)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {project.kind === "plan" ? null : (
+          <label className="text-sm">
+            Health{" "}
+            <select
+              value={project.health ?? ""}
+              onChange={(event) => change({ health: (event.target.value || null) as NonNullable<Project["health"]> | null })}
+              className={field}
+            >
+              <option value="">not set</option>
+              {HEALTHS.map((value) => (
+                <option key={value} value={value}>
+                  {words(value)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {error ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
     </div>

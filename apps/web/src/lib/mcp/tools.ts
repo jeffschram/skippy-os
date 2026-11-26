@@ -159,7 +159,12 @@ export const TOOLS: Record<OperationName, ToolDefinition> = {
       description: clearable(z.string().max(20_000)).describe(
         "The longer account of the project in Markdown: goals, scope, background, links. Replaces the whole description. Working notes go in notesPad.",
       ),
-      kind: z.enum(["code", "general"]).optional().describe('"code" for a software project, otherwise "general".'),
+      kind: z
+        .enum(["code", "general", "plan"])
+        .optional()
+        .describe(
+          '"code" for a software project; "plan" for something elaborate built around a date, such as a trip, a holiday or a birthday, with targetDate as its day (the last day, for several); otherwise "general". A plan is set once its tasks are done.',
+        ),
       status: projectStatus.optional().describe('Defaults to "active" for a new project.'),
       health: clearable(projectHealth),
       claudeHome: clearable(claudeHome).describe("Where the work happens in Claude."),

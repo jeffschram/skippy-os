@@ -12,7 +12,7 @@ import { fileOnCapture, filesOn, presentFile } from "./files";
 import { readIngestion } from "./ingestion";
 import { notify } from "./push";
 import { findEntity } from "./lib/entities";
-import { listProjects, projectBoard, readProject } from "./projects";
+import { listProjects, plansDueSoon, projectBoard, readProject } from "./projects";
 import { readToday, recentActivity } from "./read";
 import {
   captureIntent,
@@ -118,11 +118,14 @@ export const needsYou = query({
     await requireOwner(ctx);
     type Item =
       | ({ kind: "flag" } & Awaited<ReturnType<typeof openFlags>>[number])
+      | { kind: "plan_due"; slug: string; title: string; date: string; open: number }
       | { kind: "project_health"; slug: string; title: string; health: "blocked" | "at_risk"; note?: string; since?: string }
       | { kind: "projects_quiet"; count: number; titles: string[] }
       | { kind: "pass_failed"; pass?: string; at: string; note?: string }
       | { kind: "mini_away"; since: string };
     const items: Item[] = (await openFlags(ctx, args.now)).map((flag) => ({ kind: "flag" as const, ...flag }));
+    // A plan close to its date with things still to arrange.
+    for (const plan of await plansDueSoon(ctx, args.now)) items.push({ kind: "plan_due", ...plan });
     const { projects: active } = await listProjects(ctx, { status: "active", now: args.now });
     const troubled = active.filter((project) => project.health === "blocked" || project.health === "at_risk");
     // Blocked first, then at risk.
@@ -484,6 +487,7 @@ export const saveProject = mutation({
     title: v.optional(v.string()),
     summary: nullable(v.string()),
     description: nullable(v.string()),
+    kind: v.optional(projectKind),
     status: v.optional(projectStatus),
     health: nullable(projectHealth),
     claudeHome: nullable(claudeHome),
@@ -501,7 +505,7 @@ export const saveProject = mutation({
 
 /** Adds a project. A title already in use is refused, the same as for an agent. */
 export const createProject = mutation({
-  args: { title: v.string(), summary: v.optional(v.string()), kind: v.optional(projectKind) },
+  args: { title: v.string(), summary: v.optional(v.string()), kind: v.optional(projectKind), targetDate: v.optional(v.string()) },
   handler: async (ctx, args): Promise<{ slug: string }> => {
     await requireOwner(ctx);
     const result = await ctx.runMutation(internal.projects.upsert, { actor: OWNER, ...args });

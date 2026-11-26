@@ -7,10 +7,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { OwnerPage } from "./owner-page";
-import { button, problem, Quiet, showDay, showTime, staleNote, Tag, words } from "./parts";
+import { button, fromToday, PLAN_STAGES, problem, Quiet, showDay, staleNote, Tag, words } from "./parts";
 import { useNow } from "./use-now";
 
-/** Every project on one page: where it stands, who last reported and when, and what comes next. */
+/**
+ * Every project and plan in one list, one row each: labels for what it is and
+ * where it stands, and a line on what comes next. Plans show their date and
+ * how far off it is. Finished ones, and plans whose day has passed, fold away.
+ */
 
 type Project = FunctionReturnType<typeof api.viewer.board>["projects"][number];
 
@@ -22,12 +26,14 @@ export function ProjectsBoard() {
   );
 }
 
+const finished = (project: Project) => project.status === "archived" || project.status === "completed" || project.stage === "happened";
+
 function Board() {
   const data = useQuery(api.viewer.board, { now: useNow() });
-  const [showArchived, setShowArchived] = useState(false);
+  const [showFinished, setShowFinished] = useState(false);
   if (data === undefined) return <Quiet>Loading…</Quiet>;
-  const current = data.projects.filter((project) => project.status !== "archived" && project.status !== "completed");
-  const finished = data.projects.filter((project) => project.status === "archived" || project.status === "completed");
+  const current = data.projects.filter((project) => !finished(project));
+  const done = data.projects.filter(finished);
   return (
     <div>
       <h1 className="text-2xl font-semibold">Projects</h1>
@@ -37,36 +43,37 @@ function Board() {
           <Quiet>No projects yet. Ask Claude to add one.</Quiet>
         </div>
       ) : (
-        <ul className="mt-6 grid gap-4 md:grid-cols-2">
-          {current.map((project) => (
-            <Card key={project.slug} project={project} />
-          ))}
-        </ul>
+        <Rows projects={current} />
       )}
-      {finished.length > 0 ? (
-        <div className="mt-10">
-          <button type="button" onClick={() => setShowArchived(!showArchived)} className="text-sm underline underline-offset-2">
-            {showArchived ? "Hide" : "Show"} {finished.length} completed and archived
+      {done.length > 0 ? (
+        <div className="mt-8">
+          <button type="button" onClick={() => setShowFinished(!showFinished)} className="text-sm underline underline-offset-2">
+            {showFinished ? "Hide" : "Show"} {done.length} finished, archived or past
           </button>
-          {showArchived ? (
-            <ul className="mt-4 grid gap-4 md:grid-cols-2">
-              {finished.map((project) => (
-                <Card key={project.slug} project={project} />
-              ))}
-            </ul>
-          ) : null}
+          {showFinished ? <Rows projects={done} /> : null}
         </div>
       ) : null}
     </div>
   );
 }
 
-/** One line to start a project. It opens the new project's page, where the rest is filled in. */
+function Rows({ projects }: { projects: Project[] }) {
+  return (
+    <ul className="mt-4 divide-y divide-foreground/10 border-y border-foreground/10">
+      {projects.map((project) => (
+        <Row key={project.slug} project={project} />
+      ))}
+    </ul>
+  );
+}
+
+/** One line to start a project or a plan. It opens the new one's page, where the rest is filled in. */
 function NewProject() {
   const create = useMutation(api.viewer.createProject);
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [kind, setKind] = useState<"general" | "code">("general");
+  const [kind, setKind] = useState<Project["kind"]>("general");
+  const [date, setDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -76,7 +83,7 @@ function NewProject() {
     setBusy(true);
     setError(undefined);
     try {
-      const { slug } = await create({ title, kind });
+      const { slug } = await create({ title, kind, ...(kind === "plan" && date ? { targetDate: date } : {}) });
       router.push(`/projects/${slug}`);
     } catch (caught) {
       setError(problem(caught));
@@ -91,14 +98,18 @@ function NewProject() {
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="New project"
+          placeholder={kind === "plan" ? "New plan" : "New project"}
           aria-label="New project title"
           className={`min-w-48 flex-1 ${field}`}
         />
-        <select value={kind} onChange={(event) => setKind(event.target.value as "general" | "code")} aria-label="Kind" className={field}>
-          <option value="general">General</option>
+        <select value={kind} onChange={(event) => setKind(event.target.value as Project["kind"])} aria-label="Kind" className={field}>
+          <option value="general">Project</option>
+          <option value="plan">Plan</option>
           <option value="code">Code</option>
         </select>
+        {kind === "plan" ? (
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="The plan's date" className={field} />
+        ) : null}
         <button type="submit" disabled={busy || !title.trim()} className={`${button} disabled:opacity-50`}>
           Add
         </button>
@@ -108,47 +119,38 @@ function NewProject() {
   );
 }
 
-function Card({ project }: { project: Project }) {
+/** What comes next on a row: for a plan, its date and what is left to arrange; otherwise the next task. */
+function nextLine(project: Project): string | undefined {
+  const next = project.nextTasks[0];
+  const todo = next ? `${project.openTaskCount} to do · next: ${next.title}` : undefined;
+  if (project.kind === "plan") {
+    const when = project.targetDate ? `${showDay(project.targetDate)}, ${fromToday(project.targetDate)}` : "no date yet";
+    if (project.stage === "set") return `${when} · everything is done`;
+    if (project.stage === "intention") return `${when} · nothing to arrange yet`;
+    return todo ? `${when} · ${todo}` : when;
+  }
+  return todo;
+}
+
+function Row({ project }: { project: Project }) {
   const stale = staleNote(project);
+  const stage = project.stage ? PLAN_STAGES[project.stage] : undefined;
+  const about = project.kind === "plan" ? project.summary : (project.statusNote ?? project.summary);
+  const next = nextLine(project);
   return (
-    <li className="rounded-lg border border-foreground/15 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link href={`/projects/${project.slug}`} className="text-lg font-semibold underline-offset-2 hover:underline">
+    <li className="py-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Link href={`/projects/${project.slug}`} className="font-semibold underline-offset-2 hover:underline">
           {project.title}
         </Link>
-        <Tag>{words(project.status)}</Tag>
+        {project.kind === "plan" ? <Tag>plan</Tag> : project.kind === "code" ? <Tag>code</Tag> : null}
+        {stage ? <Tag kind={stage.tag}>{stage.label}</Tag> : null}
+        {project.status !== "active" && !(project.kind === "plan" && project.status === "idea") ? <Tag>{words(project.status)}</Tag> : null}
         {project.health ? <Tag kind={project.health}>{words(project.health)}</Tag> : null}
         {stale ? <Tag kind="at_risk">{stale}</Tag> : null}
       </div>
-      {project.statusNote ? (
-        <div className="mt-3">
-          <p className="line-clamp-4 text-sm">{project.statusNote}</p>
-          {project.statusUpdatedAt ? (
-            <p className="mt-1 text-xs text-foreground/60">
-              {project.statusUpdatedBy} · {showTime(project.statusUpdatedAt)}
-            </p>
-          ) : null}
-        </div>
-      ) : project.summary ? (
-        <p className="mt-3 line-clamp-3 text-sm text-foreground/70">{project.summary}</p>
-      ) : null}
-      {project.nextTasks.length > 0 ? (
-        <div className="mt-3">
-          <p className="text-xs font-medium text-foreground/60">
-            Next{project.openTaskCount > project.nextTasks.length ? ` · ${project.openTaskCount} open` : ""}
-          </p>
-          <ul className="mt-1 space-y-1 text-sm">
-            {project.nextTasks.map((task) => (
-              <li key={task.id}>
-                {task.title}
-                {task.due ? <span className="text-foreground/60"> · due {showDay(task.due.date)}</span> : null}
-                {task.status === "waiting" ? <span className="text-foreground/60"> · waiting</span> : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      <ClaudeHome home={project.claudeHome} />
+      {next ? <p className="mt-1 truncate text-sm">{next}</p> : null}
+      {about ? <p className="mt-0.5 line-clamp-1 text-sm text-foreground/60">{about}</p> : null}
     </li>
   );
 }

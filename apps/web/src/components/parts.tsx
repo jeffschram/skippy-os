@@ -30,6 +30,25 @@ export function showDay(date: string): string {
   return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
+/** How far a day is from today: "today", "tomorrow", "in 12 days", "3 days ago". */
+export function fromToday(date: string): string {
+  const today = new Date();
+  const noon = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12).getTime();
+  const days = Math.round((new Date(`${date}T12:00:00`).getTime() - noon) / 86_400_000);
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days === -1) return "yesterday";
+  return days > 0 ? `in ${days} days` : `${-days} days ago`;
+}
+
+/** What each stage of a plan is called, and its tag's look. */
+export const PLAN_STAGES = {
+  intention: { label: "intention", tag: undefined },
+  planning: { label: "planning", tag: undefined },
+  set: { label: "all set", tag: "on_track" },
+  happened: { label: "happened", tag: undefined },
+} as const;
+
 export function showTime(at: string): string {
   return new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }

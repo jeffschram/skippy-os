@@ -6,14 +6,15 @@ import type { Id } from "@convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { itemHref } from "./item-href";
-import { Panel, Quiet, showTime } from "./parts";
+import { fromToday, Panel, Quiet, showDay, showTime } from "./parts";
 import { useNow } from "./use-now";
 
 /**
  * The top of Home: what needs the owner, so a glance says whether anything
  * does. What a pass or a chat flagged comes first, each line with links to
  * where it came from (the email, the calendar event, the record) and buttons
- * to tick it off or dismiss it. Then a project in trouble, the projects gone
+ * to tick it off or dismiss it. Then a plan within two weeks of its date with
+ * things still to arrange, a project in trouble, the projects gone
  * quiet as one line, a pass that failed and the mini not answering.
  */
 export function NeedsYou() {
@@ -65,6 +66,20 @@ export function NeedsYou() {
                       <X aria-hidden size={18} />
                     </button>
                   </div>
+                </li>
+              );
+            }
+            if (item.kind === "plan_due") {
+              return (
+                <li key={`plan:${item.slug}`}>
+                  <Link href={`/projects/${item.slug}`} className="font-medium underline underline-offset-2">
+                    {item.title}
+                  </Link>{" "}
+                  is {fromToday(item.date)}
+                  <span className="text-foreground/60"> · {showDay(item.date)}</span>
+                  <p className="mt-1 text-sm text-foreground/70">
+                    {item.open === 1 ? "One thing is" : `${item.open} things are`} still to arrange.
+                  </p>
                 </li>
               );
             }

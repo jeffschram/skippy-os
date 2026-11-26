@@ -32,15 +32,16 @@ Write the plan in the chat and get a yes before saving anything, unless the owne
 - **Dates:** set `dueAt` only where there is a real deadline, a booking that sells out or a date someone else set. Set the project's `targetDate` when the owner gave one. Never spread made-up dates across the tasks to make the plan look scheduled.
 - **Waiting:** a task that depends on someone else gets status "waiting" and `waitingOn` with who or what.
 - **Size:** ten tasks is a lot. If the first phase needs more, it is two phases.
+- **Plans:** something elaborate built around a date, such as a trip, a holiday gathering or a birthday weekend, is a project of `kind` "plan". Its `targetDate` is the day (the last day, for several). It needs no phases and no status reports: its tasks are what is left to book or decide, and it is set once they are all done. Its bookings, with their times and places, go in as events filed under it (`upsert_event` with `project`), which make its itinerary. A single dinner or appointment is just an event, not a plan.
 
 ## Saving it
 
 In this order, so that nothing points at something that does not exist yet:
 
-1. The project: `upsert_project`. For a new one give `title`, a `summary` of one or two sentences, and `kind` ("code" for software, otherwise "general"). For an existing one pass its `slug` and only what changes. Do not replace `notesPad` unless the owner asked; it holds their notes and any brief.
+1. The project: `upsert_project`. For a new one give `title`, a `summary` of one or two sentences, and `kind` ("code" for software, "plan" for something built around a date, otherwise "general"). For an existing one pass its `slug` and only what changes. Do not replace `notesPad` unless the owner asked; it holds their notes and any brief.
 2. The phases, first to last: `create_phase` for each new one, with a `description` of one sentence. Mark the phase that is starting "active" with `update_phase`. Each call returns the phase's id.
 3. The tasks: `upsert_task` with `project` and the `phaseId` of their phase.
-4. One status report: `record_project_status`, saying in a sentence or two that the plan was written and what comes first, with `milestone` set to "Plan written".
+4. One status report, except for a plan: `record_project_status`, saying in a sentence or two that the plan was written and what comes first, with `milestone` set to "Plan written".
 
 If a call is refused, read the refusal: it says what was wrong. Fix that one thing; do not start again from the top, or the phases will be doubled.
 

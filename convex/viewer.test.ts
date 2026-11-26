@@ -93,6 +93,47 @@ describe("what needs the owner", () => {
   });
 });
 
+describe("plans", () => {
+  it("move from intention to planning to set to happened by their tasks and date, never go stale, and show on Home when close with things open", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const { slug } = await owner.mutation(api.viewer.createProject, { title: "Thanksgiving", kind: "plan", targetDate: "2026-12-03" });
+    const stage = async () => (await owner.query(api.viewer.project, { slug, now: Date.now() }))!.project.stage;
+    const planItems = async () => (await owner.query(api.viewer.needsYou, { now: Date.now() })).items.filter((item) => item.kind === "plan_due");
+    expect(await stage()).toBe("intention");
+
+    const hotel = (await asClaude(t, "upsert_task", { title: "Book the hotel", project: slug })) as { task: { id: string } };
+    await asClaude(t, "upsert_task", { title: "Pick the pie", project: slug });
+    expect(await stage()).toBe("planning");
+    expect(await planItems()).toEqual([{ kind: "plan_due", slug, title: "Thanksgiving", date: "2026-12-03", open: 2 }]);
+
+    await asClaude(t, "complete_task", { id: hotel.task.id });
+    const pie = (await owner.query(api.viewer.project, { slug, now: Date.now() }))!.openTasks[0];
+    await asClaude(t, "complete_task", { id: pie.id });
+    expect(await stage()).toBe("set");
+    expect(await planItems()).toEqual([]);
+
+    // A month on, with no status report ever: past, and not stale.
+    vi.setSystemTime(new Date("2026-12-26T17:00:00Z"));
+    expect(await stage()).toBe("happened");
+    const board = await owner.query(api.viewer.board, { now: Date.now() });
+    expect(board.projects[0]).toMatchObject({ kind: "plan", stage: "happened", stale: false, targetDate: "2026-12-03" });
+
+    // An ordinary project can be turned into a plan from its page.
+    await owner.mutation(api.viewer.createProject, { title: "Birthday in the city" });
+    await owner.mutation(api.viewer.saveProject, { slug: "birthday-in-the-city", kind: "plan" });
+    expect((await owner.query(api.viewer.project, { slug: "birthday-in-the-city", now: Date.now() }))!.project.stage).toBe("intention");
+  });
+
+  it("are not on Home when their date is more than two weeks off", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    await owner.mutation(api.viewer.createProject, { title: "Spring trip", kind: "plan", targetDate: "2027-03-20" });
+    await asClaude(t, "upsert_task", { title: "Book flights", project: "spring-trip" });
+    expect((await owner.query(api.viewer.needsYou, { now: Date.now() })).items).toEqual([]);
+  });
+});
+
 describe("the web app's queries", () => {
   it("give nothing to someone who is not signed in", async () => {
     const t = start();
