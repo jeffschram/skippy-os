@@ -42,11 +42,11 @@ export const projectHealth = v.union(v.literal("on_track"), v.literal("at_risk")
 /**
  * Code is a type of its own: a software project with a folder, the nightly
  * sweep and Claude Code reporting to it. Every other project is "general",
- * and `finish` says how it ends. "plan" is the older name for a general
- * project that ends on a date; it is read as one, and the stored ones are
- * moved across (see `projects.ts`).
+ * and `finish` says how it ends.
  */
-export const projectKind = v.union(v.literal("code"), v.literal("general"), v.literal("plan"));
+export const projectKind = v.union(v.literal("code"), v.literal("general"));
+/** What a caller may send as a kind: "plan" is the older name for a general project that ends on a date. */
+export const projectKindSent = v.union(projectKind, v.literal("plan"));
 /**
  * How a general project ends: "ongoing" never does (the house, the car,
  * health); "date" ends on its date, which is fixed (a trip, a party);

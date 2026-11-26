@@ -16,7 +16,7 @@ import {
 import { describeFile, filesOn } from "./files";
 import { detach } from "./lib/remove";
 import { indexProject } from "./lib/searchIndex";
-import { actor, claudeHome, phaseStatus, projectFinish, projectHealth, projectKind, projectPart, projectStatus } from "./schema";
+import { actor, claudeHome, phaseStatus, projectFinish, projectHealth, projectKindSent, projectPart, projectStatus } from "./schema";
 import { money, readParts } from "./projectParts";
 import { eventOverAt, presentEvent } from "./agenda";
 import { presentTask } from "./tasks";
@@ -62,13 +62,9 @@ export async function projectBySlug(ctx: QueryCtx, slug: string): Promise<Doc<"p
 
 export type Finish = "ongoing" | "date" | "tasks";
 
-/**
- * How a project ends. Undefined for code, which is a type of its own. A
- * stored "plan" is the older name for a project that ends on a date.
- */
+/** How a project ends. Undefined for code, which is a type of its own. */
 export function finishOf(project: Pick<Doc<"projects">, "kind" | "finish">): Finish | undefined {
   if (project.kind === "code") return undefined;
-  if (project.kind === "plan") return "date";
   return project.finish ?? "tasks";
 }
 
@@ -121,7 +117,7 @@ export function presentProject(project: Doc<"projects">, settings: { timeZone: s
     slug: project.slug,
     title: project.title,
     summary: project.summary,
-    kind: project.kind === "plan" ? ("general" as const) : project.kind,
+    kind: project.kind,
     /** How it ends: "ongoing", "date" or "tasks". Not given for code. */
     finish: finishOf(project),
     roughDate: project.roughDate,
@@ -148,7 +144,7 @@ export const upsert = internalMutation({
     title: v.optional(v.string()),
     summary: nullable(v.string()),
     description: nullable(v.string()),
-    kind: v.optional(projectKind),
+    kind: v.optional(projectKindSent),
     finish: v.optional(projectFinish),
     roughDate: nullable(v.string()),
     parts: v.optional(v.array(projectPart)),
@@ -191,10 +187,8 @@ export const upsert = internalMutation({
       : null;
 
     if (existing) {
-      // A stored plan made general without saying how it ends still ends on its date.
-      if (existing.kind === "plan" && fields.kind === "general" && fields.finish === undefined) fields.finish = "date";
-      // Made to end on a date, or moved across from a plan, it gains a schedule to hold its itinerary.
-      if (fields.finish === "date" && (finishOf(existing) !== "date" || existing.kind === "plan") && fields.parts === undefined && !existing.parts?.includes("schedule")) {
+      // Made to end on a date, it gains a schedule to hold its itinerary.
+      if (fields.finish === "date" && finishOf(existing) !== "date" && fields.parts === undefined && !existing.parts?.includes("schedule")) {
         fields.parts = [...(existing.parts ?? []), "schedule"];
       }
       const { patch, diff } = buildPatch(existing, fields);

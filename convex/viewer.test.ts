@@ -139,7 +139,7 @@ describe("projects that end on a date", () => {
     expect((await owner.query(api.viewer.needsYou, { now: Date.now() })).items).toEqual([]);
   });
 
-  it("take a project stored or sent as a plan as one that ends on a date", async () => {
+  it("take a project sent as a plan, by an older client, as one that ends on a date", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });
     // An older client still sends kind "plan".
@@ -147,23 +147,6 @@ describe("projects that end on a date", () => {
     const sent = (await owner.query(api.viewer.project, { slug: "lake-weekend", now: Date.now() }))!.project;
     expect(sent).toMatchObject({ kind: "general", finish: "date", parts: ["schedule"], stage: "intention" });
 
-    // One stored as a plan reads as one that ends on a date, and moving it across keeps that.
-    await t.run(async (ctx) => {
-      await ctx.db.insert("projects", {
-        title: "Old plan",
-        slug: "old-plan",
-        kind: "plan",
-        status: "active",
-        notesPad: "",
-        createdBy: { kind: "user" },
-        updatedBy: { kind: "user" },
-        updatedAt: Date.now(),
-      });
-    });
-    expect((await owner.query(api.viewer.project, { slug: "old-plan", now: Date.now() }))!.project).toMatchObject({ kind: "general", finish: "date" });
-    await owner.mutation(api.viewer.saveProject, { slug: "old-plan", kind: "general" });
-    const moved = await t.run(async (ctx) => ctx.db.query("projects").withIndex("by_slug", (q) => q.eq("slug", "old-plan")).unique());
-    expect(moved).toMatchObject({ kind: "general", finish: "date", parts: ["schedule"] });
   });
 });
 
