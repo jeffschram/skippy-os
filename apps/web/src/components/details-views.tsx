@@ -8,7 +8,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { eventTime, type EventItem, type RecurrenceItem } from "./calendar-parts";
+import { eventTime, WorkMark, type EventItem, type RecurrenceItem } from "./calendar-parts";
 import { showDay, showTime, Tag, words } from "./parts";
 import { PlaceFact } from "./place";
 import { useNow } from "./use-now";
@@ -243,7 +243,10 @@ export function CompanyView({ company }: { company: Company }) {
 export function EventView({ event }: { event: EventItem }) {
   return (
     <div className="space-y-4">
-      <Title tags={event.status === "cancelled" ? <Tag>cancelled</Tag> : undefined}>{event.title}</Title>
+      <Title tags={event.status === "cancelled" ? <Tag>cancelled</Tag> : undefined}>
+        {event.work ? <WorkMark className="mr-2 size-5 align-[-0.1em]" /> : null}
+        {event.title}
+      </Title>
       <Facts
         rows={[
           ["When", `${showDay(event.start.date)}, ${eventTime(event)}`],
@@ -259,7 +262,11 @@ export function EventView({ event }: { event: EventItem }) {
         ]}
       />
       <Prose>{event.description}</Prose>
-      {event.origin !== "skippy" ? (
+      {event.work ? (
+        <p className="text-sm text-foreground/60">
+          A work meeting, copied from the end-of-day work schedule email, so it is changed in Outlook; only its project can be set here.
+        </p>
+      ) : event.origin !== "skippy" ? (
         <p className="text-sm text-foreground/60">
           This is a copy from your calendar, so it is changed there; only its project can be set here.
           {event.link ? (

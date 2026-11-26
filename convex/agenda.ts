@@ -69,6 +69,9 @@ export function eventOverAt(event: Pick<Doc<"calendarEvents">, "startAt" | "endA
   return event.startAt + HOUR_MS;
 }
 
+/** The calendar id the work schedule email's meetings are kept under. */
+export const WORK_CALENDAR_ID = "m365-work";
+
 export function presentEvent(event: Doc<"calendarEvents">, projectSlug: string | undefined, timeZone: string) {
   return {
     id: event._id,
@@ -86,6 +89,8 @@ export function presentEvent(event: Doc<"calendarEvents">, projectSlug: string |
     /** "skippy" events can be changed here. "google" ones are a copy of the owner's calendar. */
     origin: event.origin,
     link: event.htmlLink,
+    /** A work meeting, copied from the end-of-day work schedule email. */
+    work: event.calendarId === WORK_CALENDAR_ID,
     project: projectSlug,
   };
 }

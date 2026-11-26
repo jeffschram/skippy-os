@@ -190,6 +190,20 @@ describe("the calendar copy", () => {
     expect(seen.runs[1].made[0]).toMatchObject({ source: "google_calendar", action: "created", record: { type: "event" } });
   });
 
+  it("marks meetings from the work schedule email as work", async () => {
+    const t = start();
+    const owner = t.withIdentity({ subject: OWNER });
+    const runId = await begin(t);
+    await asClaude(t, "sync_calendar", { runId, ...stretch, events: [dentist] });
+    await asClaude(t, "sync_calendar", { runId, calendarId: "m365-work", from: "2026-11-26", to: "2026-12-03", events: [{ ...trip, id: "w1", title: "Planning" }] });
+    await asClaude(t, "record_ingestion_run", { runId, status: "finished", sources: [] });
+    const calendar = await owner.query(api.viewer.calendar, { now: NOW });
+    expect(calendar.events.map((event) => [event.title, event.work])).toEqual([
+      ["Planning", true],
+      ["Dentist", false],
+    ]);
+  });
+
   it("does not copy again an event whose copy the owner undid", async () => {
     const t = start();
     const owner = t.withIdentity({ subject: OWNER });

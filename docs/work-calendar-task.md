@@ -59,5 +59,6 @@ The mini's passes run on the hour at 9, 11, 1, 3, 5 and 7. A brief sent at 4:30 
 
 - Companies often block or flag mail sent to personal addresses. If the email never arrives, or IT asks about it, that is why.
 - The events are kept apart under the calendar id "m365-work", so the Google Calendar passes never cancel them, and this email never touches Google events.
+- Work meetings show the firm's pyramid mark beside their title, on Home, the Agenda and in their window.
 - An event you undo on Skippy OS is not copied again.
 - To stop it: take the email step out of the brief task. Meetings already copied stay until removed on Skippy OS.
